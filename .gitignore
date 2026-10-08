@@ -1,0 +1,24 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Node
+node_modules/
+
+# Environment
+.env
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# Root-level package artifacts (monorepo root)
+/package-lock.json
+/node_modules/
