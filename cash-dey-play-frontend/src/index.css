@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #0b0c0e;
+    color: #F5F5F0;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+.font-bebas {
+  font-family: 'Bebas Neue', 'Inter', sans-serif;
+  letter-spacing: 0.05em;
+}
+
+/* Subtle faint Whot-card shapes background pattern overlay */
+.whot-pattern {
+  background-color: #111214;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 0),
+                    radial-gradient(circle at 80% 20%, rgba(122, 43, 226, 0.08) 0%, transparent 40%),
+                    radial-gradient(circle at 10% 80%, rgba(0, 184, 95, 0.06) 0%, transparent 50%);
+  background-size: 24px 24px, 100% 100%, 100% 100%;
+}
+
+.felt-surface {
+  background-color: #111315;
+  background-image: 
+    radial-gradient(ellipse at 50% 30%, rgba(20, 36, 28, 0.45) 0%, transparent 70%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.015) 0%, transparent 100%),
+    repeating-linear-gradient(45deg, rgba(255,255,255,0.006) 0px, rgba(255,255,255,0.006) 1px, transparent 1px, transparent 3px);
+}
+
+.inner-table-bevel {
+  box-shadow: inset 0 0 45px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.card-shadow {
+  box-shadow: 0 8px 18px -3px rgba(0, 0, 0, 0.65), 0 2px 5px rgba(0, 0, 0, 0.4);
+}
+
+.active-card-shadow {
+  box-shadow: 0 0 0 2px #00FF66, 0 0 22px rgba(0, 255, 102, 0.55), 0 12px 28px rgba(0,0,0,0.85);
+}
+
+.glow-orange {
+  box-shadow: 0 4px 20px -2px rgba(255, 90, 54, 0.45);
+}
+
+.glow-purple-ring {
+  box-shadow: 0 0 0 2px #7A2BE2, 0 0 12px 1px rgba(122, 43, 226, 0.65);
+}
+
+.glow-radar {
+  filter: drop-shadow(0 0 10px rgba(0, 230, 118, 0.75)) drop-shadow(0 0 20px rgba(0, 184, 95, 0.45));
+}
+
+.avatar-glow {
+  box-shadow: 0 0 0 2px #00E676, 0 0 12px 2px rgba(0, 230, 118, 0.65);
+}
+
+.play-glow {
+  box-shadow: 0 0 0 1.5px #FF5A36, 0 0 10px rgba(255, 90, 54, 0.35);
+}
+
+.timer-glow {
+  box-shadow: 0 0 18px rgba(0, 230, 90, 0.45), inset 0 0 6px rgba(0, 230, 90, 0.3);
+}
+
+.win-glow {
+  text-shadow: 0 0 25px rgba(0, 230, 118, 0.45), 0 0 10px rgba(255, 255, 255, 0.6);
+}
+
+.gold-badge-glow {
+  filter: drop-shadow(0 0 8px rgba(242, 183, 5, 0.5));
+}
+
+/* Hide scrollbar for clean mobile experience */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+

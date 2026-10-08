@@ -1,0 +1,6 @@
+{
+  "name": "Cash Dey Play",
+  "description": "Nigeria's national Whot card game Telegram Mini App with daily login streaks, tasks, rewarded video boosts, and monthly leaderboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
