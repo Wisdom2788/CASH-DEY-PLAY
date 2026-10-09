@@ -81,7 +81,7 @@ export default function AppLayout() {
               margin: '12px',
               pointerEvents: 'auto',
             }}
-            className="!absolute !w-full !max-w-[390px] !left-1/2 !-translate-x-1/2 !top-[90px] !px-3"
+            className="!top-[90px]"
           />
         </div>
       </main>
