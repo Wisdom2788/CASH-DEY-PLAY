@@ -5,6 +5,7 @@ import { LoadingScreen } from './components/shared/LoadingScreen';
 import { useAuthStore } from './store/auth.store';
 import { postService } from './api/client';
 import { initSocket, disconnectSocket } from './config/socket.config';
+import { initializeLoginStreak } from './qualification/login-streak/login-streak-engine';
 
 import { SkeletonTheme } from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
@@ -19,8 +20,9 @@ const queryClient = new QueryClient({
 });
 
 export default function App() {
-  const { setAuthData, token, clearAuth } = useAuthStore();
+  const { setAuthData, syncStreakState, token, clearAuth } = useAuthStore();
   const [isAppReady, setIsAppReady] = useState(false);
+  const [isAuthenticating, setIsAuthenticating] = useState(true);
   const [initError, setInitError] = useState<string | null>(null);
 
   // Initialize App and Auth
@@ -41,34 +43,57 @@ export default function App() {
 
     const authenticateUser = async () => {
       try {
+        setIsAuthenticating(true);
         const response = await postService<
           { initData: string },
           { token: string; user: import('./types/interfaces/user.types').UserProfile }
         >('/auth/telegram/login', { initData }, { silent: true });
 
         setAuthData(response.user, response.token);
+
+        // Initialize a default login streak so the dashboard renders
+        // This will be overwritten by real data once the streak API responds
+        const today = new Date().toISOString().slice(0, 10);
+        syncStreakState(initializeLoginStreak(today));
       } catch (err) {
         console.error('[App] Authentication failed:', err);
         setInitError("Authentication failed. Please reopen the app in Telegram.");
         clearAuth();
+      } finally {
+        setIsAuthenticating(false);
       }
     };
 
     authenticateUser();
-  }, [setAuthData, clearAuth]);
+  }, [setAuthData, syncStreakState, clearAuth]);
 
-  // Initialize Socket when authenticated
+  // Initialize Socket when authenticated — only if the backend has Socket.io set up
   useEffect(() => {
     if (token) {
-      // Initialize socket connection using the auth token
-      const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      initSocket(token, backendUrl);
+      const backendUrl = (import.meta.env.VITE_API_URL || 'http://localhost:3000/api').replace(/\/api$/, '');
+      try {
+        initSocket(token, backendUrl);
+      } catch (e) {
+        // Socket.io server may not exist yet — not a fatal error
+        console.warn('[App] Socket initialization skipped:', e);
+      }
 
       return () => {
         disconnectSocket();
       };
     }
   }, [token]);
+
+  // Show loading while authenticating
+  if (isAuthenticating) {
+    return (
+      <div className="flex justify-center items-start min-h-screen p-0 sm:py-4 select-none bg-[#0b0c0e]">
+        <main className="w-full max-w-[390px] h-screen sm:h-[844px] max-h-[844px] bg-[#111214] whot-pattern relative overflow-hidden shadow-2xl sm:rounded-[44px] border-0 sm:border-[8px] sm:border-[#222429] flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#00B39E]"></div>
+        </main>
+      </div>
+    );
+  }
 
   if (initError) {
     return (

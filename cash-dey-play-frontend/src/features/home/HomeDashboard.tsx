@@ -28,7 +28,20 @@ export default function HomeDashboard() {
     }
   }, [tasksState, resetTimer]);
 
-  if (!user || !loginStreak) return null;
+  if (!user) return null;
+
+  // Safe defaults if loginStreak hasn't been fetched/initialized yet
+  const streak = loginStreak ?? {
+    currentStreakDays: 0,
+    hasUsedGraceDay: false,
+    claimedMilestones: [] as number[],
+    windowStartDate: new Date().toISOString().slice(0, 10),
+    lastLoginDate: new Date().toISOString().slice(0, 10),
+    totalWindowDays: 30,
+    isWindowCompleted: false,
+    graceDayDate: null,
+    history: [] as string[],
+  };
 
   const tasks = tasksState?.tasks ?? [];
   const completedTaskCount = tasks.filter((t) => t.isCompleted).length;
@@ -49,11 +62,11 @@ export default function HomeDashboard() {
 
   const handleStreakMilestoneClick = (day: number) => {
     soundEffects.playButtonClick();
-    if (loginStreak.claimedMilestones.includes(day)) {
+    if (streak.claimedMilestones.includes(day)) {
       showToast(`Day ${day} milestone already claimed!`, 'info');
       return;
     }
-    if (loginStreak.currentStreakDays >= day) {
+    if (streak.currentStreakDays >= day) {
       const res = claimStreakReward(day);
       if (res.success) {
         showToast(
@@ -132,20 +145,20 @@ export default function HomeDashboard() {
           <div className="text-[20px] font-bold">
             Day{' '}
             <span className="text-[#F2B705] text-[23px] font-extrabold ml-0.5">
-              {loginStreak.currentStreakDays}
+              {streak.currentStreakDays}
             </span>
           </div>
           <span className="text-[11px] text-[#78a58f] font-medium">
-            {loginStreak.hasUsedGraceDay ? 'Grace day used' : 'Grace day available'}
+            {streak.hasUsedGraceDay ? 'Grace day used' : 'Grace day available'}
           </span>
         </div>
 
         {/* Streak Days Horizontal Strip */}
         <div className="flex items-center justify-between pt-0.5">
           {streakStripDays.map((dayNum) => {
-            const isCompleted = dayNum < loginStreak.currentStreakDays;
-            const isCurrent = dayNum === loginStreak.currentStreakDays;
-            const isNext = dayNum === loginStreak.currentStreakDays + 1;
+            const isCompleted = dayNum < streak.currentStreakDays;
+            const isCurrent = dayNum === streak.currentStreakDays;
+            const isNext = dayNum === streak.currentStreakDays + 1;
             const isMilestone = dayNum === 14;
 
             if (isMilestone) {

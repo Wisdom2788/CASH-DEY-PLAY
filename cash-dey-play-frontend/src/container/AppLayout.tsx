@@ -2,7 +2,7 @@ import React from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import routes from '../config/routes.config';
-import { StatusBar } from '../components/shared/StatusBar';
+// import { StatusBar } from '../components/shared/StatusBar';
 import { TelegramHeader } from '../components/shared/TelegramHeader';
 import { BottomNav } from '../components/shared/BottomNav';
 import { RewardedAdModal } from '../components/shared/RewardedAdModal';
@@ -28,7 +28,7 @@ export default function AppLayout() {
   return (
     <div className="flex justify-center items-start min-h-screen p-0 sm:py-4 select-none bg-[#0b0c0e]">
       <main className="w-full max-w-[390px] h-screen sm:h-[844px] max-h-[844px] bg-[#111214] whot-pattern relative overflow-hidden flex flex-col justify-between shadow-2xl sm:rounded-[44px] border-0 sm:border-[8px] sm:border-[#222429]">
-        <StatusBar />
+        {/* <StatusBar /> */}
         <TelegramHeader
           title={getHeaderTitle()}
           showBack={location.pathname !== routes.home}
@@ -81,7 +81,7 @@ export default function AppLayout() {
               margin: '12px',
               pointerEvents: 'auto',
             }}
-            className="!absolute !w-full !max-w-[390px] !left-1/2 !-translate-x-1/2 !top-0 !px-3"
+            className="!absolute !w-full !max-w-[390px] !left-1/2 !-translate-x-1/2 !top-[90px] !px-3"
           />
         </div>
       </main>

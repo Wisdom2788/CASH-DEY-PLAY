@@ -73,6 +73,7 @@ export function createApp(dependencies: AppDependencies): Express {
       origin: dependencies.corsOrigin,
       allowedHeaders: [
         "Content-Type",
+        "Authorization",
         "Idempotency-Key",
         "X-Telegram-Init-Data",
         "X-Dev-Telegram-User-Id",
