@@ -1,7 +1,7 @@
 import { type NextFunction, type Request, type Response } from "express";
 import jwt from "jsonwebtoken";
 import {
-  DEV_TELEGRAM_USER_ID_HEADER,
+  // DEV_TELEGRAM_USER_ID_HEADER,
   TelegramAuthError,
   type AuthenticatedTelegramUser,
 } from "../telegram/verify-telegram-init-data";
@@ -34,15 +34,7 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions) {
         return next();
       }
 
-      const devUserId = req.header(DEV_TELEGRAM_USER_ID_HEADER);
-      if (options.allowDevAuthBypass && devUserId !== undefined && devUserId.length > 0) {
-        req.auth = {
-          telegramUserId: devUserId,
-          firstName: "Dev",
-          username: null,
-        };
-        return next();
-      }
+
 
       const authHeader = req.header("Authorization");
       if (!authHeader || !authHeader.startsWith("Bearer ")) {
