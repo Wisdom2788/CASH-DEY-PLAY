@@ -80,11 +80,26 @@ export default function LeaderboardView() {
           <div className="bg-[#0D2D1E] border border-[#00B85F] rounded-xl p-3 flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <span className="font-bebas text-2xl text-[#F2B705]">#{user?.monthlyRank}</span>
-              <div className="w-10 h-10 rounded-full border border-[#00B85F] overflow-hidden">
-                <img alt="User" className="w-full h-full object-cover" src={user?.avatarUrl} />
+              <div className="w-10 h-10 rounded-full border border-[#00B85F] overflow-hidden bg-[#1A1B1E] flex items-center justify-center">
+                {user?.avatarUrl ? (
+                  <img
+                    alt={user?.username || user?.firstName || 'User'}
+                    className="w-full h-full object-cover"
+                    src={user.avatarUrl}
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <span className="text-sm font-bold text-white">
+                    {(user?.username || user?.firstName || 'U').charAt(0).toUpperCase()}
+                  </span>
+                )}
               </div>
               <div>
-                <span className="font-bold text-xs text-white block">{user?.username} (You)</span>
+                <span className="font-bold text-xs text-white block">
+                  {user?.username || user?.firstName || 'Player'} (You)
+                </span>
                 <span className="text-[10px] text-[#00E676]">
                   {user?.matchesWonMonth} Wins · {user?.activeTaskDaysCount}/20 Task Days
                 </span>

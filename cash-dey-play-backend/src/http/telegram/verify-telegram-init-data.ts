@@ -8,6 +8,7 @@ export interface AuthenticatedTelegramUser {
   readonly telegramUserId: string;
   readonly firstName: string;
   readonly username: string | null;
+  readonly photoUrl?: string | null;
 }
 
 export class TelegramAuthError extends Error {
@@ -21,6 +22,7 @@ interface TelegramUserPayload {
   readonly id: number;
   readonly first_name?: string;
   readonly username?: string;
+  readonly photo_url?: string;
 }
 
 export function verifyTelegramInitData(
@@ -89,6 +91,7 @@ export function verifyTelegramInitData(
     telegramUserId: String(userPayload.id),
     firstName: userPayload.first_name ?? "",
     username: userPayload.username ?? null,
+    photoUrl: userPayload.photo_url ?? null,
   };
 }
 

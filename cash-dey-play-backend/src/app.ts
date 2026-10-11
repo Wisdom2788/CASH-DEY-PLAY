@@ -94,6 +94,7 @@ export function createApp(dependencies: AppDependencies): Express {
     createAuthMiddleware({
       jwtSecret: dependencies.jwtSecret,
       allowDevAuthBypass: dependencies.allowDevAuthBypass,
+      telegramBotToken: dependencies.telegramBotToken,
     }),
   );
   app.use(
@@ -124,6 +125,9 @@ export function createApp(dependencies: AppDependencies): Express {
   app.use("/api/matches", createMatchRouter(matchController));
   app.use("/api/premium", createPremiumRouter(premiumController));
   app.use("/api/leaderboards", createLeaderboardRouter(leaderboardController));
+  // Backward-compatible aliases for qualification leaderboard endpoints
+  app.get("/api/qualification/monthly-leaderboard", leaderboardController.getGameLeaderboard);
+  app.get("/api/qualification/community-leaderboard", leaderboardController.getCommunityLeaderboard);
   app.use("/api", createQualificationRouter(loginStreakController, monthlyLeaderboardController));
   app.use(errorHandler);
 

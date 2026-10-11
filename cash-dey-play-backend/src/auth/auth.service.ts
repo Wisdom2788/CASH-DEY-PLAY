@@ -20,6 +20,7 @@ export class AuthService {
     if (this.allowDevAuthBypass && devUserId) {
       telegramId = parseInt(devUserId, 10);
       firstName = "Dev";
+      username = "DevPlayer";
     } else {
       if (!initData) {
         throw new TelegramAuthError("initData is required");
@@ -28,7 +29,7 @@ export class AuthService {
       telegramId = parseInt(tgUser.telegramUserId, 10);
       firstName = tgUser.firstName;
       username = tgUser.username;
-      // You could extract photo_url if needed from initData
+      avatarUrl = tgUser.photoUrl ?? null;
     }
 
     const user = await this.userRepository.upsertTelegramUser(telegramId, firstName, username, avatarUrl);

@@ -4,6 +4,7 @@ import {
   PlayerLeaderboardStanding,
 } from '../qualification/monthly-leaderboard/monthly-leaderboard-eligibility';
 import { CommunityLeaderboardEntry } from '../types/interfaces/leaderboard.types';
+import { API_ROUTES } from '../config/constant.config';
 import { getService } from './client';
 
 export const LeaderboardQueryKeys = {
@@ -16,7 +17,7 @@ export const useGetMonthlyGameLeaderboard = (
 ) => {
   return useQuery<PlayerLeaderboardStanding[], AxiosError>({
     queryKey: [LeaderboardQueryKeys.gameLeaderboard],
-    queryFn: () => getService<PlayerLeaderboardStanding[]>('/qualification/monthly-leaderboard'),
+    queryFn: () => getService<PlayerLeaderboardStanding[]>(API_ROUTES.LEADERBOARD_GAME),
     ...queryOptions,
   });
 }
@@ -26,7 +27,8 @@ export const useGetCommunityLeaderboard = (
 ) => {
   return useQuery<CommunityLeaderboardEntry[], AxiosError>({
     queryKey: [LeaderboardQueryKeys.communityLeaderboard],
-    queryFn: () => getService<CommunityLeaderboardEntry[]>('/qualification/community-leaderboard'),
+    queryFn: () => getService<CommunityLeaderboardEntry[]>(API_ROUTES.LEADERBOARD_COMMUNITY),
     ...queryOptions,
   });
 }
+

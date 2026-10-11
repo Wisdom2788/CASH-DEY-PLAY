@@ -44,12 +44,21 @@ export default function ProfileView() {
       {/* Header Profile Card */}
       <section className="bg-[#1A1B1E] border border-[#303338] rounded-2xl p-4 flex items-center space-x-3.5">
         <div className="relative">
-          <div className="w-16 h-16 rounded-full p-[2px] glow-purple-ring bg-gradient-to-tr from-[#7A2BE2] via-[#b845ed] to-[#7A2BE2]">
-            <img
-              alt={`${user.username} Avatar`}
-              className="w-full h-full rounded-full object-cover border-2 border-[#111214]"
-              src={user.avatarUrl}
-            />
+          <div className="w-16 h-16 rounded-full p-[2px] glow-purple-ring bg-gradient-to-tr from-[#7A2BE2] via-[#b845ed] to-[#7A2BE2] flex items-center justify-center">
+            {user.avatarUrl ? (
+              <img
+                alt={`${user.username || user.firstName || 'Player'} Avatar`}
+                className="w-full h-full rounded-full object-cover border-2 border-[#111214]"
+                src={user.avatarUrl}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            ) : (
+              <div className="w-full h-full rounded-full bg-[#1A1B1E] border-2 border-[#111214] flex items-center justify-center text-white font-bold text-xl">
+                {(user.username || user.firstName || 'P').charAt(0).toUpperCase()}
+              </div>
+            )}
           </div>
           {user.isPremium && (
             <div className="absolute -bottom-1 -right-1 bg-[#F2B705] text-[#111214] text-[9px] font-black px-1.5 py-0.5 rounded-full shadow">
@@ -60,7 +69,7 @@ export default function ProfileView() {
 
         <div className="flex-1">
           <div className="flex items-center space-x-2">
-            <h3 className="font-bold text-base text-white">{user.username}</h3>
+            <h3 className="font-bold text-base text-white">{user.username || user.firstName || 'Player'}</h3>
             {user.isPhoneVerified && (
               <span className="text-[10px] bg-[#0D2D1E] text-[#00E676] px-1.5 py-0.5 rounded border border-[#00B85F]/40 font-semibold">
                 Verified ✓

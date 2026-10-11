@@ -8,6 +8,7 @@ import { useUIStore } from '../../store/ui.store';
 import { soundEffects } from '../../helpers/audio.helpers';
 import Skeleton from 'react-loading-skeleton';
 import { useCountdown } from '../../hooks/useCountdown';
+import {getTimeMessage} from '../../helpers/greetingMessage.helpers';
 
 export default function HomeDashboard() {
   const { user, loginStreak, claimStreakReward } = useAuthStore();
@@ -91,18 +92,36 @@ export default function HomeDashboard() {
     });
   };
 
-  // Streak days strip around day 14 (Days 8 to 17)
-  const streakStripDays = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
+  // Dynamic streak strip: 7-day milestone window matching current streak progression
+  const currentStreak = Math.max(1, streak.currentStreakDays);
+  let streakStripDays: number[];
+  let milestoneDay: number;
+
+  if (currentStreak <= 7) {
+    streakStripDays = [1, 2, 3, 4, 5, 6, 7];
+    milestoneDay = 7;
+  } else if (currentStreak <= 14) {
+    streakStripDays = [8, 9, 10, 11, 12, 13, 14];
+    milestoneDay = 14;
+  } else if (currentStreak <= 21) {
+    streakStripDays = [15, 16, 17, 18, 19, 20, 21];
+    milestoneDay = 21;
+  } else {
+    streakStripDays = [22, 23, 24, 25, 26, 27, 28];
+    milestoneDay = 28;
+  }
+
+  const displayName = user.username || user.firstName || 'Player';
 
   return (
     <div className="flex-1 overflow-y-auto no-scrollbar px-4 pt-1 pb-4 text-[#F5F5F0]">
       {/* BEGIN: GreetingRow */}
       <section className="flex items-center justify-between mt-1 mb-3.5 px-1" data-purpose="user-greeting">
         <div>
-          <p className="text-[13px] text-[#9A9A9A] font-medium">Good evening,</p>
+          <p className="text-[13px] text-[#9A9A9A] font-medium">{getTimeMessage()},</p>
           <div className="flex items-center gap-1.5">
-            <h2 className="text-[22px] font-bold text-[#F5F5F0] tracking-tight">{user.username}</h2>
-            <span className="text-xl">👋</span>
+            <h2 className="text-[22px] font-bold text-[#F5F5F0] tracking-tight">{displayName}</h2>
+            {/* <span className="text-xl">👋</span> */}
           </div>
         </div>
 
@@ -111,12 +130,21 @@ export default function HomeDashboard() {
           onClick={() => navigate(routes.profile)}
           className="relative cursor-pointer active:scale-95 transition"
         >
-          <div className="w-13 h-13 rounded-full p-[2px] glow-purple-ring bg-gradient-to-tr from-[#7A2BE2] via-[#b845ed] to-[#7A2BE2]">
-            <img
-              alt={`${user.username}'s profile avatar`}
-              className="w-12 h-12 rounded-full object-cover border-2 border-[#111214]"
-              src={user.avatarUrl}
-            />
+          <div className="w-13 h-13 rounded-full p-[2px] glow-purple-ring bg-gradient-to-tr from-[#7A2BE2] via-[#b845ed] to-[#7A2BE2] flex items-center justify-center">
+            {user.avatarUrl ? (
+              <img
+                alt={`${displayName}'s profile avatar`}
+                className="w-12 h-12 rounded-full object-cover border-2 border-[#111214]"
+                src={user.avatarUrl}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            ) : (
+              <div className="w-12 h-12 rounded-full bg-[#1A1B1E] border-2 border-[#111214] flex items-center justify-center text-white font-bold text-lg">
+                {displayName.charAt(0).toUpperCase()}
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -159,18 +187,29 @@ export default function HomeDashboard() {
             const isCompleted = dayNum < streak.currentStreakDays;
             const isCurrent = dayNum === streak.currentStreakDays;
             const isNext = dayNum === streak.currentStreakDays + 1;
-            const isMilestone = dayNum === 14;
+            const isMilestone = dayNum === milestoneDay;
 
             if (isMilestone) {
               return (
                 <button
                   key={dayNum}
                   onClick={() => handleStreakMilestoneClick(dayNum)}
-                  title="Day 14 Milestone Reward"
-                  className="w-7 h-7 rounded-full bg-[#F2B705] text-[#111214] font-bold flex items-center justify-center shadow-md text-[11px] active:scale-90 transition cursor-pointer"
+                  title={`Day ${dayNum} Milestone Reward`}
+                  className="w-8 h-8 rounded-full bg-[#F2B705] text-[#111214] font-bold flex items-center justify-center shadow-md text-[12px] active:scale-90 transition cursor-pointer"
                 >
                   <span>👑</span>
                 </button>
+              );
+            }
+
+            if (isCurrent) {
+              return (
+                <div
+                  key={dayNum}
+                  className="w-8 h-8 rounded-full bg-[#00B85F] text-[#111214] font-bold flex items-center justify-center text-[12px] shadow-sm border border-[#00E676]"
+                >
+                  {dayNum}
+                </div>
               );
             }
 
@@ -178,18 +217,18 @@ export default function HomeDashboard() {
               return (
                 <div
                   key={dayNum}
-                  className="w-7 h-7 rounded-full bg-[#0a482e] border-2 border-[#00B85F] flex items-center justify-center shadow-sm"
+                  className="w-8 h-8 rounded-full bg-[#0a482e] border-2 border-[#00B85F] flex items-center justify-center shadow-sm"
                 >
-                  <span className="text-[10px] font-bold text-[#00B85F]">🌿</span>
+                  <span className="text-[11px] font-bold text-[#00B85F]">🌿</span>
                 </div>
               );
             }
 
-            if (isCompleted || isCurrent) {
+            if (isCompleted) {
               return (
                 <div
                   key={dayNum}
-                  className="w-7 h-7 rounded-full bg-[#113a28] border border-[#1b4e37] flex items-center justify-center text-[11px] font-medium text-[#c0dec9]"
+                  className="w-8 h-8 rounded-full bg-[#113a28] border border-[#1b4e37] flex items-center justify-center text-[11px] font-medium text-[#c0dec9]"
                 >
                   {dayNum}
                 </div>
@@ -199,7 +238,7 @@ export default function HomeDashboard() {
             return (
               <div
                 key={dayNum}
-                className="w-7 h-7 rounded-full bg-[#15231c] border border-[#23352c] flex items-center justify-center text-[11px] text-[#71847a]"
+                className="w-8 h-8 rounded-full bg-[#15231c] border border-[#23352c] flex items-center justify-center text-[11px] text-[#71847a]"
               >
                 {dayNum}
               </div>
