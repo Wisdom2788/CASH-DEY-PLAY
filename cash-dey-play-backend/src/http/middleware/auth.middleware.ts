@@ -32,8 +32,12 @@ export function requireAuthenticatedUser(req: Request): AuthenticatedTelegramUse
 export function createAuthMiddleware(options: AuthMiddlewareOptions) {
   return (req: Request, _res: Response, next: NextFunction): void => {
     try {
-      // Exclude /auth/telegram/login from auth middleware if added globally
-      if (req.path === "/api/auth/telegram/login") {
+      // Exclude public/webhook endpoints from auth middleware
+      const normalizedPath = (req.originalUrl || req.path || "").split("?")[0];
+      if (
+        normalizedPath === "/api/auth/telegram/login" ||
+        (normalizedPath === "/api/tasks/optional-video" && req.method === "GET")
+      ) {
         return next();
       }
 

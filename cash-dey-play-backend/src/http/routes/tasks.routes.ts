@@ -6,6 +6,7 @@ export function createTasksRouter(tasksController: TasksController): Router {
   
   router.get("/state", tasksController.getState);
   router.post("/complete", tasksController.completeTask);
+  router.get("/optional-video", tasksController.watchOptionalVideo);
   router.post("/optional-video", tasksController.watchOptionalVideo);
   router.post("/skip-cooldown", tasksController.skipCooldown);
   router.post("/record-match", tasksController.recordMatch);

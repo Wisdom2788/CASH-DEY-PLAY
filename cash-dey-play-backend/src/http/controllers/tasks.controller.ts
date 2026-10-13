@@ -33,14 +33,31 @@ export class TasksController {
 
   watchOptionalVideo = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const userId = (req as any).userId;
+      // Support authenticated client (req.userId) or Adsgram webhook callback (req.query.userId)
+      let userId = (req as any).userId;
+      if (!userId && req.query.userId) {
+        const queryUserId = String(req.query.userId).trim();
+        userId = queryUserId.startsWith("tg_") ? queryUserId : `tg_${queryUserId}`;
+      }
+
+      if (!userId) {
+        // If neither is present, return 200 with an informational message for webhook ping tests
+        res.status(200).json({ ok: true, message: "Webhook reachable. No userId provided." });
+        return;
+      }
+
       const today = new Date().toISOString().slice(0, 10);
       const result = await this.tasksRepo.recordOptionalVideo(userId, today);
       if (!result.success) {
+        // For Adsgram webhook pings, we return 200 so Adsgram marks it delivered even if user reached daily cap
+        if (req.method === "GET") {
+          res.status(200).json({ ok: true, capped: true, message: "Daily optional video cap (5/5) reached" });
+          return;
+        }
         res.status(400).json({ message: "Daily optional video cap (5/5) reached" });
         return;
       }
-      res.json({ data: result, message: "Practice match unlocked!" });
+      res.json({ ok: true, data: result, message: "Practice match unlocked!" });
     } catch (error) {
       next(error);
     }
