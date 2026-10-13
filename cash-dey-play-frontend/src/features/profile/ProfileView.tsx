@@ -100,7 +100,7 @@ export default function ProfileView() {
           <p className="text-[11px] text-[#00E676] mt-0.5">Instant top-up to MTN, Airtel, Glo, 9mobile</p>
         </div>
         <div className="px-3.5 py-2 rounded-full bg-[#00B85F] text-[#111214] font-extrabold text-xs">
-          Cashout →
+          Redeem Reward →
         </div>
       </section>
 

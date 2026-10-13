@@ -206,7 +206,7 @@ export default function TasksView() {
         <div className="flex items-center justify-between pb-1 border-b border-[#2b3044]">
           <div>
             <h3 className="font-bebas text-lg text-white">REWARDED VIDEO (DAILY EARN)</h3>
-            <p className="text-[11px] text-[#9A9A9A]">Up to 5 optional videos/day · Unlocks practice matches</p>
+            {/* <p className="text-[11px] text-[#9A9A9A]">Up to 5 optional videos/day · Unlocks practice matches</p> */}
           </div>
           <div className="text-right">
             <span className="text-xs font-bold text-[#F2B705]">
@@ -229,7 +229,7 @@ export default function TasksView() {
                 : 'bg-[#FF5A36] text-[#111214] glow-orange'
             }`}
           >
-            <span>▶ {watchOptionalVideoMutation.isPending ? 'Loading...' : 'Watch Video'}</span>
+            <span>▶ {watchOptionalVideoMutation.isPending ? 'Loading...' : 'play Match'}</span>
           </button>
         </div>
       </section>

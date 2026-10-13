@@ -15,7 +15,12 @@ export class AuthController {
       res.json({ data: result });
     } catch (error) {
       if (error instanceof TelegramAuthError) {
-        res.status(401).json({ message: "Invalid Telegram authentication" });
+        console.error("[AuthController] Telegram auth failed:", error.reason);
+        res.status(401).json({
+          error: "TelegramAuthError",
+          message: error.message,
+          reason: error.reason,
+        });
         return;
       }
       next(error);

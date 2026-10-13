@@ -41,6 +41,8 @@ export default function App() {
       }
     }
 
+    console.log('[App] initData present:', initData.length > 0, '| length:', initData.length);
+
     const authenticateUser = async () => {
       try {
         setIsAuthenticating(true);
@@ -55,9 +57,12 @@ export default function App() {
         // This will be overwritten by real data once the streak API responds
         const today = new Date().toISOString().slice(0, 10);
         syncStreakState(initializeLoginStreak(today));
-      } catch (err) {
+      } catch (err: any) {
         console.error('[App] Authentication failed:', err);
-        setInitError("Authentication failed. Please reopen the app in Telegram.");
+        // Surface the backend error reason for debugging
+        const reason = err?.response?.data?.reason || err?.response?.data?.message || '';
+        const detail = reason ? ` (${reason})` : '';
+        setInitError(`Authentication failed.${detail} Please reopen the app in Telegram.`);
         clearAuth();
       } finally {
         setIsAuthenticating(false);

@@ -8,7 +8,7 @@ import { soundEffects } from '../../helpers/audio.helpers';
 declare global {
   interface Window {
     Adsgram?: {
-      init: (params: { blockId: string; debug?: boolean }) => {
+      init: (params: { blockId: string; debug?: boolean; debugConsole?: boolean; debugBannerType?: string }) => {
         show: () => Promise<void>;
       };
     };
@@ -20,6 +20,9 @@ export const RewardedAdModal: React.FC = () => {
   const { updateUserStats } = useAuthStore();
   const watchOptionalVideoMutation = useWatchOptionalVideo();
   const skipCooldownMutation = useSkipCooldown();
+
+  const adsgramBlockId = import.meta.env.VITE_ADSGRAM_BLOCK_ID;
+  const isAdsgramActive = Boolean(adsgramBlockId && adsgramBlockId.trim() !== '' && adsgramBlockId !== 'mock');
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(5);
@@ -33,43 +36,60 @@ export const RewardedAdModal: React.FC = () => {
     }
   }, [rewardedAdModal.isOpen]);
 
+  // Handle countdown timer in preview/simulation mode
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    if (isPlaying && secondsLeft > 0) {
+    if (!isAdsgramActive && isPlaying && secondsLeft > 0) {
       timer = setTimeout(() => {
         setSecondsLeft((s) => s - 1);
       }, 1000);
-    } else if (isPlaying && secondsLeft === 0) {
+    } else if (!isAdsgramActive && isPlaying && secondsLeft === 0) {
+      setIsPlaying(false);
       setIsCompleted(true);
       soundEffects.playVictoryChime();
     }
     return () => clearTimeout(timer);
-  }, [isPlaying, secondsLeft]);
+  }, [isAdsgramActive, isPlaying, secondsLeft]);
 
   if (!rewardedAdModal.isOpen) return null;
 
   const startAd = () => {
     soundEffects.playButtonClick();
-    
-    if (!window.Adsgram) {
-      showToast("Ad blocker detected or Adsgram failed to load.", "error");
-      return;
-    }
-    
-    setIsPlaying(true);
-    // Initialize the Adsgram Controller with a test block ID
-    const AdController = window.Adsgram.init({ blockId: "int-496" });
-    
-    AdController.show()
-      .then(() => {
-        setIsCompleted(true);
-        soundEffects.playVictoryChime();
-      })
-      .catch((result) => {
-        console.log("Ad skipped or failed:", result);
+
+    if (isAdsgramActive) {
+      if (!window.Adsgram) {
+        showToast("Ad blocker detected or Adsgram failed to load.", "error");
+        return;
+      }
+
+      setIsPlaying(true);
+      try {
+        const AdController = window.Adsgram.init({
+          blockId: adsgramBlockId,
+          debug: Boolean(import.meta.env.VITE_ADSGRAM_DEBUG),
+        });
+
+        AdController.show()
+          .then(() => {
+            setIsPlaying(false);
+            setIsCompleted(true);
+            soundEffects.playVictoryChime();
+          })
+          .catch((result) => {
+            console.warn("Adsgram playback failed or was skipped:", result);
+            setIsPlaying(false);
+            showToast("You must watch the full ad to claim the reward.", "error");
+          });
+      } catch (err) {
+        console.error("Adsgram init error:", err);
         setIsPlaying(false);
-        showToast("You must watch the full ad to claim the reward.", "error");
-      });
+        showToast("Failed to initialize advertisement.", "error");
+      }
+    } else {
+      // Local development or preview simulation mode
+      setIsPlaying(true);
+      setSecondsLeft(5);
+    }
   };
 
   const handleClaimReward = () => {
@@ -149,14 +169,18 @@ export const RewardedAdModal: React.FC = () => {
             </>
           ) : isPlaying && !isCompleted ? (
             <div className="py-6 space-y-3">
-              <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
-                <span className="font-bebas text-3xl text-white">...</span>
+              <div className="relative w-20 h-20 mx-auto rounded-full bg-[#203666]/50 border border-[#3b5998] flex items-center justify-center animate-pulse">
+                <span className="font-bebas text-3xl text-[#FF5A36]">
+                  {isAdsgramActive ? '...' : `${secondsLeft}s`}
+                </span>
               </div>
               <p className="text-sm font-bold text-white">
-                Ad is playing via Adsgram...
+                {isAdsgramActive ? 'Ad is playing via Adsgram...' : 'Playing rewarded video...'}
               </p>
               <p className="text-xs text-[#9A9A9A]">
-                Please complete the ad. The reward will unlock automatically.
+                {isAdsgramActive
+                  ? 'Please complete the ad. The reward will unlock automatically.'
+                  : 'Please wait for the video to complete to claim your reward.'}
               </p>
             </div>
           ) : (
