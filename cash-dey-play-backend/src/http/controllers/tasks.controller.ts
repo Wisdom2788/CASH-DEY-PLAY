@@ -57,7 +57,7 @@ export class TasksController {
         res.status(400).json({ message: "Daily optional video cap (5/5) reached" });
         return;
       }
-      res.json({ ok: true, data: result, message: "Practice match unlocked!" });
+      res.json({ ok: true, data: result, message: `🎮 Practice Match unlocked! (${result.practiceMatches} available)` });
     } catch (error) {
       next(error);
     }

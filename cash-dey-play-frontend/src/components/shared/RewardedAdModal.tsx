@@ -99,21 +99,9 @@ export const RewardedAdModal: React.FC = () => {
       updateUserStats(0, 50, false);
       showToast('⚡ +50 Points added to your account!', 'success');
     } else if (rewardedAdModal.rewardType === 'PRACTICE_MATCH') {
-      watchOptionalVideoMutation.mutate(undefined, {
-        onSuccess: (res) => {
-          if (res.success) {
-            showToast(`🎮 Practice Match unlocked! (${res.practiceMatches} available)`, 'success');
-          } else {
-            showToast('Daily optional video limit (5/5) reached for today', 'info');
-          }
-        }
-      });
+      watchOptionalVideoMutation.mutate();
     } else if (rewardedAdModal.rewardType === 'COOLDOWN_SKIP') {
-      skipCooldownMutation.mutate(undefined, {
-        onSuccess: () => {
-          showToast('⚡ 1-Hour match cooldown skipped instantly!', 'success');
-        }
-      });
+      skipCooldownMutation.mutate();
     }
 
     if (rewardedAdModal.onRewardGranted) {
