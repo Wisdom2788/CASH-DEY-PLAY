@@ -63,11 +63,6 @@ export default function TasksView() {
       title: 'UNLOCK PRACTICE MATCH',
       subtitle: 'Watch 1 rewarded video to unlock 1 free practice match',
       rewardAmount: '+1 Practice Match',
-      onRewardGranted: () => {
-        watchOptionalVideoMutation.mutate(undefined, {
-          onSuccess: () => showToast('Practice match unlocked!', 'success'),
-        });
-      },
     });
   };
 
@@ -78,11 +73,6 @@ export default function TasksView() {
       title: 'SKIP 1-HOUR COOLDOWN',
       subtitle: 'Watch 1 rewarded video to unlock match instantly',
       rewardAmount: 'Instant Access',
-      onRewardGranted: () => {
-        skipCooldownMutation.mutate(undefined, {
-          onSuccess: () => showToast('Match cooldown skipped!', 'success'),
-        });
-      },
     });
   };
 

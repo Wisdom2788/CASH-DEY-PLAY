@@ -1,4 +1,4 @@
-import { useQuery, useMutation, type UseQueryOptions, type UseMutationOptions } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, type UseQueryOptions, type UseMutationOptions } from '@tanstack/react-query';
 import { getService, postService, type RequestOptions } from './client';
 import { AxiosError } from 'axios';
 import { API_ROUTES } from '../config/constant.config';
@@ -23,10 +23,16 @@ export const useCompleteTask = (
   mutationOptions?: UseMutationOptions<TaskCompletionResponse, AxiosError, string>,
   options?: RequestOptions
 ) => {
+  const queryClient = useQueryClient();
+
   return useMutation<TaskCompletionResponse, AxiosError, string>({
     mutationFn: (taskId) =>
       postService<{ taskId: string }, TaskCompletionResponse>(API_ROUTES.TASK_COMPLETE, { taskId }, options),
     ...mutationOptions,
+    onSuccess: (data, variables, onMutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: [TaskQueryKeys.tasksState] });
+      mutationOptions?.onSuccess?.(data, variables, onMutateResult, context);
+    },
   });
 };
 
@@ -34,9 +40,15 @@ export const useWatchOptionalVideo = (
   mutationOptions?: UseMutationOptions<OptionalVideoResponse, AxiosError, void>,
   options?: RequestOptions
 ) => {
+  const queryClient = useQueryClient();
+
   return useMutation<OptionalVideoResponse, AxiosError, void>({
     mutationFn: () => postService<Record<string, never>, OptionalVideoResponse>(API_ROUTES.TASK_OPTIONAL_VIDEO, {}, options),
     ...mutationOptions,
+    onSuccess: (data, variables, onMutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: [TaskQueryKeys.tasksState] });
+      mutationOptions?.onSuccess?.(data, variables, onMutateResult, context);
+    },
   });
 };
 
@@ -44,9 +56,15 @@ export const useSkipCooldown = (
   mutationOptions?: UseMutationOptions<void, AxiosError, void>,
   options?: RequestOptions
 ) => {
+  const queryClient = useQueryClient();
+
   return useMutation<void, AxiosError, void>({
     mutationFn: () => postService<Record<string, never>, void>(API_ROUTES.TASK_SKIP_COOLDOWN, {}, options),
     ...mutationOptions,
+    onSuccess: (data, variables, onMutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: [TaskQueryKeys.tasksState] });
+      mutationOptions?.onSuccess?.(data, variables, onMutateResult, context);
+    },
   });
 };
 
@@ -54,8 +72,14 @@ export const useRecordMatchResult = (
   mutationOptions?: UseMutationOptions<void, AxiosError, boolean>,
   options?: RequestOptions
 ) => {
+  const queryClient = useQueryClient();
+
   return useMutation<void, AxiosError, boolean>({
     mutationFn: (isWin) => postService<{ isWin: boolean }, void>(API_ROUTES.RECORD_MATCH, { isWin }, options),
     ...mutationOptions,
+    onSuccess: (data, variables, onMutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: [TaskQueryKeys.tasksState] });
+      mutationOptions?.onSuccess?.(data, variables, onMutateResult, context);
+    },
   });
 };
