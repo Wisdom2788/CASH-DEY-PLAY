@@ -41,8 +41,7 @@ export default function TasksView() {
           completeTaskMutation.mutate(task.id, {
             onSuccess: (data) => {
               updateUserStats(0, data.pointsEarned, false);
-              showToast(`Completed task! +${data.pointsEarned} Points awarded`, 'success');
-            }
+            },
           });
         },
       });

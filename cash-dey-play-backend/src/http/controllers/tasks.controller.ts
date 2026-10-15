@@ -25,7 +25,7 @@ export class TasksController {
       }
       const today = new Date().toISOString().slice(0, 10);
       const result = await this.tasksRepo.completeTask(userId, taskId, today);
-      res.json({ data: result, message: "Task completed!" });
+      res.json({ data: result, message: `Task completed! +${result.pointsEarned} points awarded!` });
     } catch (error) {
       next(error);
     }
