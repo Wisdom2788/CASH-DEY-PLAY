@@ -6,6 +6,8 @@ import { useUIStore } from '../../store/ui.store';
 import { soundEffects } from '../../helpers/audio.helpers';
 import { MILESTONE_REWARDS_FREE, MILESTONE_REWARDS_PREMIUM } from '../../qualification/login-streak/login-streak-engine';
 import { useCountdown } from '../../hooks/useCountdown';
+import { useNavigate } from 'react-router-dom';
+import routes from '../../config/routes.config';
 
 export default function TasksView() {
   const { data: tasksState, isLoading } = useGetTasksState();
@@ -24,6 +26,8 @@ export default function TasksView() {
 
   const { loginStreak, user, claimStreakReward, updateUserStats } = useAuthStore();
   const { openRewardedAd, showToast } = useUIStore();
+
+  const navigate = useNavigate();
 
   const milestones = user?.isPremium ? MILESTONE_REWARDS_PREMIUM : MILESTONE_REWARDS_FREE;
 
@@ -46,7 +50,7 @@ export default function TasksView() {
         },
       });
     } else if (task.type === 'WIN_MATCH') {
-      showToast('Play a match in the Lobby to complete this task!', 'info');
+      navigate(routes.lobby);
     }
   };
 
