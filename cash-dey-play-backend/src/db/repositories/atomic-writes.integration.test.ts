@@ -22,6 +22,14 @@ describeWithDatabase("atomic writes on a real Postgres", () => {
   const TODAY = "2026-10-20";
 
   beforeAll(async () => {
+    // These tests TRUNCATE tables. Refuse to run against anything that is not clearly a throw-away test database.
+    const databaseName = new URL(databaseUrl as string).pathname.replace(/^\//, "");
+    if (!/test/i.test(databaseName)) {
+      throw new Error(
+        `Refusing to run: TEST_DATABASE_URL must point to a database whose name contains "test" (got "${databaseName}"). These tests delete data.`,
+      );
+    }
+
     pool = new Pool({ connectionString: databaseUrl });
     await pool.query(readFileSync(join(__dirname, "../schema.sql"), "utf8"));
     tasksRepository = new PostgresTasksRepository(pool);
