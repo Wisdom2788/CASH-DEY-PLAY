@@ -4,7 +4,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../../store/game.store';
 import { useUIStore } from '../../store/ui.store';
 import { useAuthStore } from '../../store/auth.store';
-import { useRecordMatchResult } from '../../api/tasks.api';
 import { useMatchMove, useMatchDraw, useMatchForfeit } from '../../api/match.api';
 import { MatchTurn, WhotSuit, WhotSpecialEffect } from '../../types/enums/whot.enums';
 import { WhotCard } from '../../types/interfaces/card.types';
@@ -31,11 +30,6 @@ export default function WhotGameBoard() {
   const { showToast } = useUIStore();
   const navigate = useNavigate();
   const { updateUserStats } = useAuthStore();
-  const recordMatchMutation = useRecordMatchResult();
-
-  // Stable ref so the useEffect doesn't re-fire when the mutation object changes
-  const recordMatchRef = useRef(recordMatchMutation.mutate);
-  recordMatchRef.current = recordMatchMutation.mutate;
 
   // Timer interval
   useEffect(() => {
@@ -51,8 +45,7 @@ export default function WhotGameBoard() {
       const isWin = activeMatch.winner === 'PLAYER';
       updateUserStats(activeMatch.xpEarned, activeMatch.pointsEarned, isWin);
       
-      // Send match result to backend/API via stable ref
-      recordMatchRef.current(isWin);
+      // The result is recorded by the game server. The app never reports who won.
 
       const delay = setTimeout(() => {
         navigate(routes.result);

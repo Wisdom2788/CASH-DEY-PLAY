@@ -28,6 +28,7 @@ describe("LoginStreakService", () => {
     mockRepository = {
       getState: jest.fn(),
       saveState: jest.fn(),
+      tryMarkBonusClaimed: jest.fn(),
     };
     mockAuditRepository = {
       append: jest.fn(),
@@ -76,11 +77,12 @@ describe("LoginStreakService", () => {
     it("claims a qualified streak, writes an audit row, and stores the idempotency key", async () => {
       mockIdempotencyRepository.find.mockResolvedValue(null);
       mockRepository.getState.mockResolvedValue(qualifiedState);
+      mockRepository.tryMarkBonusClaimed.mockResolvedValue({ ...qualifiedState, hasClaimedBonus: true });
 
       const result = await service.claimBonus("user-1", "idem-key-1");
 
       expect(result.hasClaimedBonus).toBe(true);
-      expect(mockRepository.saveState).toHaveBeenCalledWith("user-1", result);
+      expect(mockRepository.tryMarkBonusClaimed).toHaveBeenCalledWith("user-1", 30);
       expect(mockAuditRepository.append).toHaveBeenCalledWith(
         expect.objectContaining({
           userId: "user-1",
@@ -114,6 +116,7 @@ describe("LoginStreakService", () => {
 
       await expect(service.claimBonus("user-1", "idem-key-1")).rejects.toThrow(LoginStreakNotFoundError);
       expect(mockRepository.saveState).not.toHaveBeenCalled();
+      expect(mockRepository.tryMarkBonusClaimed).not.toHaveBeenCalled();
       expect(mockAuditRepository.append).not.toHaveBeenCalled();
     });
 
@@ -131,6 +134,7 @@ describe("LoginStreakService", () => {
         LoginStreakNotYetQualifiedError,
       );
       expect(mockRepository.saveState).not.toHaveBeenCalled();
+      expect(mockRepository.tryMarkBonusClaimed).not.toHaveBeenCalled();
     });
 
     it("throws LoginStreakBonusAlreadyClaimedError without writing a second audit row", async () => {
@@ -141,6 +145,19 @@ describe("LoginStreakService", () => {
         LoginStreakBonusAlreadyClaimedError,
       );
       expect(mockAuditRepository.append).not.toHaveBeenCalled();
+      expect(mockRepository.tryMarkBonusClaimed).not.toHaveBeenCalled();
+    });
+
+    it("throws LoginStreakBonusAlreadyClaimedError, with no audit row, when the database says another request won the race", async () => {
+      mockIdempotencyRepository.find.mockResolvedValue(null);
+      mockRepository.getState.mockResolvedValue(qualifiedState);
+      mockRepository.tryMarkBonusClaimed.mockResolvedValue(null);
+
+      await expect(service.claimBonus("user-1", "idem-key-3")).rejects.toThrow(
+        LoginStreakBonusAlreadyClaimedError,
+      );
+      expect(mockAuditRepository.append).not.toHaveBeenCalled();
+      expect(mockIdempotencyRepository.save).not.toHaveBeenCalled();
     });
   });
 });

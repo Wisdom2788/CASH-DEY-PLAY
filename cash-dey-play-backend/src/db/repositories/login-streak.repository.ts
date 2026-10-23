@@ -5,6 +5,11 @@ import { type LoginStreakRow } from "../models/login-streak.model";
 export interface ILoginStreakRepository {
   getState(userId: string): Promise<LoginStreakState | null>;
   saveState(userId: string, state: LoginStreakState): Promise<void>;
+  /**
+   * Atomically marks the bonus as claimed, but only if it is still unclaimed and the window is complete.
+   * Returns the updated state, or null when someone else already claimed it (or it is not claimable).
+   */
+  tryMarkBonusClaimed(userId: string, requiredConsecutiveDays: number): Promise<LoginStreakState | null>;
 }
 
 function mapRowToState(row: LoginStreakRow): LoginStreakState {
@@ -51,7 +56,12 @@ export class PostgresLoginStreakRepository implements ILoginStreakRepository {
         last_login_date = EXCLUDED.last_login_date,
         consecutive_login_days_count = EXCLUDED.consecutive_login_days_count,
         grace_days_used = EXCLUDED.grace_days_used,
-        has_claimed_bonus = EXCLUDED.has_claimed_bonus,
+        -- A login that raced with a claim must never un-claim the bonus: inside the same window the flag can only go up.
+        has_claimed_bonus = CASE
+          WHEN login_streaks.window_start_date = EXCLUDED.window_start_date
+            THEN login_streaks.has_claimed_bonus OR EXCLUDED.has_claimed_bonus
+          ELSE EXCLUDED.has_claimed_bonus
+        END,
         updated_at = NOW()
     `;
     await this.pool.query(query, [
@@ -62,5 +72,26 @@ export class PostgresLoginStreakRepository implements ILoginStreakRepository {
       state.graceDaysUsed,
       state.hasClaimedBonus,
     ]);
+  }
+
+  async tryMarkBonusClaimed(userId: string, requiredConsecutiveDays: number): Promise<LoginStreakState | null> {
+    const query = `
+      UPDATE login_streaks
+      SET has_claimed_bonus = TRUE, updated_at = NOW()
+      WHERE user_id = $1
+        AND has_claimed_bonus = FALSE
+        AND consecutive_login_days_count >= $2
+      RETURNING
+        window_start_date::text AS window_start_date,
+        last_login_date::text AS last_login_date,
+        consecutive_login_days_count,
+        grace_days_used,
+        has_claimed_bonus
+    `;
+    const result = await this.pool.query<LoginStreakRow>(query, [userId, requiredConsecutiveDays]);
+    if (result.rows.length === 0) {
+      return null;
+    }
+    return mapRowToState(result.rows[0]);
   }
 }

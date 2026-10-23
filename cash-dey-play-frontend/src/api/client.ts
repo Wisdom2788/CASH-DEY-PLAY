@@ -36,6 +36,10 @@ export const handleAxiosError = <T, D>(ex: AxiosError<T, D>) => {
         (ex.response?.data as { message?: string })?.message ??
           "Sorry, the resource you wish to access could not be found."
       );
+    } else if (ex.response?.status === 501) {
+      errorMessage(
+        (ex.response?.data as { message?: string })?.message ?? "This feature is not available yet."
+      );
     } else if (ex.response?.status === 429) {
       errorMessage(
         (ex.response?.data as { message?: string })?.message ??

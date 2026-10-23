@@ -1,4 +1,12 @@
 import { Pool } from "pg";
+import { TaskAlreadyCompletedError, UnknownTaskError } from "./tasks.errors";
+
+const MANDATORY_TASK_POINTS = 50;
+
+const TASK_KEY_BY_TASK_ID: Readonly<Record<string, string>> = {
+  task_login_video: "MANDATORY_VIDEO_LOGIN",
+  task_unlock_video: "MANDATORY_VIDEO_UNLOCK",
+};
 
 export interface TaskRow {
   id: string;
@@ -25,7 +33,6 @@ export interface TasksRepository {
   getTasksState(userId: string, today: string): Promise<TasksStateRow>;
   completeTask(userId: string, taskId: string, today: string): Promise<{ pointsEarned: number }>;
   recordOptionalVideo(userId: string, today: string): Promise<{ success: boolean; practiceMatches: number }>;
-  recordMatchResult(userId: string, isWin: boolean): Promise<void>;
 }
 
 export class PostgresTasksRepository implements TasksRepository {
@@ -114,29 +121,47 @@ export class PostgresTasksRepository implements TasksRepository {
     };
   }
 
+  /**
+   * Completes a mandatory task once per player per Lagos day.
+   * The completion record and the points are written in ONE transaction, and points are added
+   * only when the completion record is new, so repeating the request can never award points twice.
+   */
   async completeTask(userId: string, taskId: string, today: string): Promise<{ pointsEarned: number }> {
-    const taskKeyMap: Record<string, string> = {
-      task_login_video: "MANDATORY_VIDEO_LOGIN",
-      task_unlock_video: "MANDATORY_VIDEO_UNLOCK",
-    };
-    const taskKey = taskKeyMap[taskId];
-    if (!taskKey) {
-      throw new Error(`Unknown task: ${taskId}`);
+    const taskKey = TASK_KEY_BY_TASK_ID[taskId];
+    if (taskKey === undefined) {
+      throw new UnknownTaskError(taskId);
     }
 
-    await this.pool.query(
-      `INSERT INTO task_completions (user_id, completed_on, task_key) VALUES ($1, $2, $3)
-       ON CONFLICT (user_id, completed_on, task_key) DO NOTHING`,
-      [userId, today, taskKey]
-    );
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
 
-    // Award points
-    await this.pool.query(
-      `UPDATE users SET points = points + 50, updated_at = NOW() WHERE id = $1`,
-      [userId]
-    );
+      const inserted = await client.query(
+        `INSERT INTO task_completions (user_id, completed_on, task_key) VALUES ($1, $2, $3)
+         ON CONFLICT (user_id, completed_on, task_key) DO NOTHING
+         RETURNING task_key`,
+        [userId, today, taskKey],
+      );
+      if (inserted.rowCount === 0) {
+        throw new TaskAlreadyCompletedError(taskId);
+      }
 
-    return { pointsEarned: 50 };
+      const awarded = await client.query(
+        `UPDATE users SET points = points + $2, updated_at = NOW() WHERE id = $1`,
+        [userId, MANDATORY_TASK_POINTS],
+      );
+      if (awarded.rowCount === 0) {
+        throw new Error(`Cannot award points: user ${userId} does not exist.`);
+      }
+
+      await client.query("COMMIT");
+      return { pointsEarned: MANDATORY_TASK_POINTS };
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async recordOptionalVideo(userId: string, today: string): Promise<{ success: boolean; practiceMatches: number }> {
@@ -159,24 +184,5 @@ export class PostgresTasksRepository implements TasksRepository {
     );
 
     return { success: true, practiceMatches: count + 1 };
-  }
-
-  async recordMatchResult(userId: string, isWin: boolean): Promise<void> {
-    await this.pool.query(
-      `INSERT INTO matches (user_id, winner_id) VALUES ($1, $2)`,
-      [userId, isWin ? userId : null]
-    );
-    // Update user stats
-    if (isWin) {
-      await this.pool.query(
-        `UPDATE users SET matches_won_month = matches_won_month + 1, matches_played_month = matches_played_month + 1, updated_at = NOW() WHERE id = $1`,
-        [userId]
-      );
-    } else {
-      await this.pool.query(
-        `UPDATE users SET matches_played_month = matches_played_month + 1, updated_at = NOW() WHERE id = $1`,
-        [userId]
-      );
-    }
   }
 }

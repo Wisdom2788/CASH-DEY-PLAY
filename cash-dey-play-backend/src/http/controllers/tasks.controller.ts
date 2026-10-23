@@ -1,5 +1,6 @@
 import { type Request, type Response, type NextFunction } from "express";
 import { TasksRepository } from "../../db/repositories/tasks.repository";
+import { NotImplementedFeatureError } from "../errors/http-errors";
 
 export class TasksController {
   constructor(private readonly tasksRepo: TasksRepository) {}
@@ -33,13 +34,6 @@ export class TasksController {
 
   watchOptionalVideo = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      // If Adsgram sends a GET webhook pingback to the Reward URL, acknowledge it cleanly without awarding a second time
-      if (req.method === "GET") {
-        res.status(200).json({ ok: true, message: "Adsgram webhook acknowledged" });
-        return;
-      }
-
-      // Handle authenticated client request (POST)
       const userId = (req as any).userId;
       if (!userId) {
         res.status(401).json({ message: "Unauthorized user" });
@@ -58,23 +52,7 @@ export class TasksController {
     }
   };
 
-  skipCooldown = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      // TODO: Implement cooldown skip logic with Redis TTL
-      res.json({ data: null, message: "Cooldown skipped!" });
-    } catch (error) {
-      next(error);
-    }
-  };
-
-  recordMatch = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const userId = (req as any).userId;
-      const { isWin } = req.body;
-      await this.tasksRepo.recordMatchResult(userId, isWin === true);
-      res.json({ data: null, message: isWin ? "Victory recorded!" : "Match recorded" });
-    } catch (error) {
-      next(error);
-    }
+  skipCooldown = async (_req: Request, _res: Response, next: NextFunction): Promise<void> => {
+    next(new NotImplementedFeatureError("Skipping the ranked cooldown"));
   };
 }

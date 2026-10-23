@@ -5,7 +5,6 @@ export function createPremiumRouter(premiumController: PremiumController): Route
   const router = Router();
 
   router.get("/status", premiumController.getStatus);
-  router.post("/subscribe", premiumController.subscribe);
 
   return router;
 }

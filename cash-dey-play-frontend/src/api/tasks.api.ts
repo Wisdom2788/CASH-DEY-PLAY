@@ -67,19 +67,3 @@ export const useSkipCooldown = (
     },
   });
 };
-
-export const useRecordMatchResult = (
-  mutationOptions?: UseMutationOptions<void, AxiosError, boolean>,
-  options?: RequestOptions
-) => {
-  const queryClient = useQueryClient();
-
-  return useMutation<void, AxiosError, boolean>({
-    mutationFn: (isWin) => postService<{ isWin: boolean }, void>(API_ROUTES.RECORD_MATCH, { isWin }, options),
-    ...mutationOptions,
-    onSuccess: (data, variables, onMutateResult, context) => {
-      queryClient.invalidateQueries({ queryKey: [TaskQueryKeys.tasksState] });
-      mutationOptions?.onSuccess?.(data, variables, onMutateResult, context);
-    },
-  });
-};

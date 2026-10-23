@@ -3,9 +3,6 @@ import routes from '../../config/routes.config';
 import React from 'react';
 import { useAuthStore } from '../../store/auth.store';
 import { useGetWalletBalance } from '../../api/wallet.api';
-import { useSubscribePremium } from '../../api/premium.api';
-import { useUIStore } from '../../store/ui.store';
-import { soundEffects } from '../../helpers/audio.helpers';
 import Skeleton from 'react-loading-skeleton';
 
 export default function ProfileView() {
@@ -13,24 +10,7 @@ export default function ProfileView() {
   const { data: balanceData, isLoading: isLoadingBalance } = useGetWalletBalance();
   const balanceNgn = balanceData?.balanceNgn ?? 0;
   
-  const subscribePremiumMutation = useSubscribePremium();
-  const { showToast } = useUIStore();
   const navigate = useNavigate();
-
-  const handleUpgradePremium = () => {
-    soundEffects.playButtonClick();
-    subscribePremiumMutation.mutate(undefined, {
-      onSuccess: () => {
-        soundEffects.playVictoryChime();
-        showToast('👑 Upgraded to Premium! Enjoy ad-free and exclusive cosmetics.', 'success');
-        // A real app would then invalidate the user query or update the store here,
-        // which the api client setup typically handles via onSuccess invalidation.
-      },
-      onError: () => {
-        showToast('Failed to upgrade to Premium. Please try again.', 'error');
-      }
-    });
-  };
 
   if (!user || !loginStreak) return null;
 
@@ -148,11 +128,10 @@ export default function ProfileView() {
 
         {!user.isPremium ? (
           <button
-            onClick={handleUpgradePremium}
-            disabled={subscribePremiumMutation.isPending}
-            className="w-full py-2.5 rounded-full bg-gradient-to-r from-[#7A2BE2] to-[#5A1BB8] text-white font-bold text-xs uppercase tracking-wider active:scale-95 transition cursor-pointer disabled:opacity-50"
+            disabled
+            className="w-full py-2.5 rounded-full bg-gradient-to-r from-[#7A2BE2] to-[#5A1BB8] text-white font-bold text-xs uppercase tracking-wider opacity-50 cursor-not-allowed"
           >
-            {subscribePremiumMutation.isPending ? 'Upgrading...' : 'Upgrade to Premium (₦1,000)'}
+            Premium coming soon
           </button>
         ) : (
           <div className="py-2 text-center text-xs font-bold text-[#00E676] bg-[#00B85F]/10 rounded-full border border-[#00B85F]/30">

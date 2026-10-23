@@ -32,12 +32,9 @@ export function requireAuthenticatedUser(req: Request): AuthenticatedTelegramUse
 export function createAuthMiddleware(options: AuthMiddlewareOptions) {
   return (req: Request, _res: Response, next: NextFunction): void => {
     try {
-      // Exclude public/webhook endpoints from auth middleware
+      // The sign-in endpoint is the only public route. Webhooks get their own verified route when built.
       const normalizedPath = (req.originalUrl || req.path || "").split("?")[0];
-      if (
-        normalizedPath === "/api/auth/telegram/login" ||
-        (normalizedPath === "/api/tasks/optional-video" && req.method === "GET")
-      ) {
+      if (normalizedPath === "/api/auth/telegram/login") {
         return next();
       }
 

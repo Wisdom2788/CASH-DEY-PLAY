@@ -18,7 +18,6 @@ interface AuthStoreState {
   clearAuth: () => void;
   syncStreakState: (streak: LoginStreakState) => void;
   claimStreakReward: (day: number) => { success: boolean; rewardAirtimeNgn?: number };
-  upgradeToPremium: () => void;
   updateUserStats: (xpDelta: number, pointsDelta: number, wonMatch: boolean) => void;
 }
 
@@ -65,21 +64,6 @@ export const useAuthStore = create<AuthStoreState>()(
         } catch {
           return { success: false };
         }
-      },
-
-      upgradeToPremium: () => {
-        set((state) => {
-          if (!state.user) return state;
-          const nextMonth = new Date();
-          nextMonth.setMonth(nextMonth.getMonth() + 1);
-          return {
-            user: {
-              ...state.user,
-              isPremium: true,
-              premiumExpiryDate: nextMonth.toISOString().slice(0, 10),
-            },
-          };
-        });
       },
 
       updateUserStats: (xpDelta: number, pointsDelta: number, wonMatch: boolean) => {
