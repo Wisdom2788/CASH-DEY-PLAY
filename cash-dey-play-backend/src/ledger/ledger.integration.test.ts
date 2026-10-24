@@ -70,6 +70,7 @@ suite('ledger PostgreSQL economic boundary',()=>{
     expect((await pool.query('SELECT count(*)::int AS n FROM outbox_events')).rows[0].n).toBe(0);
   });
   it('preserves history and pages tied timestamps without duplication',async()=>{
+    await pool.query("ALTER TABLE wallet_entries ALTER COLUMN created_at SET DEFAULT '2099-01-01T00:00:00.123456Z'::timestamptz");
     await ledger.post(credit());
     await ledger.post(credit({idempotencyKey:'request-0002',referenceId:'day-2'}));
     await expect(pool.query('DELETE FROM wallet_entries')).rejects.toThrow(/Immutable/);
@@ -116,6 +117,19 @@ suite('ledger PostgreSQL economic boundary',()=>{
     await pool.query("UPDATE outbox_events SET available_at=clock_timestamp()-interval '1 second'");
     const next=(await outbox.claim())!; expect(next.id).toBe(active[0]!.id);
     expect(await outbox.acknowledge(active[0]!)).toBe(false);
+  });
+
+  it('rejects balance overflow and compensates with an immutable new entry',async()=>{
+    await expect(ledger.post(credit({amountKobo:2_000_000_000}))).rejects.toMatchObject({code:'BALANCE_LIMIT'});
+    await ledger.post(credit());
+    await ledger.post(credit({kind:'COMPENSATION',amountKobo:-100,referenceType:'CORRECTION',referenceId:'entry-1',idempotencyKey:'correct-key-1'}));
+    expect(await ledger.availableKobo('tg_123')).toBe('1000');
+    expect((await ledger.entries('tg_123')).map(e=>e.kind)).toEqual(expect.arrayContaining(['OPENING_BALANCE','CREDIT','COMPENSATION']));
+  });
+  it('rolls back account creation when the first source transition fails',async()=>{
+    await pool.query("INSERT INTO users(id,telegram_id,first_name) VALUES('tg_456',456,'New')");
+    await expect(ledger.post(credit({userId:'tg_456'}),async()=>{throw new Error('source failed');})).rejects.toThrow('source failed');
+    expect((await pool.query("SELECT count(*)::int AS n FROM wallet_accounts WHERE user_id='tg_456'")).rows[0].n).toBe(0);
   });
 
 });

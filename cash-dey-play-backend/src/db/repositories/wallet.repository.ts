@@ -1,9 +1,11 @@
 import { Pool } from "pg";
+import { LedgerRepository } from "../../ledger/ledger.repository";
 
 interface WalletRow { id:string;type:string;amount_ngn:number;description:string;provider:string|null;phone_number:string|null;status:string;created_at:Date; }
 
 export interface WalletBalance {
   balanceNgn: number;
+  availableKobo: string;
 }
 
 export interface WalletTransaction {
@@ -20,17 +22,19 @@ export interface WalletTransaction {
 export interface WalletRepository {
   getBalance(userId: string): Promise<WalletBalance>;
   getTransactions(userId: string): Promise<WalletTransaction[]>;
+  getEntries(userId: string, limit: number, cursor?: {createdAt:string;id:string}): ReturnType<LedgerRepository["entries"]>;
 }
 
 export class PostgresWalletRepository implements WalletRepository {
   constructor(private readonly pool: Pool) {}
 
   async getBalance(userId: string): Promise<WalletBalance> {
-    const res = await this.pool.query(
-      `SELECT balance_ngn FROM wallets WHERE user_id = $1`,
-      [userId]
-    );
-    return { balanceNgn: res.rows[0]?.balance_ngn ?? 0 };
+    const availableKobo = await new LedgerRepository(this.pool).availableKobo(userId);
+    return {balanceNgn:Number(availableKobo)/100,availableKobo};
+  }
+
+  getEntries(userId:string,limit:number,cursor?:{createdAt:string;id:string}):ReturnType<LedgerRepository["entries"]> {
+    return new LedgerRepository(this.pool).entries(userId,limit,cursor);
   }
 
   async getTransactions(userId: string): Promise<WalletTransaction[]> {

@@ -10,6 +10,7 @@ export class WalletController {
     try {
       const userId = requireUserId(req);
       const balance = await this.walletRepo.getBalance(userId);
+      res.setHeader("Cache-Control","no-store");
       res.json({ data: balance });
     } catch (error) {
       next(error);
@@ -24,6 +25,18 @@ export class WalletController {
     } catch (error) {
       next(error);
     }
+  };
+
+  getEntries = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = requireUserId(req);
+      const limit = req.query.limit === undefined ? 50 : Number(req.query.limit);
+      const cursor = req.query.createdAt === undefined ? undefined : {createdAt:String(req.query.createdAt),id:String(req.query.id)};
+      const rows = await this.walletRepo.getEntries(userId,limit,cursor);
+      const last = rows[rows.length-1];
+      res.setHeader("Cache-Control","no-store");
+      res.json({data:rows,nextCursor:rows.length===limit && last ? {createdAt:last.created_at,id:last.id} : null});
+    } catch(error) { next(error); }
   };
 
   redeem = async (_req: Request, _res: Response, next: NextFunction): Promise<void> => {

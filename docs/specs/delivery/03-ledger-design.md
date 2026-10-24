@@ -17,3 +17,9 @@ Entries and audit events reject UPDATE/DELETE. A foreign-key link binds each led
 ## Verification
 
 Exercise real PostgreSQL with isolated schemas: ten-way debit cannot overspend; first-write race; identical/different request and source replay; audit/outbox failure rolls back all writes; immutable-entry constraints; opening import and legacy freeze; stable page boundary; checked amount conversions. Run all prior backend checks and migration-history replay with the additional migration. Production rollout still requires the foundations backup/rehearsal gates.
+
+## Read and delivery boundary
+
+Balance reads now derive from entries; the legacy whole-naira field remains for presentation compatibility and the decimal-string availableKobo field is authoritative. Historical transaction responses remain separate from the new ledger-entry feed. An authenticated /wallet/entries endpoint validates limit and paired cursor fields and cannot accept another account ID.
+
+Outbox claim uses one atomic SKIP LOCKED CTE update. An unpredictable lease token fences acknowledgements/retries; expired workers cannot acknowledge a reclaimed event. Retry metadata never records raw provider errors or phone/token values. A crash after the downstream effect and before acknowledgement repeats the same event ID, so external consumers must enforce idempotency. Automatic delivery, dead-letter policy and provider reconciliation remain future owner responsibilities.

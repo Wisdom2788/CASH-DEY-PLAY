@@ -1,6 +1,6 @@
 # Ledger, audit and idempotency foundations
 
-Status: **Specified; not implemented**. Covers: C2/C5/C6, M3/M6 and all reward/payout writes. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
+Status: **Core implemented on feature/ledger; release and owning reward integrations pending**. Covers: C2/C5/C6, M3/M6 and all reward/payout writes. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
 
 ### Model
 
@@ -23,3 +23,13 @@ Real PostgreSQL ten-way debit with insufficient total balance never overspends; 
 ## Implementation record
 
 Record commit, schema version, commands/results, integration evidence, unresolved decisions and recovery rehearsal here before marking complete. An acceptance criterion written above is not evidence that it passed.
+
+## Core implementation evidence (25 October 2026)
+
+Draft PR #4 stacks on foundations PR #3. Runtime commit 0b0bec0 adds the account lock, bounded integer-kobo entries, payload-bound idempotency, immutable business references, transaction-scoped source callback, linked audit records and fenced outbox leases. CI run40141319294 passed all151 backend tests on PostgreSQL16 and all frontend checks. Subsequent read-contract and PostgreSQL18 alignment changes require their own CI result below; do not transfer this result to untested changes.
+
+Opening migration imports balances only, not history, then freezes old wallet writers. Read-only live preflight observed3 legacy wallets with zero total opening liability and zero invalid opening balances; no production writes occurred. New wallet balance reads derive from ledger and retain balanceNgn as a presentation compatibility field; availableKobo is the canonical decimal string. GET /wallet/entries uses authenticated identity, strict bounded queries and a microsecond-precise composite cursor. Legacy /transactions remains historical; it must not be treated as the new ledger feed.
+
+The internal posting method accepts a source-state callback executed using the same PostgreSQL client/account lock, only for a new business event. Future reward/payment owners must validate eligibility and transition source state inside that callback. No external work belongs there. Outbox claim/ack/retry supports lease recovery and stable IDs; no automatic consumer or provider dispatcher is enabled. Consumers must tolerate duplicate delivery after a crash.
+
+Still open: production backup/restore and full drift rehearsal; real reward/payout owner wiring; automated reconciliation alarms; API pending-funds model when payout reservations exist. Stage03 is not marked fully complete and no payment/redemption capability is enabled.
