@@ -20,3 +20,7 @@ Read-only inspection on 2026-10-24, using the user-confirmed My Workspace.
 4. End-to-end checks and a configured readiness/health route appropriate to the actual implementation.
 
 The exposed Render connector supports read-only SQL and deployment inspection. It exposes no backup/export, shell execution, or arbitrary write-SQL tool. No production schema, environment variables, resource plans, or deployment settings were changed during inspection. No verified production backup or restore rehearsal is claimed.
+
+## Follow-up read-only checks (25 October 2026)
+
+All19 public indexes were inspected and agree with the legacy baseline definitions. No public triggers, routines or views were returned; plpgsql is the sole installed extension. The opening-balance query found3 wallets, zero total liability and zero negative/over-limit balances. These catalog/data checks improve baseline confidence but do not substitute for a complete private schema dump, restore rehearsal or inspection of roles, grants, policies and sequence configuration. Recovery gates remain open.

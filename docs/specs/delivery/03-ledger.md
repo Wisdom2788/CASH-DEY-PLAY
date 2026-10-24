@@ -35,3 +35,5 @@ The internal posting method accepts a source-state callback executed using the s
 Still open: production backup/restore and full drift rehearsal; real reward/payout owner wiring; scheduled operational alert delivery; API pending-funds model when payout reservations exist. Stage03 is not marked fully complete and no payment/redemption capability is enabled.
 
 The read-only db:ledger:reconcile command returns only aggregate counts and exits nonzero on balance bounds, audit linkage, opening liability, request receipt or outbox-intent mismatch. CI invokes it after migrations/tests. An integration case injects a faulty privileged writer and verifies mismatch detection. Scheduling and routing alerts to an operator remain deployment work.
+
+PostgreSQL18 verification: commit15a05eb passed161 backend tests in run40141491035; commit0e7f0cf passed162 backend tests, repeated migration deployment, the reconciliation command and build in run40141606933. Frontend checks and both Vercel previews passed. A subsequent source-payload-hash hardening change is recorded separately in PR4 with its own CI evidence.

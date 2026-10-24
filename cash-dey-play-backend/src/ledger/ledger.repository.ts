@@ -11,6 +11,8 @@ export interface Posting {
   referenceType: string;
   referenceId: string;
   ruleVersion: string;
+  /** SHA256 of the owning operation's canonical validated payload (destination/plan/etc). */
+  sourcePayloadHash: string;
 }
 export interface PostingResponse { entryId: string; amountKobo: string; availableKobo: string }
 export class LedgerError extends Error {
@@ -20,6 +22,7 @@ interface EntryRow { id:string; amount_kobo:string; kind:string; reference_type:
 const label = /^[A-Za-z0-9._:-]+$/;
 function validate(p: Posting): void {
   assertKobo(p.amountKobo);
+  if (!/^[0-9a-f]{64}$/.test(p.sourcePayloadHash)) throw new Error('Invalid source payload hash');
   if (!/^tg_[1-9][0-9]*$/.test(p.userId)) throw new Error('Invalid account');
   for (const [value,max] of [[p.operation,64],[p.referenceType,64],[p.referenceId,128],[p.ruleVersion,64]] as const) {
     if (typeof value !== 'string' || !label.test(value) || value.length > max) throw new Error('Invalid ledger identity');
@@ -28,7 +31,7 @@ function validate(p: Posting): void {
   if (!['CREDIT','DEBIT','COMPENSATION'].includes(p.kind) || (p.kind === 'CREDIT' && p.amountKobo < 0) || (p.kind === 'DEBIT' && p.amountKobo > 0)) throw new Error('Invalid entry direction');
 }
 function hash(p: Posting): string {
-  return createHash('sha256').update(JSON.stringify([p.userId,p.operation,p.amountKobo,p.kind,p.referenceType,p.referenceId,p.ruleVersion])).digest('hex');
+  return createHash('sha256').update(JSON.stringify([p.userId,p.operation,p.amountKobo,p.kind,p.referenceType,p.referenceId,p.ruleVersion,p.sourcePayloadHash])).digest('hex');
 }
 
 /** Internal accounting only. Callers must establish source eligibility; no public credit route. */

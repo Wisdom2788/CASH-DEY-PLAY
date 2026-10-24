@@ -30,7 +30,7 @@ suite('ledger PostgreSQL economic boundary',()=>{
   afterEach(async()=>{await pool.end();await admin.query(`DROP SCHEMA "${schema}" CASCADE`);});
   afterAll(async()=>{await admin.end();});
   function credit(overrides:Partial<Posting>={}):Posting {
-    return {userId:'tg_123',operation:'reward',idempotencyKey:'request-0001',amountKobo:100,kind:'CREDIT',referenceType:'TASK',referenceId:'day-1',ruleVersion:'v1',...overrides};
+    return {userId:'tg_123',operation:'reward',idempotencyKey:'request-0001',amountKobo:100,kind:'CREDIT',referenceType:'TASK',referenceId:'day-1',ruleVersion:'v1',sourcePayloadHash:'a'.repeat(64),...overrides};
   }
   it('imports balance once without replaying transaction history and freezes old writers',async()=>{
     expect(await ledger.availableKobo('tg_123')).toBe('1000');
@@ -52,6 +52,7 @@ suite('ledger PostgreSQL economic boundary',()=>{
     expect(await ledger.post(credit({idempotencyKey:'source-retry'}))).toEqual(first);
     await expect(ledger.post(credit({amountKobo:200}))).rejects.toMatchObject({code:'CONFLICT'});
     await expect(ledger.post(credit({idempotencyKey:'different-key',amountKobo:200}))).rejects.toMatchObject({code:'CONFLICT'});
+    await expect(ledger.post(credit({sourcePayloadHash:'b'.repeat(64)}))).rejects.toMatchObject({code:'CONFLICT'});
     expect(await ledger.availableKobo('tg_123')).toBe('1200');
   });
   it('serializes an accountless concurrent first write',async()=>{
