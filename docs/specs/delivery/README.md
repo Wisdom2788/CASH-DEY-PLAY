@@ -8,7 +8,7 @@ A spec is not an implementation. “Implemented locally” is not a passing host
 
 | Order | Specification | Dependency | Current status |
 |---|---|---|---|
-| 01 | [Containment and deployment baseline](01-containment.md) | Existing Step 1 | Implemented locally; real PostgreSQL and hosted deployment verification pending |
+| 01 | [Containment and deployment baseline](01-containment.md) | Existing Step 1 | Implemented; unit/HTTP/PostgreSQL tests and both Vercel preview builds passed on e526b8d |
 | 02 | [Identity, time, migrations and contracts](02-foundations.md) | 01 | Specified; not implemented |
 | 03 | [Ledger, audit and idempotency](03-ledger.md) | 02 | Specified; not implemented |
 | 04 | [Entitlements, tasks and referrals](04-entitlements.md) | 02–03 | Specified; not implemented |
@@ -71,7 +71,7 @@ Later-plan findings C8/H12/H13/M14 map to 07/05/01+12/02+12 respectively. Refere
 
 ## Stage evidence ledger
 
-Stage 01 currently passes 97 backend unit/HTTP tests and 23 frontend engine tests; eight PostgreSQL cases are defined but skipped locally without TEST_DATABASE_URL. Backend and frontend type checks pass. The frontend default build passes without an ad ID and cannot play simulated ads. CI is configured to fail if database validation is required but missing. No hosted deploy success is recorded yet.
+Stage 01 code at commit e526b8d419a029fc60a5e932c60d52e9e6658af9 passed **105/105 backend tests, including all eight real PostgreSQL cases**, in [GitHub Verify run 40129750572](https://github.com/Wisdom2788/CASH-DEY-PLAY/actions/runs/40129750572). The frontend passed23 tests, typecheck and build in the same run. Both Vercel contexts cash-dey-play and cash-dey-play-ckkt reported success for that commit. Local default build works without an ad ID and cannot play simulated ads. CI fails when required DB validation is unconfigured. These are preview/build and automated-test results, not real-device gameplay or provider delivery evidence. This later documentation update changes no runtime code.
 
 ## Release policy
 

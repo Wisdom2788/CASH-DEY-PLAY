@@ -1,6 +1,6 @@
 # Containment and deployment baseline
 
-Status: **Implemented locally; integration/deployment validation pending**. Covers: C1–C6, H8/H11, M1/M5/M7/M8 and initial hygiene. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
+Status: **Implemented and automated acceptance passed on e526b8d; production and end-to-end provider flows are out of scope**. Covers: C1–C6, H8/H11, M1/M5/M7/M8 and initial hygiene. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
 
 ### Required behavior
 
@@ -16,7 +16,7 @@ Implemented in env.config, auth service/middleware, Telegram verifier, streak-un
 
 ### Acceptance and current evidence
 
-Backend typecheck, 97 unit/HTTP tests, frontend typecheck, 23 engine tests and default Vite build pass locally. Eight PostgreSQL integration tests are defined; they need a disposable PostgreSQL run. Include claim races, audit failure rollback/retry, missing-user task rollback and same-key multi-instance replay. CI must reject a missing required DB URL, use isolated schemas, and never truncate public tables. No successful hosted deployment is claimed yet.
+Backend typecheck/build and **105 tests including all eight PostgreSQL cases** passed in [GitHub Verify run 40129750572](https://github.com/Wisdom2788/CASH-DEY-PLAY/actions/runs/40129750572), commit e526b8d. Frontend typecheck,23 engine tests and Vite build passed. Both Vercel preview deployment contexts succeeded on that commit. Include claim races, audit failure rollback/retry, missing-user task rollback and same-key multi-instance replay. CI must reject a missing required DB URL, use isolated schemas, and never truncate public tables. Hosted preview build success does not certify runtime backend/provider functionality.
 
 ### Deployment and recovery
 
