@@ -41,7 +41,7 @@ export default function App() {
       }
     }
 
-    console.log('[App] initData present:', initData.length > 0, '| length:', initData.length);
+
 
     const authenticateUser = async () => {
       try {

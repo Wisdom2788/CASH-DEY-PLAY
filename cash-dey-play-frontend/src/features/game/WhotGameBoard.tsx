@@ -3,7 +3,6 @@ import routes from '../../config/routes.config';
 import React, { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../../store/game.store';
 import { useUIStore } from '../../store/ui.store';
-import { useAuthStore } from '../../store/auth.store';
 import { useMatchMove, useMatchDraw, useMatchForfeit } from '../../api/match.api';
 import { MatchTurn, WhotSuit, WhotSpecialEffect } from '../../types/enums/whot.enums';
 import { WhotCard } from '../../types/interfaces/card.types';
@@ -29,7 +28,6 @@ export default function WhotGameBoard() {
 
   const { showToast } = useUIStore();
   const navigate = useNavigate();
-  const { updateUserStats } = useAuthStore();
 
   // Timer interval
   useEffect(() => {
@@ -42,8 +40,6 @@ export default function WhotGameBoard() {
   // Watch for match completion to transition to result view
   useEffect(() => {
     if (activeMatch && activeMatch.status === 'COMPLETED') {
-      const isWin = activeMatch.winner === 'PLAYER';
-      updateUserStats(activeMatch.xpEarned, activeMatch.pointsEarned, isWin);
       
       // The result is recorded by the game server. The app never reports who won.
 
@@ -52,7 +48,7 @@ export default function WhotGameBoard() {
       }, 1600);
       return () => clearTimeout(delay);
     }
-  }, [activeMatch, navigate, updateUserStats]);
+  }, [activeMatch, navigate]);
 
   if (!activeMatch) {
     return (

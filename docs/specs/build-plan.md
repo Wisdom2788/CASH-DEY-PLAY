@@ -1,3 +1,5 @@
+> Historical reference. Current ordered implementation contracts and status: [delivery specifications](delivery/README.md). Conflicting instructions in this document are superseded there.
+
 # Cash Dey Play — Build Order and Implementation Plan (v1.0)
 
 *Prepared 20 October 2026. This document supersedes Sections 4, 7 and 9 of the Project Audit (decisions, build order and questions); the Audit remains the record of findings and is referred to by finding number (C1, H2 and so on). It contains: the final decisions, the v1.0 rulebook, the target architecture, the comparison with the Scrella engineering standard, the new design for ranked matchmaking and lobby states, and the step-by-step build plan with tests-first lists and acceptance criteria. Non-technical readers: Sections 1 to 3 and 9 are written for you. Engineers: every step in Section 7 lists files, data, events, tests and a finish line.*

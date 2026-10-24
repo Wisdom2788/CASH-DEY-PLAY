@@ -25,7 +25,7 @@ export default function WalletView() {
 
   const { showToast } = useUIStore();
   const navigate = useNavigate();
-  const [selectedAmount, setSelectedAmount] = useState<number>(500);
+  const [selectedAmount, setSelectedAmount] = useState<number>(50);
 
   const handleRedeem = () => {
     soundEffects.playButtonClick();
@@ -59,15 +59,15 @@ export default function WalletView() {
     { provider: TelecomProvider.NINE_MOBILE, label: '9mobile', color: '#007A3E' },
   ];
 
-  const redemptionAmounts = [100, 200, 500, 1000, 2500];
+  const redemptionAmounts = [50, 100, 200, 500, 1000, 2500];
 
   return (
     <div className="flex-1 overflow-y-auto no-scrollbar px-4 pt-2 pb-6 space-y-4 text-[#F5F5F0]">
       {/* Top Banner */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-bebas text-2xl tracking-wider text-white">AIRTIME &amp; DATA WALLET</h2>
-          <p className="text-xs text-[#9A9A9A]">Instant direct top-up to any Nigerian telecom</p>
+          <h2 className="font-bebas text-2xl tracking-wider text-white">AIRTIME WALLET</h2>
+          <p className="text-xs text-[#9A9A9A]">Airtime redemption is not available yet</p>
         </div>
         <button
           onClick={() => navigate(routes.home)}
@@ -88,7 +88,7 @@ export default function WalletView() {
           ) : (
             <span className="text-3xl font-black text-white">₦{balanceNgn.toLocaleString()}</span>
           )}
-          <span className="text-xs text-[#00E676] font-semibold">Ready for Top-up</span>
+          <span className="text-xs text-[#00E676] font-semibold">Reward balance</span>
         </div>
         <p className="text-[11px] text-[#A6ABB3] mt-2">
           Earned via Login Streaks, Daily Tasks &amp; Monthly Leaderboards. No bank KYC needed.
@@ -165,16 +165,14 @@ export default function WalletView() {
         {/* Redeem Button */}
         <button
           onClick={handleRedeem}
-          disabled={balanceNgn < selectedAmount || redeemMutation.isPending}
+          disabled={true}
           className={`w-full py-3.5 rounded-full font-black text-sm tracking-wider uppercase transition shadow-lg cursor-pointer ${
             balanceNgn >= selectedAmount && !redeemMutation.isPending
               ? 'bg-[#00B85F] hover:bg-[#009951] text-[#111214] active:scale-[0.98]'
               : 'bg-gray-800 text-gray-500 cursor-not-allowed'
           }`}
         >
-          {redeemMutation.isPending ? 'PROCESSING...' : balanceNgn >= selectedAmount
-            ? `TOP-UP ₦${selectedAmount.toLocaleString()} AIRTIME NOW`
-            : 'INSUFFICIENT BALANCE'}
+          Airtime redemption coming soon
         </button>
       </section>
 

@@ -24,7 +24,7 @@ export default function TasksView() {
   
   const cooldownTimer = useCountdown(cooldownSecondsLeft);
 
-  const { loginStreak, user, claimStreakReward, updateUserStats } = useAuthStore();
+  const { loginStreak, user } = useAuthStore();
   const { openRewardedAd, showToast } = useUIStore();
 
   const navigate = useNavigate();
@@ -42,11 +42,7 @@ export default function TasksView() {
         subtitle: 'Watch video to complete daily task and earn points',
         rewardAmount: '+50 Points',
         onRewardGranted: () => {
-          completeTaskMutation.mutate(task.id, {
-            onSuccess: (data) => {
-              updateUserStats(0, data.pointsEarned, false);
-            },
-          });
+          completeTaskMutation.mutate(task.id);
         },
       });
     } else if (task.type === 'WIN_MATCH') {
@@ -79,19 +75,8 @@ export default function TasksView() {
     });
   };
 
-  const handleClaimMilestone = (day: number) => {
-    soundEffects.playButtonClick();
-    const res = claimStreakReward(day);
-    if (res.success) {
-      showToast(
-        res.rewardAirtimeNgn
-          ? `🎉 Claimed ₦${res.rewardAirtimeNgn} Airtime bonus for Day ${day}!`
-          : `🎉 Claimed Day ${day} milestone reward!`,
-        'success'
-      );
-    } else {
-      showToast(`Milestone for Day ${day} cannot be claimed yet`, 'info');
-    }
+  const handleClaimMilestone = (_day: number) => {
+    showToast('Streak rewards are not available yet.', 'info');
   };
 
   if (isLoading || !loginStreak || !user) {
@@ -222,7 +207,7 @@ export default function TasksView() {
                 : 'bg-[#FF5A36] text-[#111214] glow-orange'
             }`}
           >
-            <span>▶ {watchOptionalVideoMutation.isPending ? 'Loading...' : 'play Match'}</span>
+            <span>▶ {watchOptionalVideoMutation.isPending ? 'Loading...' : 'Play match'}</span>
           </button>
         </div>
       </section>

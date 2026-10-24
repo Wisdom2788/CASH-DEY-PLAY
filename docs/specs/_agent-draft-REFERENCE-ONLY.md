@@ -1,3 +1,5 @@
+> Historical reference. Current ordered implementation contracts and status: [delivery specifications](delivery/README.md). Conflicting instructions in this document are superseded there.
+
 # Cash Dey Play — Master Implementation Specification & System Architecture
 
 *Prepared 21 October 2026. This document is the comprehensive, authoritative implementation specification covering every section, system, domain, and step outlined in the **Cash Dey Play — Build Order and Implementation Plan (v1.0)** and **Project Audit**. It resolves all omissions, architectural gaps, and security exploits with production-grade, highly efficient technical specifications.*

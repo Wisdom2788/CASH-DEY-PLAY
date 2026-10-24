@@ -1,20 +1,13 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Cash Dey Play frontend
 
-# Run and deploy your AI Studio app
+React 19, Vite, React Query and Zustand. Node.js 24; npm is the sole package manager.
 
-This contains everything you need to run your app locally.
+```sh
+npm ci
+npm run dev
+npm run typecheck
+npm test
+npm run build
+```
 
-View your app in AI Studio: https://ai.studio/apps/26f43cc9-fb6b-4e6f-b827-c4115b76e36a
-
-## Run Locally
-
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+See [repository setup](../README.md) and [delivery specifications](../docs/specs/delivery/README.md). Vercel's Root Directory must be this folder; output is dist. Configure VITE_API_URL separately for Preview and Production. No payment/provider secret belongs in frontend configuration. Video rewards and airtime redemption are unavailable until the verified server flows are complete; no ad simulation is shipped.

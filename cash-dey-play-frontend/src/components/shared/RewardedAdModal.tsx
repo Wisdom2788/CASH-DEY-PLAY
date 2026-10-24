@@ -1,197 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useUIStore } from '../../store/ui.store';
-import { useAuthStore } from '../../store/auth.store';
-import { useWatchOptionalVideo, useSkipCooldown } from '../../api/tasks.api';
-import { AdNetwork } from '../../types/enums/whot.enums';
-import { soundEffects } from '../../helpers/audio.helpers';
 
-declare global {
-  interface Window {
-    Adsgram?: {
-      init: (params: { blockId: string; debug?: boolean; debugConsole?: boolean; debugBannerType?: string }) => {
-        show: () => Promise<void>;
-      };
+/** No simulated views or client-granted rewards. Provider verification is not integrated yet. */
+export const RewardedAdModal = () => {
+  const { rewardedAdModal, closeRewardedAd } = useUIStore();
+  const closeButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!rewardedAdModal.isOpen) return;
+    const previous = document.activeElement;
+    closeButton.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeRewardedAd();
+      if (event.key === 'Tab') { event.preventDefault(); closeButton.current?.focus(); }
     };
-  }
-}
-
-export const RewardedAdModal: React.FC = () => {
-  const { rewardedAdModal, closeRewardedAd, showToast } = useUIStore();
-  const { updateUserStats } = useAuthStore();
-  const watchOptionalVideoMutation = useWatchOptionalVideo();
-  const skipCooldownMutation = useSkipCooldown();
-
-  const adsgramBlockId = import.meta.env.VITE_ADSGRAM_BLOCK_ID;
-  const isAdsgramActive = Boolean(adsgramBlockId && adsgramBlockId.trim() !== '' && adsgramBlockId !== 'mock');
-
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(5);
-  const [isCompleted, setIsCompleted] = useState(false);
-
-  useEffect(() => {
-    if (rewardedAdModal.isOpen) {
-      setIsPlaying(false);
-      setSecondsLeft(5);
-      setIsCompleted(false);
-    }
-  }, [rewardedAdModal.isOpen]);
-
-  // Handle countdown timer in preview/simulation mode
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (!isAdsgramActive && isPlaying && secondsLeft > 0) {
-      timer = setTimeout(() => {
-        setSecondsLeft((s) => s - 1);
-      }, 1000);
-    } else if (!isAdsgramActive && isPlaying && secondsLeft === 0) {
-      setIsPlaying(false);
-      setIsCompleted(true);
-      soundEffects.playVictoryChime();
-    }
-    return () => clearTimeout(timer);
-  }, [isAdsgramActive, isPlaying, secondsLeft]);
-
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      if (previous instanceof HTMLElement) previous.focus();
+    };
+  }, [rewardedAdModal.isOpen, closeRewardedAd]);
   if (!rewardedAdModal.isOpen) return null;
-
-  const startAd = () => {
-    soundEffects.playButtonClick();
-
-    if (isAdsgramActive) {
-      if (!window.Adsgram) {
-        showToast("Ad blocker detected or Adsgram failed to load.", "error");
-        return;
-      }
-
-      setIsPlaying(true);
-      try {
-        const AdController = window.Adsgram.init({
-          blockId: adsgramBlockId,
-          debug: Boolean(import.meta.env.VITE_ADSGRAM_DEBUG),
-        });
-
-        AdController.show()
-          .then(() => {
-            setIsPlaying(false);
-            setIsCompleted(true);
-            soundEffects.playVictoryChime();
-          })
-          .catch((result) => {
-            console.warn("Adsgram playback failed or was skipped:", result);
-            setIsPlaying(false);
-            showToast("You must watch the full ad to claim the reward.", "error");
-          });
-      } catch (err) {
-        console.error("Adsgram init error:", err);
-        setIsPlaying(false);
-        showToast("Failed to initialize advertisement.", "error");
-      }
-    } else {
-      // Local development or preview simulation mode
-      setIsPlaying(true);
-      setSecondsLeft(5);
-    }
-  };
-
-  const handleClaimReward = () => {
-    soundEffects.playVictoryChime();
-
-    if (rewardedAdModal.rewardType === 'BOOST_POINTS') {
-      updateUserStats(0, 50, false);
-      showToast('⚡ +50 Points added to your account!', 'success');
-    } else if (rewardedAdModal.rewardType === 'PRACTICE_MATCH') {
-      watchOptionalVideoMutation.mutate();
-    } else if (rewardedAdModal.rewardType === 'COOLDOWN_SKIP') {
-      skipCooldownMutation.mutate();
-    }
-
-    if (rewardedAdModal.onRewardGranted) {
-      rewardedAdModal.onRewardGranted();
-    }
-
-    closeRewardedAd();
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-      <div className="w-full max-w-[340px] bg-[#1A1B1E] border border-[#2b3044] rounded-[22px] p-5 shadow-2xl relative text-[#F5F5F0]">
-        {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-[#2b3044]">
-          <div className="flex items-center space-x-2">
-            <span className="text-xl">📺</span>
-            <h3 className="font-bebas text-xl tracking-wider text-white">
-              {rewardedAdModal.title}
-            </h3>
-          </div>
-          {!isPlaying && (
-            <button
-              onClick={closeRewardedAd}
-              className="text-[#9A9A9A] hover:text-white p-1 rounded"
-            >
-              ✕
-            </button>
-          )}
-        </div>
-
-        {/* Body */}
-        <div className="py-4 space-y-4 text-center">
-          {!isPlaying && !isCompleted ? (
-            <>
-              <div className="w-16 h-16 mx-auto rounded-2xl bg-[#203666] border border-[#3b5998] flex items-center justify-center shadow-inner">
-                <span className="font-bebas text-3xl text-[#FF5A36]">⚡</span>
-              </div>
-              <div>
-                <h4 className="font-bold text-base text-white">{rewardedAdModal.subtitle}</h4>
-                <p className="text-xs text-[#9A9A9A] mt-1">
-                  Non-gambling rewarded program compliant with Nigerian consumer rules.
-                </p>
-              </div>
-
-
-
-              <button
-                onClick={startAd}
-                className="w-full h-12 bg-[#FF5A36] hover:bg-[#ff6947] active:scale-[0.98] transition font-extrabold text-sm tracking-wider text-[#111214] rounded-full glow-orange shadow-lg flex items-center justify-center space-x-2"
-              >
-                <span>▶ WATCH VIDEO</span>
-              </button>
-            </>
-          ) : isPlaying && !isCompleted ? (
-            <div className="py-6 space-y-3">
-              <div className="relative w-20 h-20 mx-auto rounded-full bg-[#203666]/50 border border-[#3b5998] flex items-center justify-center animate-pulse">
-                <span className="font-bebas text-3xl text-[#FF5A36]">
-                  {isAdsgramActive ? '...' : `${secondsLeft}s`}
-                </span>
-              </div>
-              <p className="text-sm font-bold text-white">
-                {isAdsgramActive ? 'Ad is playing via Adsgram...' : 'Playing rewarded video...'}
-              </p>
-              <p className="text-xs text-[#9A9A9A]">
-                {isAdsgramActive
-                  ? 'Please complete the ad. The reward will unlock automatically.'
-                  : 'Please wait for the video to complete to claim your reward.'}
-              </p>
-            </div>
-          ) : (
-            <div className="py-4 space-y-4">
-              <div className="w-16 h-16 mx-auto rounded-full bg-[#00B85F]/20 border border-[#00B85F] flex items-center justify-center text-3xl">
-                ✓
-              </div>
-              <div>
-                <h4 className="font-bold text-lg text-white">Reward Ready!</h4>
-                <p className="text-xs text-[#00E676] font-semibold mt-0.5">
-                  {rewardedAdModal.rewardAmount}
-                </p>
-              </div>
-              <button
-                onClick={handleClaimReward}
-                className="w-full h-12 bg-[#00B85F] hover:bg-[#009951] active:scale-[0.98] transition font-black text-sm tracking-wider text-[#111214] rounded-full shadow-lg"
-              >
-                CLAIM REWARD
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
+      <section role="dialog" aria-modal="true" aria-labelledby="rewards-title"
+        className="w-full max-w-[340px] bg-[#1A1B1E] border border-[#303338] rounded-2xl p-5 text-[#F5F5F0]">
+        <h2 id="rewards-title" className="font-bold text-lg">Video rewards coming soon</h2>
+        <p className="text-sm text-gray-300 my-4">Rewards will be available once video verification is connected. No ad has been played or reward claimed.</p>
+        <button ref={closeButton} onClick={closeRewardedAd} className="w-full min-h-11 rounded-full bg-[#00B85F] text-black font-bold">Close</button>
+      </section>
     </div>
   );
 };

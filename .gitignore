@@ -13,7 +13,9 @@ node_modules/
 
 # Environment
 .env
+.env.*
 !.env.example
+.vercel/
 
 # Logs
 *.log
