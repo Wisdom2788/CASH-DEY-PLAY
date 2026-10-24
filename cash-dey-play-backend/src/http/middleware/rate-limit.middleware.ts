@@ -47,6 +47,37 @@ export class MemoryRateLimitCounterStore implements RateLimitCounterStore {
   }
 }
 
+/**
+ * Rate limits protect against abuse; they must never take the whole API down.
+ * If the counter store is unreachable (Redis restarting, not yet connected), let the request through
+ * and say so in the logs, instead of failing every request with a 500.
+ * Money routes will use a fail-closed variant when they exist.
+ */
+export class FailOpenRateLimitCounterStore implements RateLimitCounterStore {
+  private lastWarningAtMs = Number.NEGATIVE_INFINITY;
+
+  constructor(
+    private readonly inner: RateLimitCounterStore,
+    private readonly warn: (message: string) => void = (message) => console.warn(message),
+    private readonly warnEveryMs: number = 60_000,
+    private readonly nowMs: () => number = () => Date.now(),
+  ) {}
+
+  async increment(key: string, windowSeconds: number): Promise<number> {
+    try {
+      return await this.inner.increment(key, windowSeconds);
+    } catch (error) {
+      const now = this.nowMs();
+      if (now - this.lastWarningAtMs >= this.warnEveryMs) {
+        this.lastWarningAtMs = now;
+        const reason = error instanceof Error ? error.message : String(error);
+        this.warn(`Rate limit store unavailable; letting requests through. Reason: ${reason}`);
+      }
+      return 0;
+    }
+  }
+}
+
 export interface RateLimitMiddlewareOptions {
   readonly store: RateLimitCounterStore;
   readonly maxRequests: number;

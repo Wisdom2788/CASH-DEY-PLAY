@@ -31,7 +31,7 @@ export function verifyTelegramInitData(
   nowSeconds: number = Math.floor(Date.now() / 1000),
   maxAgeSeconds: number = TELEGRAM_INIT_DATA_MAX_AGE_SECONDS,
 ): AuthenticatedTelegramUser {
-  if (initData.length === 0) {
+  if (typeof initData !== "string" || initData.length === 0 || initData.length > 16384) {
     throw new TelegramAuthError("missing initData");
   }
   if (botToken.length === 0) {
@@ -39,8 +39,9 @@ export function verifyTelegramInitData(
   }
 
   const params = new URLSearchParams(initData);
+  if (new Set(params.keys()).size !== [...params.keys()].length) throw new TelegramAuthError("duplicate initData fields");
   const providedHash = params.get("hash");
-  if (providedHash === null) {
+  if (providedHash === null || !/^[a-fA-F0-9]{64}$/.test(providedHash)) {
     throw new TelegramAuthError("hash is missing");
   }
   params.delete("hash");
@@ -67,6 +68,7 @@ export function verifyTelegramInitData(
   if (!Number.isInteger(authDate) || authDate <= 0) {
     throw new TelegramAuthError("auth_date is invalid");
   }
+  if (authDate > nowSeconds + 60) throw new TelegramAuthError("auth_date is in the future");
   if (nowSeconds - authDate > maxAgeSeconds) {
     throw new TelegramAuthError("initData has expired");
   }
@@ -83,7 +85,11 @@ export function verifyTelegramInitData(
     throw new TelegramAuthError("user payload is not valid JSON");
   }
 
-  if (!Number.isInteger(userPayload.id)) {
+  if (userPayload === null || typeof userPayload !== "object" ||
+      !Number.isSafeInteger(userPayload.id) || userPayload.id <= 0 ||
+      (userPayload.first_name !== undefined && typeof userPayload.first_name !== "string") ||
+      (userPayload.username !== undefined && typeof userPayload.username !== "string") ||
+      (userPayload.photo_url !== undefined && typeof userPayload.photo_url !== "string")) {
     throw new TelegramAuthError("user id is missing");
   }
 

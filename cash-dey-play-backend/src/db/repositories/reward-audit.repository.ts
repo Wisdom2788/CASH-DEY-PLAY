@@ -6,7 +6,7 @@ export interface IRewardAuditRepository {
 }
 
 export class PostgresRewardAuditRepository implements IRewardAuditRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pick<Pool, "query">) {}
 
   async append(event: NewRewardAuditEvent): Promise<void> {
     const query = `

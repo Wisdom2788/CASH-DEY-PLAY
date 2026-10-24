@@ -7,17 +7,10 @@ import Redis from "ioredis";
 import { loadAppEnv, type NodeEnvironment } from "./config/env.config";
 import { errorHandler } from "./http/middleware/error-handler.middleware";
 import { createAuthMiddleware } from "./http/middleware/auth.middleware";
-import {
-  createRateLimitMiddleware,
-  MemoryRateLimitCounterStore,
-  RedisRateLimitCounterStore,
-  type RateLimitCounterStore,
-} from "./http/middleware/rate-limit.middleware";
+import { createRateLimitMiddleware, MemoryRateLimitCounterStore, RedisRateLimitCounterStore, type RateLimitCounterStore, FailOpenRateLimitCounterStore } from "./http/middleware/rate-limit.middleware";
 import { createQualificationRouter } from "./http/routes/qualification.routes";
 
-import { PostgresLoginStreakRepository } from "./db/repositories/login-streak.repository";
-import { PostgresIdempotencyRepository } from "./db/repositories/idempotency.repository";
-import { PostgresRewardAuditRepository } from "./db/repositories/reward-audit.repository";
+import { PostgresStreakUnitOfWork } from "./db/streak-unit-of-work";
 import { LoginStreakService } from "./qualification/login-streak";
 import { LoginStreakController } from "./http/controllers/login-streak.controller";
 
@@ -82,13 +75,11 @@ export function createApp(dependencies: AppDependencies): Express {
   );
   app.use(express.json());
 
-  app.use(
-    createRateLimitMiddleware({
-      store: dependencies.rateLimitStore,
-      maxRequests: dependencies.ipRequestsPerMinute,
-      windowSeconds: 60,
-      scope: "ip",
-    }),
+  app.get("/healthz", (_req, res) => { res.json({ ok: true }); });
+  // Shared mobile-network addresses must not combine every authenticated player's limit.
+  app.use("/api/auth/telegram/login",
+    createRateLimitMiddleware({ store: dependencies.rateLimitStore,
+      maxRequests: dependencies.ipRequestsPerMinute, windowSeconds: 60, scope: "ip" }),
   );
   app.use(
     createAuthMiddleware({
@@ -134,28 +125,52 @@ export function createApp(dependencies: AppDependencies): Express {
   return app;
 }
 
-function createRateLimitStore(redisUrl: string, nodeEnv: NodeEnvironment): RateLimitCounterStore {
+const REDIS_READY_TIMEOUT_MS = 10_000;
+
+interface RateLimitSetup {
+  readonly store: RateLimitCounterStore;
+  /** Resolves when the store can be used (or after a timeout, so a bad Redis address cannot stop the API starting). */
+  readonly whenReady: Promise<void>;
+}
+
+function createRateLimitStore(redisUrl: string, nodeEnv: NodeEnvironment): RateLimitSetup {
   if (redisUrl.length === 0) {
     if (nodeEnv !== "production") {
       console.warn("REDIS_URL is not set; using process-local rate limits. Do not run more than one API instance.");
     }
-    return new MemoryRateLimitCounterStore();
+    return { store: new MemoryRateLimitCounterStore(), whenReady: Promise.resolve() };
   }
 
   const redis = new Redis(redisUrl, {
     maxRetriesPerRequest: 1,
     enableOfflineQueue: false,
+    // Keep reconnecting forever with a short, growing delay. (Giving up after two tries left every later request failing.)
     retryStrategy(attempt) {
-      if (attempt >= 2) {
-        return null;
-      }
-      return 250;
+      return Math.min(attempt * 200, 3_000);
     },
   });
   redis.on("error", (error: Error) => {
     console.warn(`Redis error: ${error.message}`);
   });
-  return new RedisRateLimitCounterStore(redis);
+
+  const whenReady = new Promise<void>((resolve) => {
+    if (redis.status === "ready") {
+      resolve();
+      return;
+    }
+    const timer = setTimeout(() => {
+      console.error(
+        `Redis was not ready after ${REDIS_READY_TIMEOUT_MS} ms. Rate limits are OFF until it connects. Check REDIS_URL (use the Internal URL, same region).`,
+      );
+      resolve();
+    }, REDIS_READY_TIMEOUT_MS);
+    redis.once("ready", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+
+  return { store: new FailOpenRateLimitCounterStore(new RedisRateLimitCounterStore(redis)), whenReady };
 }
 
 function createProductionDependencies() {
@@ -163,7 +178,7 @@ function createProductionDependencies() {
   const clock = new LagosCalendarClock();
   const pool = new Pool({ connectionString: env.databaseUrl.length > 0 ? env.databaseUrl : undefined });
 
-  const rateLimitStore = createRateLimitStore(env.redisUrl, env.nodeEnv);
+  const rateLimit = createRateLimitStore(env.redisUrl, env.nodeEnv);
 
   const userRepository = new PostgresUserRepository(pool);
   const authService = new AuthService(
@@ -174,10 +189,8 @@ function createProductionDependencies() {
   );
 
   const loginStreakService = new LoginStreakService(
-    new PostgresLoginStreakRepository(pool),
     clock,
-    new PostgresRewardAuditRepository(pool),
-    new PostgresIdempotencyRepository(pool),
+    new PostgresStreakUnitOfWork(pool),
   );
   const monthlyLeaderboardService = new MonthlyLeaderboardService(
     new PostgresMonthlyLeaderboardRepository(pool),
@@ -187,7 +200,7 @@ function createProductionDependencies() {
   const tasksRepository = new PostgresTasksRepository(pool);
   const walletRepository = new PostgresWalletRepository(pool);
 
-  return {
+  const dependencies = {
     pool,
     authService,
     loginStreakService,
@@ -199,16 +212,22 @@ function createProductionDependencies() {
     jwtSecret: env.jwtSecret,
     corsOrigin: env.corsOrigin,
     allowDevAuthBypass: env.allowDevAuthBypass,
-    rateLimitStore,
+    rateLimitStore: rateLimit.store,
     userRequestsPerMinute: env.userRequestsPerMinute,
     ipRequestsPerMinute: env.ipRequestsPerMinute,
   };
+
+  return { dependencies, rateLimitReady: rateLimit.whenReady };
 }
 
 if (require.main === module) {
   const env = loadAppEnv();
-  const app = createApp(createProductionDependencies());
-  app.listen(env.port, () => {
-    console.log(`Server listening on port ${env.port}`);
+  const { dependencies, rateLimitReady } = createProductionDependencies();
+  const app = createApp(dependencies);
+  // Do not accept traffic until the rate-limit store is connected (or the wait timed out and said so in the logs).
+  void rateLimitReady.then(() => {
+    app.listen(env.port, () => {
+      console.log(`Server listening on port ${env.port}`);
+    });
   });
 }

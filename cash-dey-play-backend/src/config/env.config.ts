@@ -17,11 +17,18 @@ export interface AppEnv {
   readonly ipRequestsPerMinute: number;
 }
 
+const MINIMUM_PRODUCTION_JWT_SECRET_LENGTH = 32;
+const PUBLIC_DEVELOPMENT_JWT_SECRET = "dev_secret";
+
+/**
+ * Fail safe: only an explicit "development" or "test" relaxes security.
+ * A missing or mistyped NODE_ENV (for example "prod") is treated as production.
+ */
 function readNodeEnv(value: string | undefined): NodeEnvironment {
-  if (value === "production" || value === "test" || value === "development") {
+  if (value === "development" || value === "test") {
     return value;
   }
-  return "development";
+  return "production";
 }
 
 export function loadAppEnv(processEnv: NodeJS.ProcessEnv = process.env): AppEnv {
@@ -40,9 +47,21 @@ export function loadAppEnv(processEnv: NodeJS.ProcessEnv = process.env): AppEnv 
     throw new Error("DATABASE_URL is required in production.");
   }
 
-  const allowDevAuthBypass = processEnv.ALLOW_DEV_AUTH_BYPASS === "true" && nodeEnv !== "production";
+  const configuredJwtSecret = processEnv.JWT_SECRET ?? "";
+  if (nodeEnv === "production") {
+    const isMissingOrWeak =
+      configuredJwtSecret.length < MINIMUM_PRODUCTION_JWT_SECRET_LENGTH ||
+      configuredJwtSecret === PUBLIC_DEVELOPMENT_JWT_SECRET;
+    if (isMissingOrWeak) {
+      throw new Error(
+        `JWT_SECRET must be set to a random value of at least ${MINIMUM_PRODUCTION_JWT_SECRET_LENGTH} characters in production.`,
+      );
+    }
+  }
 
-  const jwtSecret = processEnv.JWT_SECRET ?? "dev_secret";
+  const allowDevAuthBypass = processEnv.ALLOW_DEV_AUTH_BYPASS === "true" && nodeEnv === "development";
+
+  const jwtSecret = configuredJwtSecret.length > 0 ? configuredJwtSecret : PUBLIC_DEVELOPMENT_JWT_SECRET;
 
   return {
     nodeEnv,

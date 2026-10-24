@@ -11,7 +11,8 @@ import { InvalidEligibilityInputError } from "../../qualification/monthly-leader
 import { InvalidCalendarMonthError } from "../../time/lagos-calendar-clock";
 import { TelegramAuthError } from "../telegram/verify-telegram-init-data";
 import { RateLimitExceededError } from "./rate-limit.middleware";
-import { MissingIdempotencyKeyError } from "../errors/http-errors";
+import { MissingIdempotencyKeyError, NotImplementedFeatureError } from "../errors/http-errors";
+import { TaskAlreadyCompletedError, UnknownTaskError } from "../../db/repositories/tasks.errors";
 
 export function errorHandler(
   err: unknown,
@@ -45,7 +46,8 @@ export function errorHandler(
     err instanceof BackdatedLoginError ||
     err instanceof InvalidEligibilityInputError ||
     err instanceof InvalidCalendarMonthError ||
-    err instanceof MissingIdempotencyKeyError
+    err instanceof MissingIdempotencyKeyError ||
+    err instanceof UnknownTaskError
   ) {
     res.status(400).json({ error: err.name, message: err.message });
     return;
@@ -63,6 +65,16 @@ export function errorHandler(
 
   if (err instanceof LoginStreakBonusAlreadyClaimedError) {
     res.status(409).json({ error: err.name, message: err.message });
+    return;
+  }
+
+  if (err instanceof TaskAlreadyCompletedError) {
+    res.status(409).json({ error: err.name, message: err.message });
+    return;
+  }
+
+  if (err instanceof NotImplementedFeatureError) {
+    res.status(501).json({ error: err.name, message: err.message });
     return;
   }
 

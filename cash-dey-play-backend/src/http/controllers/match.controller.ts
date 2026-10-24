@@ -1,5 +1,6 @@
 import { type Request, type Response, type NextFunction } from "express";
 import { Pool } from "pg";
+import { NotImplementedFeatureError } from "../errors/http-errors";
 
 export class MatchController {
   constructor(private readonly pool: Pool) {}
@@ -33,40 +34,19 @@ export class MatchController {
     }
   };
 
-  startMatch = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      // Match start will be handled by Socket.io in production
-      // This REST endpoint returns a placeholder match state for now
-      res.json({
-        data: null,
-        message: "Match start is handled via Socket.io. Connect to the socket server to start a match.",
-      });
-    } catch (error) {
-      next(error);
-    }
+  startMatch = async (_req: Request, _res: Response, next: NextFunction): Promise<void> => {
+    next(new NotImplementedFeatureError("Starting a match"));
   };
 
-  makeMove = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      res.json({ data: null, message: "Moves are handled via Socket.io" });
-    } catch (error) {
-      next(error);
-    }
+  makeMove = async (_req: Request, _res: Response, next: NextFunction): Promise<void> => {
+    next(new NotImplementedFeatureError("Playing a card"));
   };
 
-  drawCard = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      res.json({ data: null, message: "Draw is handled via Socket.io" });
-    } catch (error) {
-      next(error);
-    }
+  drawCard = async (_req: Request, _res: Response, next: NextFunction): Promise<void> => {
+    next(new NotImplementedFeatureError("Drawing a card"));
   };
 
-  forfeit = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      res.json({ data: null, message: "Forfeit is handled via Socket.io" });
-    } catch (error) {
-      next(error);
-    }
+  forfeit = async (_req: Request, _res: Response, next: NextFunction): Promise<void> => {
+    next(new NotImplementedFeatureError("Forfeiting a match"));
   };
 }

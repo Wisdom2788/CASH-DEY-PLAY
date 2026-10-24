@@ -2,6 +2,8 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import {defineConfig} from 'vite';
 
+// Optional integration credentials must not prevent a static UI build.
+// Video rewards are disabled in both the API and UI until verified callbacks exist.
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],

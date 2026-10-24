@@ -32,12 +32,9 @@ export function requireAuthenticatedUser(req: Request): AuthenticatedTelegramUse
 export function createAuthMiddleware(options: AuthMiddlewareOptions) {
   return (req: Request, _res: Response, next: NextFunction): void => {
     try {
-      // Exclude public/webhook endpoints from auth middleware
+      // The sign-in endpoint is the only public route. Webhooks get their own verified route when built.
       const normalizedPath = (req.originalUrl || req.path || "").split("?")[0];
-      if (
-        normalizedPath === "/api/auth/telegram/login" ||
-        (normalizedPath === "/api/tasks/optional-video" && req.method === "GET")
-      ) {
+      if (normalizedPath === "/api/auth/telegram/login") {
         return next();
       }
 
@@ -45,7 +42,13 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions) {
       const authHeader = req.header("Authorization");
       if (authHeader && authHeader.startsWith("Bearer ")) {
         const token = authHeader.split(" ")[1];
-        const decoded = jwt.verify(token, options.jwtSecret) as { userId: string; telegramId: number };
+        const decoded = jwt.verify(token, options.jwtSecret, {
+          algorithms: ["HS256"], issuer: "cash-dey-play", audience: "cash-dey-play-mini-app",
+        });
+        if (typeof decoded === "string" || !Number.isSafeInteger(decoded.telegramId) || decoded.telegramId <= 0 ||
+            decoded.userId !== `tg_${decoded.telegramId}`) {
+          throw new TelegramAuthError("Invalid token claims");
+        }
         req.auth = {
           telegramUserId: decoded.telegramId.toString(),
           firstName: "",
@@ -67,6 +70,9 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions) {
       // 3. Dev bypass
       const devUserId = req.header(DEV_TELEGRAM_USER_ID_HEADER);
       if (options.allowDevAuthBypass && devUserId !== undefined && devUserId.length > 0) {
+        if (!/^[1-9]\d{0,15}$/.test(devUserId) || !Number.isSafeInteger(Number(devUserId))) {
+          throw new TelegramAuthError("Invalid developer user ID");
+        }
         req.auth = {
           telegramUserId: devUserId,
           firstName: "Dev",

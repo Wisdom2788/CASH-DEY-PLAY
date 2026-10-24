@@ -3,9 +3,6 @@ import routes from '../../config/routes.config';
 import React from 'react';
 import { useAuthStore } from '../../store/auth.store';
 import { useGetWalletBalance } from '../../api/wallet.api';
-import { useSubscribePremium } from '../../api/premium.api';
-import { useUIStore } from '../../store/ui.store';
-import { soundEffects } from '../../helpers/audio.helpers';
 import Skeleton from 'react-loading-skeleton';
 
 export default function ProfileView() {
@@ -13,24 +10,7 @@ export default function ProfileView() {
   const { data: balanceData, isLoading: isLoadingBalance } = useGetWalletBalance();
   const balanceNgn = balanceData?.balanceNgn ?? 0;
   
-  const subscribePremiumMutation = useSubscribePremium();
-  const { showToast } = useUIStore();
   const navigate = useNavigate();
-
-  const handleUpgradePremium = () => {
-    soundEffects.playButtonClick();
-    subscribePremiumMutation.mutate(undefined, {
-      onSuccess: () => {
-        soundEffects.playVictoryChime();
-        showToast('👑 Upgraded to Premium! Enjoy ad-free and exclusive cosmetics.', 'success');
-        // A real app would then invalidate the user query or update the store here,
-        // which the api client setup typically handles via onSuccess invalidation.
-      },
-      onError: () => {
-        showToast('Failed to upgrade to Premium. Please try again.', 'error');
-      }
-    });
-  };
 
   if (!user || !loginStreak) return null;
 
@@ -92,12 +72,12 @@ export default function ProfileView() {
       >
         <div>
           <span className="text-[10px] font-bold text-[#A6ABB3] uppercase tracking-wider block">
-            AIRTIME &amp; DATA WALLET
+            AIRTIME WALLET
           </span>
           <div className="text-2xl font-black text-white">
             {isLoadingBalance ? <Skeleton width={80} baseColor="#1A1B1E" highlightColor="#2A2C31" /> : `₦${balanceNgn.toLocaleString()}`}
           </div>
-          <p className="text-[11px] text-[#00E676] mt-0.5">Instant top-up to MTN, Airtel, Glo, 9mobile</p>
+          <p className="text-[11px] text-[#00E676] mt-0.5">Airtime redemption coming soon</p>
         </div>
         <div className="px-3.5 py-2 rounded-full bg-[#00B85F] text-[#111214] font-extrabold text-xs">
           Redeem Reward →
@@ -135,24 +115,15 @@ export default function ProfileView() {
         </div>
 
         <p className="text-xs text-gray-300">
-          Ad-free experience, unlimited unranked practice matches, exclusive card backs &amp; titles.
+          No video ads, unlimited practice and premium cosmetics. Purchases are not available yet.
         </p>
-
-        {/* Legal design constraint guarantee */}
-        <div className="bg-[#111214]/80 p-2.5 rounded-xl border border-[#303338] text-[10px] text-gray-400 space-y-1">
-          <span className="font-bold text-[#00E676] block">✓ STRICT LEGAL COMPLIANCE GUARANTEE</span>
-          <p>
-            Premium never touches card RNG, match odds, or leaderboard eligibility. Convenience and cosmetics only.
-          </p>
-        </div>
 
         {!user.isPremium ? (
           <button
-            onClick={handleUpgradePremium}
-            disabled={subscribePremiumMutation.isPending}
-            className="w-full py-2.5 rounded-full bg-gradient-to-r from-[#7A2BE2] to-[#5A1BB8] text-white font-bold text-xs uppercase tracking-wider active:scale-95 transition cursor-pointer disabled:opacity-50"
+            disabled
+            className="w-full py-2.5 rounded-full bg-gradient-to-r from-[#7A2BE2] to-[#5A1BB8] text-white font-bold text-xs uppercase tracking-wider opacity-50 cursor-not-allowed"
           >
-            {subscribePremiumMutation.isPending ? 'Upgrading...' : 'Upgrade to Premium (₦1,000)'}
+            Premium coming soon
           </button>
         ) : (
           <div className="py-2 text-center text-xs font-bold text-[#00E676] bg-[#00B85F]/10 rounded-full border border-[#00B85F]/30">
@@ -161,26 +132,7 @@ export default function ProfileView() {
         )}
       </section>
 
-      {/* Section 4: Non-Gambling Legal Guardrails */}
-      <section className="bg-[#111214] border border-[#2A2C31] rounded-2xl p-3.5 space-y-2 text-xs">
-        <h4 className="font-bold text-white text-[11px] uppercase tracking-wider text-[#A6ABB3]">
-          ⚖️ REGULATORY COMPLIANCE ARCHITECTURE
-        </h4>
-        <div className="space-y-1.5 text-[11px] text-[#A6ABB3]">
-          <p>
-            • <strong>No Consideration + Chance + Prize:</strong> No cash entry fees. Free-to-play with rewarded ad margin.
-          </p>
-          <p>
-            • <strong>Airtime / Data Top-up Only:</strong> No bank cash withdrawals or withdrawal KYC.
-          </p>
-          <p>
-            • <strong>Server-Authoritative Match Logic:</strong> Every Whot move validated server-side.
-          </p>
-          <p>
-            • <strong>Skill-Ranked Leaderboard:</strong> Ranked by weighted win rate and sustained consistency.
-          </p>
-        </div>
-      </section>
+
     </div>
   );
 };

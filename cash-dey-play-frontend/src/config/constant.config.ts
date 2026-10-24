@@ -12,7 +12,6 @@ export const API_ROUTES = {
   TASK_COMPLETE: 'tasks/complete',
   TASK_OPTIONAL_VIDEO: 'tasks/optional-video',
   TASK_SKIP_COOLDOWN: 'tasks/skip-cooldown',
-  RECORD_MATCH: 'tasks/record-match',
 
   // Leaderboard
   LEADERBOARD_GAME: 'leaderboards/game',
@@ -26,6 +25,5 @@ export const API_ROUTES = {
   MATCH_RECENT: 'matches/recent-opponents',
 
   // Premium
-  PREMIUM_SUBSCRIBE: 'premium/subscribe',
   PREMIUM_STATUS: 'premium/status',
 };

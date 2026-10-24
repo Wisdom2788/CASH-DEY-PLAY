@@ -1,6 +1,7 @@
 import { type Request, type Response, type NextFunction } from "express";
 
 import { UserRepository } from "../../db/repositories/user.repository";
+import { NotImplementedFeatureError } from "../errors/http-errors";
 
 export class UserController {
   constructor(private readonly userRepository: UserRepository) {}
@@ -19,17 +20,7 @@ export class UserController {
     }
   };
 
-  updateProfile = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      // const userId = (req as any).userId;
-      // For now, only username updates are supported
-      const { username } = req.body;
-      if (username) {
-        // Would update in DB — placeholder for now
-      }
-      res.json({ data: { message: "Profile updated", status: 200 } });
-    } catch (error) {
-      next(error);
-    }
+  updateProfile = async (_req: Request, _res: Response, next: NextFunction): Promise<void> => {
+    next(new NotImplementedFeatureError("Updating the profile"));
   };
 }

@@ -11,7 +11,7 @@ import { useCountdown } from '../../hooks/useCountdown';
 import {getTimeMessage} from '../../helpers/greetingMessage.helpers';
 
 export default function HomeDashboard() {
-  const { user, loginStreak, claimStreakReward } = useAuthStore();
+  const { user, loginStreak } = useAuthStore();
   const { data: balanceData, isLoading: isLoadingBalance } = useGetWalletBalance();
   const { data: tasksState } = useGetTasksState();
   const { openRewardedAd, showToast } = useUIStore();
@@ -61,25 +61,8 @@ export default function HomeDashboard() {
     navigate(routes.lobby);
   };
 
-  const handleStreakMilestoneClick = (day: number) => {
-    soundEffects.playButtonClick();
-    if (streak.claimedMilestones.includes(day)) {
-      showToast(`Day ${day} milestone already claimed!`, 'info');
-      return;
-    }
-    if (streak.currentStreakDays >= day) {
-      const res = claimStreakReward(day);
-      if (res.success) {
-        showToast(
-          res.rewardAirtimeNgn
-            ? `🎉 Claimed ₦${res.rewardAirtimeNgn} Airtime bonus for Day ${day}!`
-            : `🎉 Claimed Day ${day} milestone reward!`,
-          'success'
-        );
-      }
-    } else {
-      showToast(`Reach Day ${day} to unlock this milestone reward!`, 'info');
-    }
+  const handleStreakMilestoneClick = (_day: number) => {
+    showToast('Streak rewards are not available yet.', 'info');
   };
 
   const handleBoostRewards = () => {
