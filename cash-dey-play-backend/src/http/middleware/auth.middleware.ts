@@ -1,93 +1,52 @@
 import { type NextFunction, type Request, type Response } from "express";
 import jwt from "jsonwebtoken";
-import {
-  DEV_TELEGRAM_USER_ID_HEADER,
-  TelegramAuthError,
-  verifyTelegramInitData,
-  type AuthenticatedTelegramUser,
-} from "../telegram/verify-telegram-init-data";
+import { type AuthState } from "../../db/repositories/user.repository";
+import { ServiceUnavailableError } from "../errors/http-errors";
+import { DEV_TELEGRAM_USER_ID_HEADER, TelegramAuthError, verifyTelegramInitData, type AuthenticatedTelegramUser } from "../telegram/verify-telegram-init-data";
 
-declare global {
-  namespace Express {
-    interface Request {
-      auth?: AuthenticatedTelegramUser;
-      userId?: string;
-    }
-  }
-}
-
+declare global { namespace Express { interface Request { auth?: AuthenticatedTelegramUser; userId?: string; requestId?: string; } } }
 export interface AuthMiddlewareOptions {
-  readonly jwtSecret: string;
-  readonly allowDevAuthBypass: boolean;
-  readonly telegramBotToken?: string;
+  readonly jwtSecret: string; readonly allowDevAuthBypass: boolean; readonly telegramBotToken?: string;
+  readonly loadUser: (id: string) => Promise<AuthState | null>;
 }
-
 export function requireAuthenticatedUser(req: Request): AuthenticatedTelegramUser {
-  if (req.auth === undefined) {
-    throw new TelegramAuthError("authenticated user is missing");
-  }
+  if (!req.auth) throw new TelegramAuthError("authenticated user is missing");
   return req.auth;
 }
-
+export function requireUserId(req: Request): string {
+  const user=requireAuthenticatedUser(req);
+  if(req.userId !== `tg_${user.telegramUserId}`) throw new TelegramAuthError("canonical user identity is missing");
+  return req.userId;
+}
 export function createAuthMiddleware(options: AuthMiddlewareOptions) {
-  return (req: Request, _res: Response, next: NextFunction): void => {
+  return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     try {
-      // The sign-in endpoint is the only public route. Webhooks get their own verified route when built.
-      const normalizedPath = (req.originalUrl || req.path || "").split("?")[0];
-      if (normalizedPath === "/api/auth/telegram/login") {
-        return next();
+      const path=(req.originalUrl||req.path).split("?")[0];
+      if(path === "/api/auth/telegram/login") { next(); return; }
+      let tokenVersion: number | undefined;
+      const header=req.header("Authorization");
+      if(header?.startsWith("Bearer ")) {
+        const decoded=jwt.verify(header.slice(7),options.jwtSecret,{algorithms:["HS256"],issuer:"cash-dey-play",audience:"cash-dey-play-mini-app"});
+        if(typeof decoded === "string" || !Number.isSafeInteger(decoded.telegramId) || decoded.telegramId <= 0 || decoded.userId !== `tg_${decoded.telegramId}` ||
+          (decoded.tokenVersion !== undefined && (!Number.isSafeInteger(decoded.tokenVersion) || decoded.tokenVersion < 0))) throw new TelegramAuthError("Invalid token claims");
+        // Stage01 tokens did not include a version; they are valid only while the account version is still zero.
+        tokenVersion=decoded.tokenVersion ?? 0;
+        req.auth={telegramUserId:String(decoded.telegramId),firstName:"",username:null}; req.userId=decoded.userId;
+      } else if(req.header("X-Telegram-Init-Data") && options.telegramBotToken) {
+        req.auth=verifyTelegramInitData(req.header("X-Telegram-Init-Data")!,options.telegramBotToken);
+        req.userId=`tg_${req.auth.telegramUserId}`;
+      } else {
+        const id=req.header(DEV_TELEGRAM_USER_ID_HEADER);
+        if(!options.allowDevAuthBypass || !id || !/^[1-9]\d{0,15}$/.test(id) || !Number.isSafeInteger(Number(id))) throw new TelegramAuthError("Missing or invalid Authorization header");
+        req.auth={telegramUserId:id,firstName:"Dev",username:"DevPlayer"}; req.userId=`tg_${id}`;
       }
-
-      // 1. Check Bearer JWT token
-      const authHeader = req.header("Authorization");
-      if (authHeader && authHeader.startsWith("Bearer ")) {
-        const token = authHeader.split(" ")[1];
-        const decoded = jwt.verify(token, options.jwtSecret, {
-          algorithms: ["HS256"], issuer: "cash-dey-play", audience: "cash-dey-play-mini-app",
-        });
-        if (typeof decoded === "string" || !Number.isSafeInteger(decoded.telegramId) || decoded.telegramId <= 0 ||
-            decoded.userId !== `tg_${decoded.telegramId}`) {
-          throw new TelegramAuthError("Invalid token claims");
-        }
-        req.auth = {
-          telegramUserId: decoded.telegramId.toString(),
-          firstName: "",
-          username: null,
-        };
-        req.userId = decoded.userId;
-        return next();
-      }
-
-      // 2. Check X-Telegram-Init-Data (HMAC signature from Telegram)
-      const initDataHeader = req.header("X-Telegram-Init-Data");
-      if (initDataHeader && options.telegramBotToken) {
-        const verified = verifyTelegramInitData(initDataHeader, options.telegramBotToken);
-        req.auth = verified;
-        req.userId = `tg_${verified.telegramUserId}`;
-        return next();
-      }
-
-      // 3. Dev bypass
-      const devUserId = req.header(DEV_TELEGRAM_USER_ID_HEADER);
-      if (options.allowDevAuthBypass && devUserId !== undefined && devUserId.length > 0) {
-        if (!/^[1-9]\d{0,15}$/.test(devUserId) || !Number.isSafeInteger(Number(devUserId))) {
-          throw new TelegramAuthError("Invalid developer user ID");
-        }
-        req.auth = {
-          telegramUserId: devUserId,
-          firstName: "Dev",
-          username: "DevPlayer",
-        };
-        req.userId = `tg_${devUserId}`;
-        return next();
-      }
-
-      throw new TelegramAuthError("Missing or invalid Authorization header");
-    } catch (error) {
-      if (error instanceof TelegramAuthError) {
-        return next(error);
-      }
-      return next(new TelegramAuthError("Invalid token"));
+      let state: AuthState | null;
+      try { state=await options.loadUser(requireUserId(req)); } catch { throw new ServiceUnavailableError("Authentication is temporarily unavailable"); }
+      if(!state || String(state.telegramId) !== req.auth.telegramUserId) throw new TelegramAuthError("Sign in before using this endpoint");
+      if(tokenVersion !== undefined && state.tokenVersion !== tokenVersion) throw new TelegramAuthError("Session revoked; reopen the app in Telegram");
+      next();
+    } catch(error) {
+      next(error instanceof TelegramAuthError || error instanceof ServiceUnavailableError ? error : new TelegramAuthError("Invalid token"));
     }
   };
 }

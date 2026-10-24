@@ -13,7 +13,7 @@ describe("MonthlyLeaderboardController", () => {
     const app = createApp({
       authService: {} as any,
       pool: {} as any,
-      userRepository: {} as any,
+      userRepository: { findAuthState: async (id: string) => ({ telegramId: Number(id.slice(3)), tokenVersion: 0 }) } as any,
       tasksRepository: {} as any,
       walletRepository: {} as any,
       loginStreakService: {} as LoginStreakService,
@@ -52,7 +52,7 @@ describe("MonthlyLeaderboardController", () => {
     const app = createApp({
       authService: {} as any,
       pool: {} as any,
-      userRepository: {} as any,
+      userRepository: { findAuthState: async (id: string) => ({ telegramId: Number(id.slice(3)), tokenVersion: 0 }) } as any,
       tasksRepository: {} as any,
       walletRepository: {} as any,
       loginStreakService: {} as LoginStreakService,
@@ -77,7 +77,7 @@ describe("MonthlyLeaderboardController", () => {
       .set("X-Telegram-Init-Data", initData);
 
     expect(response.status).toBe(200);
-    expect(checkEligibility).toHaveBeenCalledWith("11", "2026-07");
+    expect(checkEligibility).toHaveBeenCalledWith("tg_11", "2026-07");
     expect(response.body.meetsMatchWinRequirement).toBe(true);
   });
 });

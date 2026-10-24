@@ -12,7 +12,7 @@ Start at [the implementation specifications](docs/specs/delivery/README.md). Eve
 
 Use Node.js 24 and npm. From each app directory run `npm ci`.
 
-- Backend: copy `.env.example` to `.env`, configure local PostgreSQL, then `npm run dev`.
+- Backend: copy `.env.example` to `.env`, configure local PostgreSQL, run `npm run db:migrate` on a fresh empty development database, then `npm run dev`. Existing databases require the baseline/rehearsal procedure below.
 - Frontend: configure `VITE_API_URL` and run `npm run dev`.
 - Optional disposable services: `docker compose up -d`. The compose database is for tests only.
 
@@ -50,3 +50,9 @@ GET /healthz returns a minimal liveness response. It does not certify database r
 ## Operational boundary
 
 This branch changes JWT lifetime/claims; existing tokens must be replaced by reopening the app in Telegram. Claim transaction changes require no schema migration. Existing insecure premium grants, identity migration, money ledger and payout reconciliation remain assigned work. Roll forward or disable affected routes during an incident; do not revert to known unsafe reward endpoints.
+
+## Foundations migration (stage02)
+
+Read [the design](docs/specs/delivery/02-foundations-design.md) before [the deployment runbook](docs/specs/delivery/02-migration-runbook.md). Runtime PostgreSQL access remains pg; Prisma7.10.1 manages versioned SQL migrations. New code requires the foundations schema first. Never run migration reset against live data. Production migration/backup access is not assumed from repository access.
+
+The frontend now uses a memory-only session and real server login progress. TypeScript is pinned to the stable6.x JavaScript-API compiler supported by typescript-eslint; the previous7.x compiler was incompatible with the lint toolchain. npm run lint now runs ESLint separately from typecheck.

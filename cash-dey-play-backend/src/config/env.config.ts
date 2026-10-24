@@ -15,6 +15,7 @@ export interface AppEnv {
   readonly allowDevAuthBypass: boolean;
   readonly userRequestsPerMinute: number;
   readonly ipRequestsPerMinute: number;
+  readonly trustProxyHops: number;
 }
 
 const MINIMUM_PRODUCTION_JWT_SECRET_LENGTH = 32;
@@ -29,6 +30,12 @@ function readNodeEnv(value: string | undefined): NodeEnvironment {
     return value;
   }
   return "production";
+}
+
+function integerSetting(value:string | undefined,fallback:number,name:string,min:number,max:number):number {
+  const parsed=Number(value ?? fallback);
+  if(!Number.isInteger(parsed) || parsed < min || parsed > max) throw new Error(`${name} must be an integer from ${min} to ${max}`);
+  return parsed;
 }
 
 export function loadAppEnv(processEnv: NodeJS.ProcessEnv = process.env): AppEnv {
@@ -65,14 +72,15 @@ export function loadAppEnv(processEnv: NodeJS.ProcessEnv = process.env): AppEnv 
 
   return {
     nodeEnv,
-    port: Number(processEnv.PORT ?? "3000"),
+    trustProxyHops: integerSetting(processEnv.TRUST_PROXY_HOPS,0,"TRUST_PROXY_HOPS",0,5),
+    port: integerSetting(processEnv.PORT,3000,"PORT",1,65535),
     databaseUrl,
     redisUrl,
     telegramBotToken,
     jwtSecret,
     corsOrigin: processEnv.CORS_ORIGIN ?? "http://localhost:5173",
     allowDevAuthBypass,
-    userRequestsPerMinute: Number(processEnv.USER_REQUESTS_PER_MINUTE ?? "60"),
-    ipRequestsPerMinute: Number(processEnv.IP_REQUESTS_PER_MINUTE ?? "120"),
+    userRequestsPerMinute: integerSetting(processEnv.USER_REQUESTS_PER_MINUTE,60,"USER_REQUESTS_PER_MINUTE",1,100000),
+    ipRequestsPerMinute: integerSetting(processEnv.IP_REQUESTS_PER_MINUTE,120,"IP_REQUESTS_PER_MINUTE",1,100000),
   };
 }

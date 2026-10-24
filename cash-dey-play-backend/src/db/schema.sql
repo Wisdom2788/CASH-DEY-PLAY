@@ -1,3 +1,6 @@
+-- HISTORICAL REFERENCE ONLY. Deploy through prisma/migrations using npm run db:migrate.
+-- This file is not used by runtime setup or tests. See docs/specs/delivery/02-migration-runbook.md.
+
 -- Cash Dey Play — qualification persistence.
 -- Indexes match §10: rolling-window and monthly-count queries must not
 -- recompute from unindexed TO_CHAR() predicates.

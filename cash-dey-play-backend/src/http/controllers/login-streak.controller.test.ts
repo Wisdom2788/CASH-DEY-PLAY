@@ -47,7 +47,7 @@ describe("LoginStreakController", () => {
     app = createApp({
       authService: {} as any,
       pool: {} as any,
-      userRepository: {} as any,
+      userRepository: { findAuthState: async (id: string) => ({ telegramId: Number(id.slice(3)), tokenVersion: 0 }) } as any,
       tasksRepository: {} as any,
       walletRepository: {} as any,
       loginStreakService,
@@ -86,7 +86,7 @@ describe("LoginStreakController", () => {
     const response = await request(app).post("/api/login-streak").set(signedHeaders());
 
     expect(response.status).toBe(200);
-    expect(processLogin).toHaveBeenCalledWith("9001");
+    expect(processLogin).toHaveBeenCalledWith("tg_9001");
     expect(response.body.qualifiesForBonus).toBe(false);
   });
 
@@ -131,7 +131,7 @@ describe("LoginStreakController", () => {
     const response = await request(app).get("/api/login-streak").set(signedHeaders());
 
     expect(response.status).toBe(200);
-    expect(response.body).toEqual({ state: null });
-    expect(getProgress).toHaveBeenCalledWith("9001");
+    expect(response.body).toEqual({ data: { state: null }, state: null });
+    expect(getProgress).toHaveBeenCalledWith("tg_9001");
   });
 });

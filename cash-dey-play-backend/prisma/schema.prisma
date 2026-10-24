@@ -1,0 +1,5 @@
+// SQL migration history is authoritative while queries remain in pg.
+// No Prisma Client is generated. Introspect the migrated database when adding ORM models.
+datasource db {
+  provider = "postgresql"
+}

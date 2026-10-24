@@ -1,3 +1,4 @@
+import { requireUserId } from "../middleware/auth.middleware";
 import { type Request, type Response, type NextFunction } from "express";
 
 import { UserRepository } from "../../db/repositories/user.repository";
@@ -8,7 +9,7 @@ export class UserController {
 
   getProfile = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const userId = (req as any).userId;
+      const userId = requireUserId(req);
       const user = await this.userRepository.findById(userId);
       if (!user) {
         res.status(404).json({ message: "User not found" });

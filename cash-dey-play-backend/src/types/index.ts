@@ -1,5 +1,6 @@
 export interface UserProfile {
   id: string;
+  tokenVersion: number;
   telegramId: number;
   username: string | null;
   firstName: string;

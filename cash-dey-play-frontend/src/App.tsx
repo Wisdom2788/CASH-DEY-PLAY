@@ -1,11 +1,11 @@
+import axios from 'axios';
 import React, { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AppRoute from './container/AppRoute';
 import { LoadingScreen } from './components/shared/LoadingScreen';
 import { useAuthStore } from './store/auth.store';
-import { postService } from './api/client';
+import { loginWithTelegram,recordServerLogin,fetchCapabilities } from './api/auth.api';
 import { initSocket, disconnectSocket } from './config/socket.config';
-import { initializeLoginStreak } from './qualification/login-streak/login-streak-engine';
 
 import { SkeletonTheme } from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
@@ -23,11 +23,13 @@ export default function App() {
   const { setAuthData, syncStreakState, token, clearAuth } = useAuthStore();
   const [isAppReady, setIsAppReady] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(true);
+  const [realtimeAvailable,setRealtimeAvailable] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
 
   // Initialize App and Auth
   useEffect(() => {
     // Check if Telegram WebApp SDK is available
+    let cancelled = false;
     let initData = '';
     
     if (typeof window !== 'undefined' && (window as unknown as { Telegram?: { WebApp?: { initData: string, ready: () => void; expand: () => void } } }).Telegram?.WebApp) {
@@ -46,35 +48,33 @@ export default function App() {
     const authenticateUser = async () => {
       try {
         setIsAuthenticating(true);
-        const response = await postService<
-          { initData: string },
-          { token: string; user: import('./types/interfaces/user.types').UserProfile }
-        >('/auth/telegram/login', { initData }, { silent: true });
-
+        const response = await loginWithTelegram(initData);
+        if (cancelled) return;
         setAuthData(response.user, response.token);
-
-        // Initialize a default login streak so the dashboard renders
-        // This will be overwritten by real data once the streak API responds
-        const today = new Date().toISOString().slice(0, 10);
-        syncStreakState(initializeLoginStreak(today));
-      } catch (err: any) {
-        console.error('[App] Authentication failed:', err);
-        // Surface the backend error reason for debugging
-        const reason = err?.response?.data?.reason || err?.response?.data?.message || '';
-        const detail = reason ? ` (${reason})` : '';
-        setInitError(`Authentication failed.${detail} Please reopen the app in Telegram.`);
+        const streak = await recordServerLogin();
+        if (cancelled) return;
+        syncStreakState(streak);
+        // Missing/old rules endpoint must not open sockets against an unbuilt server.
+        try {
+          const capabilities=await fetchCapabilities();
+          if (!cancelled) setRealtimeAvailable(capabilities.features.realtime);
+        } catch (error) { if (!axios.isAxiosError(error) || error.response?.status !== 404) throw error; }
+      } catch {
+        if (cancelled) return;
+        setInitError('Could not load your account and login progress. Reopen the app in Telegram to retry.');
         clearAuth();
       } finally {
-        setIsAuthenticating(false);
+        if (!cancelled) setIsAuthenticating(false);
       }
     };
 
-    authenticateUser();
+    void authenticateUser();
+    return () => { cancelled = true; };
   }, [setAuthData, syncStreakState, clearAuth]);
 
   // Initialize Socket when authenticated — only if the backend has Socket.io set up
   useEffect(() => {
-    if (token) {
+    if (token && realtimeAvailable) {
       const backendUrl = (import.meta.env.VITE_API_URL || 'http://localhost:3000/api').replace(/\/api$/, '');
       try {
         initSocket(token, backendUrl);
@@ -87,7 +87,7 @@ export default function App() {
         disconnectSocket();
       };
     }
-  }, [token]);
+  }, [token,realtimeAvailable]);
 
   // Show loading while authenticating
   if (isAuthenticating) {

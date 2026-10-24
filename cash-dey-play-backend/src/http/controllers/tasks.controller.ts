@@ -1,14 +1,16 @@
+import { LagosCalendarClock, type CalendarClock } from "../../time/lagos-calendar-clock";
+import { requireUserId } from "../middleware/auth.middleware";
 import { type Request, type Response, type NextFunction } from "express";
 import { TasksRepository } from "../../db/repositories/tasks.repository";
 import { NotImplementedFeatureError } from "../errors/http-errors";
 
 export class TasksController {
-  constructor(private readonly tasksRepo: TasksRepository) {}
+  constructor(private readonly tasksRepo: TasksRepository, private readonly clock: CalendarClock = new LagosCalendarClock()) {}
 
   getState = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const userId = (req as any).userId;
-      const today = new Date().toISOString().slice(0, 10);
+      const userId = requireUserId(req);
+      const today = this.clock.todayIsoCalendarDate();
       const state = await this.tasksRepo.getTasksState(userId, today);
       res.json({ data: state });
     } catch (error) {

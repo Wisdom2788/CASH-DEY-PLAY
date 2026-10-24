@@ -11,12 +11,12 @@ import { InvalidEligibilityInputError } from "../../qualification/monthly-leader
 import { InvalidCalendarMonthError } from "../../time/lagos-calendar-clock";
 import { TelegramAuthError } from "../telegram/verify-telegram-init-data";
 import { RateLimitExceededError } from "./rate-limit.middleware";
-import { MissingIdempotencyKeyError, NotImplementedFeatureError } from "../errors/http-errors";
+import { MissingIdempotencyKeyError, NotImplementedFeatureError, ServiceUnavailableError } from "../errors/http-errors";
 import { TaskAlreadyCompletedError, UnknownTaskError } from "../../db/repositories/tasks.errors";
 
 export function errorHandler(
   err: unknown,
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction,
 ): void {
@@ -25,14 +25,17 @@ export function errorHandler(
     return;
   }
 
+  if (err instanceof ServiceUnavailableError) { res.status(503).json({ requestId:req.requestId, error:err.name,message:err.message }); return; }
+  if (err instanceof SyntaxError && "body" in err) { res.status(400).json({ requestId:req.requestId, error:"ValidationError",message:"Malformed JSON" }); return; }
+  if (typeof err === "object" && err !== null && "type" in err && err.type === "entity.too.large") { res.status(413).json({ requestId:req.requestId,error:"PayloadTooLarge",message:"Request body exceeds limit"}); return; }
   if (err instanceof TelegramAuthError) {
-    res.status(401).json({ error: err.name, message: err.message, reason: err.reason });
+    res.status(401).json({ requestId:req.requestId, error: err.name, message: err.message, reason: err.reason });
     return;
   }
 
   if (err instanceof RateLimitExceededError) {
     res.setHeader("Retry-After", String(err.retryAfterSeconds));
-    res.status(429).json({
+    res.status(429).json({ requestId:req.requestId,
       error: err.name,
       message: err.message,
       scope: err.scope,
@@ -49,40 +52,40 @@ export function errorHandler(
     err instanceof MissingIdempotencyKeyError ||
     err instanceof UnknownTaskError
   ) {
-    res.status(400).json({ error: err.name, message: err.message });
+    res.status(400).json({ requestId:req.requestId, error: err.name, message: err.message });
     return;
   }
 
   if (err instanceof LoginStreakNotFoundError) {
-    res.status(404).json({ error: err.name, message: err.message, userId: err.userId });
+    res.status(404).json({ requestId:req.requestId, error: err.name, message: err.message, userId: err.userId });
     return;
   }
 
   if (err instanceof LoginStreakNotYetQualifiedError) {
-    res.status(403).json({ error: err.name, message: err.message, state: err.state });
+    res.status(403).json({ requestId:req.requestId, error: err.name, message: err.message, state: err.state });
     return;
   }
 
   if (err instanceof LoginStreakBonusAlreadyClaimedError) {
-    res.status(409).json({ error: err.name, message: err.message });
+    res.status(409).json({ requestId:req.requestId, error: err.name, message: err.message });
     return;
   }
 
   if (err instanceof TaskAlreadyCompletedError) {
-    res.status(409).json({ error: err.name, message: err.message });
+    res.status(409).json({ requestId:req.requestId, error: err.name, message: err.message });
     return;
   }
 
   if (err instanceof NotImplementedFeatureError) {
-    res.status(501).json({ error: err.name, message: err.message });
+    res.status(501).json({ requestId:req.requestId, error: err.name, message: err.message });
     return;
   }
 
   if (err instanceof ZodError) {
-    res.status(400).json({ error: "ValidationError", details: err.issues });
+    res.status(400).json({ requestId:req.requestId, error: "ValidationError", details: err.issues });
     return;
   }
 
-  console.error("Unhandled error:", err);
-  res.status(500).json({ error: "InternalServerError", message: "An expected error occured." });
+  console.error("Unhandled request error", { requestId:req.requestId, name:err instanceof Error ? err.name : "Unknown" });
+  res.status(500).json({ requestId:req.requestId, error: "InternalServerError", message: "An unexpected error occurred." });
 }

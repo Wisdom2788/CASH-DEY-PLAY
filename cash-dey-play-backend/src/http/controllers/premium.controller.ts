@@ -1,3 +1,4 @@
+import { requireUserId } from "../middleware/auth.middleware";
 import { type Request, type Response, type NextFunction } from "express";
 import { Pool } from "pg";
 
@@ -6,7 +7,7 @@ export class PremiumController {
 
   getStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const userId = (req as any).userId;
+      const userId = requireUserId(req);
       const result = await this.pool.query(
         `SELECT is_active, expires_at FROM premium_subscriptions
          WHERE user_id = $1 AND is_active = TRUE AND expires_at > NOW()`,

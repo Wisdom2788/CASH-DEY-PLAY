@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { PRODUCT_RULES } from "./config/product-rules.config";
 import express, { type Express } from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -55,11 +57,13 @@ export interface AppDependencies {
   readonly rateLimitStore: RateLimitCounterStore;
   readonly userRequestsPerMinute: number;
   readonly ipRequestsPerMinute: number;
+  readonly trustProxyHops?: number;
 }
 
 export function createApp(dependencies: AppDependencies): Express {
   const app = express();
-  app.set("trust proxy", 1);
+  app.set("trust proxy", dependencies.trustProxyHops ?? 0);
+  app.use((req,res,next) => { req.requestId=randomUUID(); res.setHeader("X-Request-Id",req.requestId); next(); });
   app.use(helmet());
   app.use(
     cors({
@@ -73,7 +77,7 @@ export function createApp(dependencies: AppDependencies): Express {
       ],
     }),
   );
-  app.use(express.json());
+  app.use(express.json({ limit: "32kb" }));
 
   app.get("/healthz", (_req, res) => { res.json({ ok: true }); });
   // Shared mobile-network addresses must not combine every authenticated player's limit.
@@ -86,6 +90,7 @@ export function createApp(dependencies: AppDependencies): Express {
       jwtSecret: dependencies.jwtSecret,
       allowDevAuthBypass: dependencies.allowDevAuthBypass,
       telegramBotToken: dependencies.telegramBotToken,
+      loadUser: (id) => dependencies.userRepository.findAuthState(id),
     }),
   );
   app.use(
@@ -96,6 +101,8 @@ export function createApp(dependencies: AppDependencies): Express {
       scope: "user",
     }),
   );
+
+  app.get("/api/config/rules", (_req,res) => { res.setHeader("Cache-Control","private, max-age=300"); res.json({ data: PRODUCT_RULES }); });
 
   const authController = new AuthController(dependencies.authService);
   const loginStreakController = new LoginStreakController(dependencies.loginStreakService);
@@ -160,7 +167,7 @@ function createRateLimitStore(redisUrl: string, nodeEnv: NodeEnvironment): RateL
     }
     const timer = setTimeout(() => {
       console.error(
-        `Redis was not ready after ${REDIS_READY_TIMEOUT_MS} ms. Rate limits are OFF until it connects. Check REDIS_URL (use the Internal URL, same region).`,
+        `Redis was not ready after ${REDIS_READY_TIMEOUT_MS} ms. Rate limits are process-local until it connects. Check REDIS_URL (use the Internal URL, same region).`,
       );
       resolve();
     }, REDIS_READY_TIMEOUT_MS);
@@ -215,6 +222,7 @@ function createProductionDependencies() {
     rateLimitStore: rateLimit.store,
     userRequestsPerMinute: env.userRequestsPerMinute,
     ipRequestsPerMinute: env.ipRequestsPerMinute,
+    trustProxyHops: env.trustProxyHops,
   };
 
   return { dependencies, rateLimitReady: rateLimit.whenReady };

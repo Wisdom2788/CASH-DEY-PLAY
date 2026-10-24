@@ -39,7 +39,8 @@ describeWithDatabase("atomic writes on a real Postgres", () => {
     admin = new Pool({ connectionString: databaseUrl });
     await admin.query(`CREATE SCHEMA "${schema}"`);
     pool = new Pool({ connectionString: databaseUrl, options: `-c search_path=${schema}` });
-    await pool.query(readFileSync(join(__dirname, "../schema.sql"), "utf8"));
+    await pool.query(readFileSync(join(__dirname, "../../../prisma/migrations/0_init/migration.sql"), "utf8"));
+    await pool.query(readFileSync(join(__dirname,"../../../prisma/migrations/2026102401_foundations/migration.sql"),"utf8"));
     tasksRepository = new PostgresTasksRepository(pool);
     streakRepository = new PostgresLoginStreakRepository(pool);
   });

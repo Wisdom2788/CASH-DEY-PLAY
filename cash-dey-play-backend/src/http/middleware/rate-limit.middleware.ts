@@ -1,3 +1,4 @@
+import { ServiceUnavailableError } from "../errors/http-errors";
 import { type Redis } from "ioredis";
 import { type NextFunction, type Request, type Response } from "express";
 
@@ -13,6 +14,7 @@ export class RateLimitExceededError extends Error {
 
 export interface RateLimitCounterStore {
   increment(key: string, windowSeconds: number): Promise<number>;
+  retryAfterSeconds?(key:string):Promise<number>;
 }
 
 const INCR_WITH_EXPIRE_LUA = `
@@ -30,30 +32,32 @@ export class RedisRateLimitCounterStore implements RateLimitCounterStore {
     const count = await this.redis.eval(INCR_WITH_EXPIRE_LUA, 1, key, String(windowSeconds));
     return Number(count);
   }
+  async retryAfterSeconds(key:string):Promise<number> { return Math.max(0,Math.ceil(await this.redis.pttl(key)/1000)); }
 }
 
 export class MemoryRateLimitCounterStore implements RateLimitCounterStore {
-  private readonly windows = new Map<string, { count: number; resetAtMs: number }>();
-
-  async increment(key: string, windowSeconds: number): Promise<number> {
-    const nowMs = Date.now();
-    const existing = this.windows.get(key);
-    if (existing === undefined || existing.resetAtMs <= nowMs) {
-      this.windows.set(key, { count: 1, resetAtMs: nowMs + windowSeconds * 1000 });
-      return 1;
+  private readonly windows=new Map<string,{count:number;resetAtMs:number}>();
+  private sweptAt=0;
+  constructor(private readonly nowMs:()=>number=()=>Date.now(),private readonly maxEntries=10000) {}
+  async increment(key:string,windowSeconds:number):Promise<number> {
+    const now=this.nowMs();
+    if(now-this.sweptAt>=30000 || this.windows.size>=this.maxEntries) {
+      for(const [name,value] of this.windows) if(value.resetAtMs<=now) this.windows.delete(name);
+      this.sweptAt=now;
     }
-    existing.count += 1;
-    return existing.count;
+    const current=this.windows.get(key);
+    if(!current || current.resetAtMs<=now) {
+      if(!current && this.windows.size>=this.maxEntries) throw new ServiceUnavailableError("Rate-limit capacity reached; retry shortly");
+      this.windows.set(key,{count:1,resetAtMs:now+windowSeconds*1000});return 1;
+    }
+    return ++current.count;
   }
+  async retryAfterSeconds(key:string):Promise<number> { return Math.max(0,Math.ceil(((this.windows.get(key)?.resetAtMs??0)-this.nowMs())/1000)); }
 }
 
-/**
- * Rate limits protect against abuse; they must never take the whole API down.
- * If the counter store is unreachable (Redis restarting, not yet connected), let the request through
- * and say so in the logs, instead of failing every request with a 500.
- * Money routes will use a fail-closed variant when they exist.
- */
+/** Degrade general traffic to bounded local limits; money routes must use the shared store directly. */
 export class FailOpenRateLimitCounterStore implements RateLimitCounterStore {
+  private readonly fallback=new MemoryRateLimitCounterStore();
   private lastWarningAtMs = Number.NEGATIVE_INFINITY;
 
   constructor(
@@ -71,11 +75,16 @@ export class FailOpenRateLimitCounterStore implements RateLimitCounterStore {
       if (now - this.lastWarningAtMs >= this.warnEveryMs) {
         this.lastWarningAtMs = now;
         const reason = error instanceof Error ? error.message : String(error);
-        this.warn(`Rate limit store unavailable; letting requests through. Reason: ${reason}`);
+        this.warn(`Rate limit store unavailable; using bounded local limits. Reason: ${reason}`);
       }
-      return 0;
+      return this.fallback.increment(key,windowSeconds);
     }
   }
+  async retryAfterSeconds(key:string):Promise<number> {
+    try {return this.inner.retryAfterSeconds ? await this.inner.retryAfterSeconds(key) : await this.fallback.retryAfterSeconds(key);}
+    catch {return this.fallback.retryAfterSeconds(key);}
+  }
+
 }
 
 export interface RateLimitMiddlewareOptions {
@@ -105,7 +114,8 @@ export function createRateLimitMiddleware(options: RateLimitMiddlewareOptions) {
       const key = `rate-limit:${options.scope}:${subject}`;
       const count = await options.store.increment(key, options.windowSeconds);
       if (count > options.maxRequests) {
-        throw new RateLimitExceededError(options.windowSeconds, options.scope);
+        const remaining=options.store.retryAfterSeconds ? await options.store.retryAfterSeconds(key) : options.windowSeconds;
+        throw new RateLimitExceededError(Math.max(1,remaining), options.scope);
       }
       next();
     } catch (error) {

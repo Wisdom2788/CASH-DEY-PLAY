@@ -20,7 +20,7 @@ function buildTestApp() {
   const app = createApp({
     authService: {} as any,
     pool: { query: poolQuery } as any,
-    userRepository: {} as any,
+    userRepository: { findAuthState: async (id: string) => ({ telegramId: Number(id.slice(3)), tokenVersion: 0 }) } as any,
     tasksRepository: { recordMatchResult } as any,
     walletRepository: {} as any,
     loginStreakService: {} as any,

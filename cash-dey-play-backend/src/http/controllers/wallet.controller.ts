@@ -1,3 +1,4 @@
+import { requireUserId } from "../middleware/auth.middleware";
 import { type Request, type Response, type NextFunction } from "express";
 import { NotImplementedFeatureError } from "../errors/http-errors";
 import { WalletRepository } from "../../db/repositories/wallet.repository";
@@ -7,7 +8,7 @@ export class WalletController {
 
   getBalance = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const userId = (req as any).userId;
+      const userId = requireUserId(req);
       const balance = await this.walletRepo.getBalance(userId);
       res.json({ data: balance });
     } catch (error) {
@@ -17,7 +18,7 @@ export class WalletController {
 
   getTransactions = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const userId = (req as any).userId;
+      const userId = requireUserId(req);
       const transactions = await this.walletRepo.getTransactions(userId);
       res.json({ data: transactions });
     } catch (error) {

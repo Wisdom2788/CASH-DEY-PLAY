@@ -1,3 +1,4 @@
+import { requireUserId } from "../middleware/auth.middleware";
 import { type Request, type Response, type NextFunction } from "express";
 import { Pool } from "pg";
 import { NotImplementedFeatureError } from "../errors/http-errors";
@@ -7,9 +8,9 @@ export class MatchController {
 
   getRecentOpponents = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const userId = (req as any).userId;
+      const userId = requireUserId(req);
       // Get recent distinct opponents from matches
-      const result = await this.pool.query(
+      const result = await this.pool.query<{id:string;username:string|null;avatar_url:string|null;matches_won_month:number}>(
         `SELECT DISTINCT ON (u.id) u.id, u.username, u.avatar_url, u.matches_won_month
          FROM matches m
          JOIN users u ON (
@@ -20,7 +21,7 @@ export class MatchController {
          LIMIT 10`,
         [userId]
       );
-      const opponents = result.rows.map((row: any) => ({
+      const opponents = result.rows.map((row) => ({
         id: row.id,
         username: row.username || "Player",
         avatarUrl: row.avatar_url || "",

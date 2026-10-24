@@ -1,5 +1,7 @@
 import { Pool } from "pg";
 
+interface WalletRow { id:string;type:string;amount_ngn:number;description:string;provider:string|null;phone_number:string|null;status:string;created_at:Date; }
+
 export interface WalletBalance {
   balanceNgn: number;
 }
@@ -39,19 +41,19 @@ export class PostgresWalletRepository implements WalletRepository {
   }
 
   async getTransactions(userId: string): Promise<WalletTransaction[]> {
-    const res = await this.pool.query(
+    const res = await this.pool.query<WalletRow>(
       `SELECT id, type, amount_ngn, description, provider, phone_number, status, created_at
        FROM wallet_transactions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50`,
       [userId]
     );
-    return res.rows.map((row: any) => ({
+    return res.rows.map((row) => ({
       id: row.id.toString(),
       type: row.type,
       amountNgn: row.amount_ngn,
       timestamp: new Date(row.created_at).getTime(),
       description: row.description,
-      provider: row.provider || undefined,
-      phoneNumber: row.phone_number || undefined,
+      ...(row.provider ? {provider:row.provider} : {}),
+      ...(row.phone_number ? {phoneNumber:row.phone_number} : {}),
       status: row.status,
     }));
   }
@@ -97,7 +99,7 @@ export class PostgresWalletRepository implements WalletRepository {
         `UPDATE wallets SET balance_ngn = balance_ngn - $2, updated_at = NOW() WHERE user_id = $1`,
         [userId, amountNgn]
       );
-      const txRes = await client.query(
+      const txRes = await client.query<WalletRow>(
         `INSERT INTO wallet_transactions (user_id, type, amount_ngn, description, provider, phone_number, status)
          VALUES ($1, $2, $3, $4, $5, $6, 'PENDING') RETURNING *`,
         [userId, type, amountNgn, description, provider, phoneNumber]
@@ -111,8 +113,8 @@ export class PostgresWalletRepository implements WalletRepository {
         amountNgn: row.amount_ngn,
         timestamp: new Date(row.created_at).getTime(),
         description: row.description,
-        provider: row.provider,
-        phoneNumber: row.phone_number,
+        ...(row.provider ? {provider:row.provider} : {}),
+        ...(row.phone_number ? {phoneNumber:row.phone_number} : {}),
         status: row.status,
       };
     } catch (e) {

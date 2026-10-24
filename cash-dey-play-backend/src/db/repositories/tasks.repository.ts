@@ -1,3 +1,4 @@
+import { secondsUntilNextLagosMidnight } from "../../time/lagos-calendar-clock";
 import { Pool } from "pg";
 import { TaskAlreadyCompletedError, UnknownTaskError } from "./tasks.errors";
 
@@ -44,7 +45,7 @@ export class PostgresTasksRepository implements TasksRepository {
       `SELECT task_key FROM task_completions WHERE user_id = $1 AND completed_on = $2`,
       [userId, today]
     );
-    const completedKeys = new Set(completedRes.rows.map((r: any) => r.task_key));
+    const completedKeys = new Set(completedRes.rows.map((r: { task_key: string }) => r.task_key));
 
     // Get optional video count for today
     const videoRes = await this.pool.query(
@@ -57,7 +58,7 @@ export class PostgresTasksRepository implements TasksRepository {
     // Get match wins today
     const matchWinRes = await this.pool.query(
       `SELECT COUNT(*) as cnt FROM matches
-       WHERE user_id = $1 AND winner_id = $1 AND created_at::date = $2::date`,
+       WHERE user_id = $1 AND winner_id = $1 AND lagos_date = $2::date`,
       [userId, today]
     );
     const matchWins = parseInt(matchWinRes.rows[0].cnt, 10);
@@ -102,12 +103,7 @@ export class PostgresTasksRepository implements TasksRepository {
       },
     ];
 
-    // Calculate seconds remaining until midnight Lagos time (WAT, UTC+1)
-    const nowMs = Date.now();
-    // Simple: next midnight is start of next day
-    const tomorrowLagos = new Date(today + "T00:00:00+01:00");
-    tomorrowLagos.setDate(tomorrowLagos.getDate() + 1);
-    const timeRemainingSeconds = Math.max(0, Math.floor((tomorrowLagos.getTime() - nowMs) / 1000));
+    const timeRemainingSeconds = secondsUntilNextLagosMidnight(new Date());
 
     return {
       tasks,

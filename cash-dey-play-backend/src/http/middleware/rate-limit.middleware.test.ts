@@ -34,12 +34,12 @@ describe("FailOpenRateLimitCounterStore", () => {
     expect(await store.increment("ip:1", 60)).toBe(2);
   });
 
-  it("returns 0 (allow) instead of throwing when the store is unreachable", async () => {
+  it("uses a bounded local counter instead of throwing when the store is unreachable", async () => {
     const warn = jest.fn();
     const store = new FailOpenRateLimitCounterStore(brokenStore, warn);
-    await expect(store.increment("ip:1", 60)).resolves.toBe(0);
+    await expect(store.increment("ip:1", 60)).resolves.toBe(1);
     expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn.mock.calls[0][0]).toContain("letting requests through");
+    expect(warn.mock.calls[0][0]).toContain("bounded local limits");
   });
 
   it("logs the outage once per interval, not once per request", async () => {
@@ -87,5 +87,18 @@ describe("createRateLimitMiddleware", () => {
     await middleware(request, {} as never, next);
     expect(next).toHaveBeenNthCalledWith(1);
     expect(next.mock.calls[1][0]).toBeInstanceOf(RateLimitExceededError);
+  });
+});
+
+
+describe("bounded local windows",()=>{
+  it("evicts expired keys, caps live keys and reports real time remaining",async()=>{
+    let now=100000;
+    const store=new MemoryRateLimitCounterStore(()=>now,1);
+    await store.increment("a",60);now+=45000;
+    expect(await store.retryAfterSeconds("a")).toBe(15);
+    await expect(store.increment("b",60)).rejects.toThrow(/capacity/);
+    now+=15000;
+    expect(await store.increment("b",60)).toBe(1);
   });
 });

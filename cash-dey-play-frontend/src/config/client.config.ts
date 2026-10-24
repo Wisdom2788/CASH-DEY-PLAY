@@ -16,8 +16,8 @@ client.interceptors.request.use((config) => {
     }
 
     // For local development bypass outside of Telegram
-    if (import.meta.env.DEV) {
-      config.headers["X-Dev-Telegram-User-Id"] = "123456789"; // Dummy Telegram User ID for local testing
+    if (import.meta.env.DEV && import.meta.env.VITE_DEV_TELEGRAM_USER_ID) {
+      config.headers["X-Dev-Telegram-User-Id"] = import.meta.env.VITE_DEV_TELEGRAM_USER_ID;
     }
   }
   return config;
@@ -28,10 +28,6 @@ client.interceptors.response.use(
     return response;
   },
   (error) => {
-    console.error("API Error:", {
-      url: error.config?.url,
-      error: error.response?.data || error.message,
-    });
     return Promise.reject(error);
   }
 );

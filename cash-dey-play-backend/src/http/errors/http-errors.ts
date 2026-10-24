@@ -1,6 +1,6 @@
 export class MissingIdempotencyKeyError extends Error {
   constructor() {
-    super("Payout endpoints require an Idempotency-Key header of at least 8 characters.");
+    super("Idempotency-Key must contain 8 to 128 letters, digits, dots, underscores, colons or hyphens.");
     this.name = "MissingIdempotencyKeyError";
   }
 }
@@ -14,8 +14,12 @@ export class NotImplementedFeatureError extends Error {
 }
 
 export function readIdempotencyKey(headerValue: string | undefined): string {
-  if (headerValue === undefined || headerValue.trim().length < 8) {
+  if (headerValue === undefined || !/^[A-Za-z0-9._:-]{8,128}$/.test(headerValue.trim())) {
     throw new MissingIdempotencyKeyError();
   }
   return headerValue.trim();
+}
+
+export class ServiceUnavailableError extends Error {
+  constructor(message: string) { super(message); this.name = "ServiceUnavailableError"; }
 }

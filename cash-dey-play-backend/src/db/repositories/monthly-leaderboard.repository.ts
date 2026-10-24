@@ -25,8 +25,8 @@ export class PostgresMonthlyLeaderboardRepository implements IMonthlyLeaderboard
       FROM matches
       WHERE user_id = $1
         AND winner_id = $1
-        AND created_at >= $2::timestamptz
-        AND created_at < $3::timestamptz
+        AND lagos_date >= $2::date
+        AND lagos_date < $3::date
     `;
 
     const [tasksResult, matchesResult] = await Promise.all([

@@ -303,7 +303,7 @@ export default function HomeDashboard() {
           </h3>
           <div className="flex items-center justify-between">
             <div className="leading-tight">
-              <div className="text-[22px] font-bold text-[#F5F5F0]">#{user.monthlyRank}</div>
+              <div className="text-[22px] font-bold text-[#F5F5F0]">{user.monthlyRank ? `#${user.monthlyRank}` : '—'}</div>
               <span className="text-[11px] text-[#9A9A9A]">Top 100</span>
             </div>
             {/* Green Rank Arrow Up */}
@@ -323,7 +323,7 @@ export default function HomeDashboard() {
           <div>
             <div className="text-[21px] font-bold text-[#F5F5F0] leading-tight flex items-center space-x-1">
               <span className="text-white text-[18px]">↑</span>
-              <span>{user.monthlyTrend}</span>
+              <span>{user.monthlyTrend ?? '—'}</span>
             </div>
             <span className="text-[11px] text-[#9A9A9A]">From last week</span>
           </div>

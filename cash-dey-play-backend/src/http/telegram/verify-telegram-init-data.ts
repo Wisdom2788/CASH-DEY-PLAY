@@ -9,6 +9,7 @@ export interface AuthenticatedTelegramUser {
   readonly firstName: string;
   readonly username: string | null;
   readonly photoUrl?: string | null;
+  readonly startParam?: string | null;
 }
 
 export class TelegramAuthError extends Error {
@@ -93,7 +94,10 @@ export function verifyTelegramInitData(
     throw new TelegramAuthError("user id is missing");
   }
 
+  const startParam = params.get("start_param");
+  if (startParam !== null && startParam.length > 512) throw new TelegramAuthError("start_param too long");
   return {
+    startParam,
     telegramUserId: String(userPayload.id),
     firstName: userPayload.first_name ?? "",
     username: userPayload.username ?? null,
@@ -105,10 +109,12 @@ export function buildSignedTelegramInitData(params: {
   botToken: string;
   user: TelegramUserPayload;
   authDate: number;
+  startParam?: string;
 }): string {
   const searchParams = new URLSearchParams();
   searchParams.set("auth_date", String(params.authDate));
   searchParams.set("query_id", "test-query");
+  if (params.startParam !== undefined) searchParams.set("start_param", params.startParam);
   searchParams.set("user", JSON.stringify(params.user));
 
   const dataCheckString = [...searchParams.entries()]

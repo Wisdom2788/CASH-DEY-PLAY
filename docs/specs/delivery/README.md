@@ -9,7 +9,7 @@ A spec is not an implementation. “Implemented locally” is not a passing host
 | Order | Specification | Dependency | Current status |
 |---|---|---|---|
 | 01 | [Containment and deployment baseline](01-containment.md) | Existing Step 1 | Implemented; unit/HTTP/PostgreSQL tests and both Vercel preview builds passed on e526b8d |
-| 02 | [Identity, time, migrations and contracts](02-foundations.md) | 01 | Specified; not implemented |
+| 02 | [Identity, time, migrations and contracts](02-foundations.md) | 01 | Implemented on feature/foundations; integration validation and production rehearsal pending |
 | 03 | [Ledger, audit and idempotency](03-ledger.md) | 02 | Specified; not implemented |
 | 04 | [Entitlements, tasks and referrals](04-entitlements.md) | 02–03 | Specified; not implemented |
 | 05 | [Whot engine and practice bot](05-game-engine.md) | 02 and agreed game rules | Specified; rule decisions remain open |

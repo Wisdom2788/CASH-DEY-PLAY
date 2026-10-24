@@ -1,6 +1,6 @@
 # Identity, clocks, migrations and contracts
 
-Status: **Specified; not implemented**. Covers: H1–H4, H6, M1–M5/M8–M10/M12/M13. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
+Status: **Implementation under validation on feature/foundations; not merged or applied to production**. Covers: H1–H4, H6, M1–M5/M8–M10/M12/M13. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
 
 ### Data and implementation
 
@@ -21,3 +21,7 @@ Lagos 22:59:59Z/23:00:00Z and month/year boundaries; mixed-ID collision, missing
 ## Implementation record
 
 Record commit, schema version, commands/results, integration evidence, unresolved decisions and recovery rehearsal here before marking complete. An acceptance criterion written above is not evidence that it passed.
+
+## Reviewed implementation flow
+
+See [design and migration algorithms](02-foundations-design.md) and [production migration runbook](02-migration-runbook.md). Identity/time/auth/core session contracts and frontend state are implemented on the stage branch. Live database baselining, backup/restore rehearsal and rollout remain explicit release prerequisites. Match-model replacement, complete task-day qualification and payment/provider workflows stay in their later owning stages.

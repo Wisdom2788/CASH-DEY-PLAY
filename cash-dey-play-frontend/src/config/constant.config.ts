@@ -1,4 +1,7 @@
 export const API_ROUTES = {
+  AUTH_LOGIN: "auth/telegram/login",
+  LOGIN_STREAK: "login-streak",
+  PRODUCT_RULES: "config/rules",
   // User/Auth
   USER_ME: 'users/me',
 

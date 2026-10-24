@@ -38,3 +38,15 @@ describe("calendar month helpers", () => {
     expect(() => startOfNextCalendarMonth("2026-13")).toThrow(InvalidCalendarMonthError);
   });
 });
+
+import {lagosDateOfInstant,lagosMonthKeyOfInstant,secondsUntilNextLagosMidnight} from "./lagos-calendar-clock";
+describe("Lagos boundaries",()=>{
+  it("changes date at23:00UTC and month/year without session timezone dependence",()=>{
+    expect(lagosDateOfInstant(new Date("2026-10-20T22:59:59Z"))).toBe("2026-10-20");
+    expect(lagosDateOfInstant(new Date("2026-10-20T23:00:00Z"))).toBe("2026-10-21");
+    expect(secondsUntilNextLagosMidnight(new Date("2026-10-20T22:59:59Z"))).toBe(1);
+    expect(secondsUntilNextLagosMidnight(new Date("2026-10-20T23:00:00Z"))).toBe(86400);
+    expect(lagosMonthKeyOfInstant(new Date("2026-12-31T23:00:00Z"))).toBe("2027-01");
+    expect(lagosDateOfInstant(new Date("2028-02-28T23:00:00Z"))).toBe("2028-02-29");
+  });
+});

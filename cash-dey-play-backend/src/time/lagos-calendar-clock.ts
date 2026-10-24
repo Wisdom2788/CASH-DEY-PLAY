@@ -25,9 +25,17 @@ export function formatIsoCalendarDateInTimeZone(instant: Date, timeZone: string)
 }
 
 export class LagosCalendarClock implements CalendarClock {
-  todayIsoCalendarDate(): IsoCalendarDate {
-    return formatIsoCalendarDateInTimeZone(new Date(), NIGERIA_TIME_ZONE);
-  }
+  constructor(private readonly now: () => Date = () => new Date()) {}
+  todayIsoCalendarDate(): IsoCalendarDate { return lagosDateOfInstant(this.now()); }
+}
+
+export function lagosDateOfInstant(instant: Date): IsoCalendarDate {
+  return formatIsoCalendarDateInTimeZone(instant, NIGERIA_TIME_ZONE);
+}
+export function lagosMonthKeyOfInstant(instant: Date): string { return lagosDateOfInstant(instant).slice(0,7); }
+export function secondsUntilNextLagosMidnight(instant: Date): number {
+  const next = Date.parse(`${lagosDateOfInstant(instant)}T00:00:00+01:00`) + 86400000;
+  return Math.max(0,Math.floor((next-instant.getTime())/1000));
 }
 
 const CALENDAR_MONTH_PATTERN = /^\d{4}-\d{2}$/;

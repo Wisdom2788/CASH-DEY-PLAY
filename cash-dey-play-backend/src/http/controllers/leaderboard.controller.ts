@@ -1,12 +1,15 @@
 import { type Request, type Response, type NextFunction } from "express";
 import { Pool } from "pg";
 
+interface GameRow { id:string;username:string|null;avatar_url:string|null;matches_won_month:number;matches_played_month:number; }
+interface CommunityRow { referrer_id:string;username:string|null;avatar_url:string|null;qualifying_invites:string;total_invites:string; }
+
 export class LeaderboardController {
   constructor(private readonly pool: Pool) {}
 
   getGameLeaderboard = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await this.pool.query(
+      const result = await this.pool.query<GameRow>(
         `SELECT id, username, avatar_url, matches_won_month, matches_played_month,
                 xp, points, monthly_rank
          FROM users
@@ -15,7 +18,7 @@ export class LeaderboardController {
          LIMIT 100`
       );
 
-      const leaderboard = result.rows.map((row: any, index: number) => {
+      const leaderboard = result.rows.map((row, index: number) => {
         const played = row.matches_played_month || 1;
         const won = row.matches_won_month || 0;
         const winRate = won / played;
@@ -41,7 +44,7 @@ export class LeaderboardController {
 
   getCommunityLeaderboard = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await this.pool.query(
+      const result = await this.pool.query<CommunityRow>(
         `SELECT r.referrer_id, u.username, u.avatar_url,
                 COUNT(*) FILTER (WHERE r.is_qualified) as qualifying_invites,
                 COUNT(*) as total_invites
@@ -55,7 +58,7 @@ export class LeaderboardController {
 
 
 
-      const leaderboard = result.rows.map((row: any, index: number) => {
+      const leaderboard = result.rows.map((row, index: number) => {
         const qualInvites = parseInt(row.qualifying_invites);
         let prizePercent = 0;
         if (index === 0) prizePercent = 50;
