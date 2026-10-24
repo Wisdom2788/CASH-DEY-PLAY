@@ -1,6 +1,6 @@
 # Delivery specifications and implementation ledger
 
-Updated 24 October 2026. Base: step-1-loopholes at 275a2e1. Scope: close C1–C7, H1–H11, M1–M13 and frontend hygiene, then deliver a functional v1. This directory supersedes conflicting implementation instructions in the older build-plan, audit and reference draft. Preserve those documents as historical evidence.
+Updated 25 October 2026. Base: step-1-loopholes at 275a2e1. Scope: close C1–C7, H1–H11, M1–M13 and frontend hygiene, then deliver a functional v1. This directory supersedes conflicting implementation instructions in the older build-plan, audit and reference draft. Preserve those documents as historical evidence.
 
 ## What done means
 
@@ -10,7 +10,7 @@ A spec is not an implementation. “Implemented locally” is not a passing host
 |---|---|---|---|
 | 01 | [Containment and deployment baseline](01-containment.md) | Existing Step 1 | Implemented; unit/HTTP/PostgreSQL tests and both Vercel preview builds passed on e526b8d |
 | 02 | [Identity, time, migrations and contracts](02-foundations.md) | 01 | Core implemented and CI verified (122 backend /26 frontend); production rehearsal pending |
-| 03 | [Ledger, audit and idempotency](03-ledger.md) | 02 | Specified; not implemented |
+| 03 | [Ledger, audit and idempotency](03-ledger.md) | 02 | Core implemented in draft PR4; production rehearsal and reward-owner wiring pending |
 | 04 | [Entitlements, tasks and referrals](04-entitlements.md) | 02–03 | Specified; not implemented |
 | 05 | [Whot engine and practice bot](05-game-engine.md) | 02 and agreed game rules | Specified; rule decisions remain open |
 | 06 | [Verified ads and practice limits](06-ads-practice.md) | 04–05 and provider contract | Specified; external provider capability unresolved |

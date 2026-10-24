@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { Pool } from 'pg';
 import { LedgerRepository, Posting } from './ledger.repository';
 import { OutboxRepository } from './outbox.repository';
+import { reconcileLedger } from './reconcile';
 const url=process.env.TEST_DATABASE_URL;
 if(process.env.REQUIRE_DB_TESTS==='true' && !url) throw new Error('TEST_DATABASE_URL required');
 const suite=url ? describe : describe.skip;
@@ -130,6 +131,17 @@ suite('ledger PostgreSQL economic boundary',()=>{
     await pool.query("INSERT INTO users(id,telegram_id,first_name) VALUES('tg_456',456,'New')");
     await expect(ledger.post(credit({userId:'tg_456'}),async()=>{throw new Error('source failed');})).rejects.toThrow('source failed');
     expect((await pool.query("SELECT count(*)::int AS n FROM wallet_accounts WHERE user_id='tg_456'")).rows[0].n).toBe(0);
+  });
+
+  it('reconciles valid postings and reports integrity mismatches without private values',async()=>{
+    await ledger.post(credit());
+    expect(Object.values(await reconcileLedger(pool)).every(n=>n===0)).toBe(true);
+    // Simulate a privileged faulty writer inserting a mismatched audit/entry pair.
+    const audit=await pool.query("INSERT INTO reward_audit_events(user_id,event_type,amount_kobo,reason,triggering_rule) VALUES('tg_123','TEST',1,'test','v1') RETURNING id");
+    await pool.query("INSERT INTO wallet_entries(id,account_id,amount_kobo,kind,reference_type,reference_id,rule_version,audit_id) VALUES($1,'tg_123',100,'CREDIT','FAULT','fault-1','v1',$2)",[randomUUID(),audit.rows[0].id]);
+    const counts=await reconcileLedger(pool);
+    expect(counts.audit_mismatches).toBe(1);expect(counts.missing_request_receipts).toBe(1);expect(counts.missing_outbox_intents).toBe(1);
+    expect(Object.values(counts).every(n=>typeof n==='number')).toBe(true);
   });
 
 });

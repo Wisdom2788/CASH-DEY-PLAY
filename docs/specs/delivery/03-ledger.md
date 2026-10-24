@@ -32,4 +32,6 @@ Opening migration imports balances only, not history, then freezes old wallet wr
 
 The internal posting method accepts a source-state callback executed using the same PostgreSQL client/account lock, only for a new business event. Future reward/payment owners must validate eligibility and transition source state inside that callback. No external work belongs there. Outbox claim/ack/retry supports lease recovery and stable IDs; no automatic consumer or provider dispatcher is enabled. Consumers must tolerate duplicate delivery after a crash.
 
-Still open: production backup/restore and full drift rehearsal; real reward/payout owner wiring; automated reconciliation alarms; API pending-funds model when payout reservations exist. Stage03 is not marked fully complete and no payment/redemption capability is enabled.
+Still open: production backup/restore and full drift rehearsal; real reward/payout owner wiring; scheduled operational alert delivery; API pending-funds model when payout reservations exist. Stage03 is not marked fully complete and no payment/redemption capability is enabled.
+
+The read-only db:ledger:reconcile command returns only aggregate counts and exits nonzero on balance bounds, audit linkage, opening liability, request receipt or outbox-intent mismatch. CI invokes it after migrations/tests. An integration case injects a faulty privileged writer and verifies mismatch detection. Scheduling and routing alerts to an operator remain deployment work.

@@ -14,7 +14,8 @@
     "db:migrate": "prisma migrate deploy",
     "db:status": "prisma migrate status",
     "db:baseline": "prisma migrate resolve --applied 0_init",
-    "db:preflight": "ts-node src/db/preflight.ts"
+    "db:preflight": "ts-node src/db/preflight.ts",
+    "db:ledger:reconcile": "ts-node src/ledger/reconcile.ts"
   },
   "keywords": [],
   "author": "",
