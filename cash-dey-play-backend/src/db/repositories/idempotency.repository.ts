@@ -8,7 +8,7 @@ export interface IIdempotencyRepository {
 }
 
 export class PostgresIdempotencyRepository implements IIdempotencyRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pick<Pool, "query">) {}
 
   async find<T>(userId: string, endpoint: string, idempotencyKey: string): Promise<T | null> {
     const query = `

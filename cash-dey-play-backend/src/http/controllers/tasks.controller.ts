@@ -16,40 +16,12 @@ export class TasksController {
     }
   };
 
-  completeTask = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const userId = (req as any).userId;
-      const { taskId } = req.body;
-      if (!taskId) {
-        res.status(400).json({ message: "taskId is required" });
-        return;
-      }
-      const today = new Date().toISOString().slice(0, 10);
-      const result = await this.tasksRepo.completeTask(userId, taskId, today);
-      res.json({ data: result, message: `Task completed! +${result.pointsEarned} points awarded!` });
-    } catch (error) {
-      next(error);
-    }
+  completeTask = async (_req: Request, _res: Response, next: NextFunction): Promise<void> => {
+    next(new NotImplementedFeatureError("Verified video rewards"));
   };
 
-  watchOptionalVideo = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const userId = (req as any).userId;
-      if (!userId) {
-        res.status(401).json({ message: "Unauthorized user" });
-        return;
-      }
-
-      const today = new Date().toISOString().slice(0, 10);
-      const result = await this.tasksRepo.recordOptionalVideo(userId, today);
-      if (!result.success) {
-        res.status(400).json({ message: "Daily optional video cap (5/5) reached" });
-        return;
-      }
-      res.json({ ok: true, data: result, message: `🎮 Practice Match unlocked! (${result.practiceMatches} available)` });
-    } catch (error) {
-      next(error);
-    }
+  watchOptionalVideo = async (_req: Request, _res: Response, next: NextFunction): Promise<void> => {
+    next(new NotImplementedFeatureError("Verified practice credits"));
   };
 
   skipCooldown = async (_req: Request, _res: Response, next: NextFunction): Promise<void> => {

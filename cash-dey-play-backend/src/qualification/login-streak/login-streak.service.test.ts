@@ -38,10 +38,8 @@ describe("LoginStreakService", () => {
       save: jest.fn(),
     };
     service = new LoginStreakService(
-      mockRepository,
       new FixedCalendarClock("2026-07-01"),
-      mockAuditRepository,
-      mockIdempotencyRepository,
+      { run: async (_userId, action) => action({ streak: mockRepository, audit: mockAuditRepository, idempotency: mockIdempotencyRepository }) },
     );
   });
 

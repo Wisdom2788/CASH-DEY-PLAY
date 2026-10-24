@@ -14,14 +14,6 @@ export const initSocket = (token: string, baseUrl: string) => {
     autoConnect: true,
   });
 
-  socket.on('connect', () => {
-    console.log('Connected to game server', socket?.id);
-  });
-
-  socket.on('disconnect', (reason) => {
-    console.log('Disconnected from game server:', reason);
-  });
-
   socket.on('connect_error', (error) => {
     console.error('Socket connection error:', error);
   });

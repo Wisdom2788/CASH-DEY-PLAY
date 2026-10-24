@@ -72,12 +72,12 @@ export default function ProfileView() {
       >
         <div>
           <span className="text-[10px] font-bold text-[#A6ABB3] uppercase tracking-wider block">
-            AIRTIME &amp; DATA WALLET
+            AIRTIME WALLET
           </span>
           <div className="text-2xl font-black text-white">
             {isLoadingBalance ? <Skeleton width={80} baseColor="#1A1B1E" highlightColor="#2A2C31" /> : `₦${balanceNgn.toLocaleString()}`}
           </div>
-          <p className="text-[11px] text-[#00E676] mt-0.5">Instant top-up to MTN, Airtel, Glo, 9mobile</p>
+          <p className="text-[11px] text-[#00E676] mt-0.5">Airtime redemption coming soon</p>
         </div>
         <div className="px-3.5 py-2 rounded-full bg-[#00B85F] text-[#111214] font-extrabold text-xs">
           Redeem Reward →
@@ -115,16 +115,8 @@ export default function ProfileView() {
         </div>
 
         <p className="text-xs text-gray-300">
-          Ad-free experience, unlimited unranked practice matches, exclusive card backs &amp; titles.
+          No video ads, unlimited practice and premium cosmetics. Purchases are not available yet.
         </p>
-
-        {/* Legal design constraint guarantee */}
-        <div className="bg-[#111214]/80 p-2.5 rounded-xl border border-[#303338] text-[10px] text-gray-400 space-y-1">
-          <span className="font-bold text-[#00E676] block">✓ STRICT LEGAL COMPLIANCE GUARANTEE</span>
-          <p>
-            Premium never touches card RNG, match odds, or leaderboard eligibility. Convenience and cosmetics only.
-          </p>
-        </div>
 
         {!user.isPremium ? (
           <button
@@ -140,26 +132,7 @@ export default function ProfileView() {
         )}
       </section>
 
-      {/* Section 4: Non-Gambling Legal Guardrails */}
-      <section className="bg-[#111214] border border-[#2A2C31] rounded-2xl p-3.5 space-y-2 text-xs">
-        <h4 className="font-bold text-white text-[11px] uppercase tracking-wider text-[#A6ABB3]">
-          ⚖️ REGULATORY COMPLIANCE ARCHITECTURE
-        </h4>
-        <div className="space-y-1.5 text-[11px] text-[#A6ABB3]">
-          <p>
-            • <strong>No Consideration + Chance + Prize:</strong> No cash entry fees. Free-to-play with rewarded ad margin.
-          </p>
-          <p>
-            • <strong>Airtime / Data Top-up Only:</strong> No bank cash withdrawals or withdrawal KYC.
-          </p>
-          <p>
-            • <strong>Server-Authoritative Match Logic:</strong> Every Whot move validated server-side.
-          </p>
-          <p>
-            • <strong>Skill-Ranked Leaderboard:</strong> Ranked by weighted win rate and sustained consistency.
-          </p>
-        </div>
-      </section>
+
     </div>
   );
 };

@@ -79,7 +79,7 @@ export default function LeaderboardView() {
           {/* User's Current Standing */}
           <div className="bg-[#0D2D1E] border border-[#00B85F] rounded-xl p-3 flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <span className="font-bebas text-2xl text-[#F2B705]">#{user?.monthlyRank}</span>
+              <span className="font-bebas text-2xl text-[#F2B705]">{user?.monthlyRank ? `#${user.monthlyRank}` : '—'}</span>
               <div className="w-10 h-10 rounded-full border border-[#00B85F] overflow-hidden bg-[#1A1B1E] flex items-center justify-center">
                 {user?.avatarUrl ? (
                   <img
@@ -107,7 +107,7 @@ export default function LeaderboardView() {
             </div>
             <div className="text-right">
               <span className="text-[10px] text-[#A6ABB3] block">Status</span>
-              <span className="text-xs font-bold text-[#00E676]">QUALIFIED ✓</span>
+              <span className="text-xs font-bold text-[#00E676]">Eligibility not evaluated</span>
             </div>
           </div>
 

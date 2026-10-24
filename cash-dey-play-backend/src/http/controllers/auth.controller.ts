@@ -7,7 +7,11 @@ export class AuthController {
 
   async login(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { initData } = req.body;
+      const initData = req.body?.initData;
+      if (typeof initData !== "string" || initData.length > 16384) {
+        res.status(400).json({ error: "ValidationError", message: "initData must be a string of at most 16384 characters." });
+        return;
+      }
       const devUserId = req.header(DEV_TELEGRAM_USER_ID_HEADER) as string | undefined;
 
       const result = await this.authService.login(initData, devUserId);

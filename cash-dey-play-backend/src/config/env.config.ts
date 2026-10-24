@@ -59,7 +59,7 @@ export function loadAppEnv(processEnv: NodeJS.ProcessEnv = process.env): AppEnv 
     }
   }
 
-  const allowDevAuthBypass = processEnv.ALLOW_DEV_AUTH_BYPASS === "true" && nodeEnv !== "production";
+  const allowDevAuthBypass = processEnv.ALLOW_DEV_AUTH_BYPASS === "true" && nodeEnv === "development";
 
   const jwtSecret = configuredJwtSecret.length > 0 ? configuredJwtSecret : PUBLIC_DEVELOPMENT_JWT_SECRET;
 

@@ -18,6 +18,7 @@ export class AuthService {
     let avatarUrl: string | null = null;
 
     if (this.allowDevAuthBypass && devUserId) {
+      if (!/^[1-9]\d{0,15}$/.test(devUserId) || !Number.isSafeInteger(Number(devUserId))) throw new TelegramAuthError("Invalid developer user ID");
       telegramId = parseInt(devUserId, 10);
       firstName = "Dev";
       username = "DevPlayer";
@@ -37,7 +38,7 @@ export class AuthService {
     const token = jwt.sign(
       { userId: user.id, telegramId: user.telegramId },
       this.jwtSecret,
-      { expiresIn: "7d" }
+      { expiresIn: "24h", algorithm: "HS256", issuer: "cash-dey-play", audience: "cash-dey-play-mini-app" }
     );
 
     return { token, user };

@@ -1,12 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { UserProfile } from '../types/interfaces/user.types';
-import {
-  LoginStreakState,
-  initializeLoginStreak,
-  processLoginStreakEvent,
-  claimStreakMilestone,
-} from '../qualification/login-streak/login-streak-engine';
+import { type LoginStreakState } from '../qualification/login-streak/login-streak-engine';
 import { getCookiesStorageDefinitions } from '../helpers/storage.helpers'; // Assuming we'll create this to match portal
 
 interface AuthStoreState {
@@ -17,15 +12,13 @@ interface AuthStoreState {
   setAuthData: (user: UserProfile, token: string) => void;
   clearAuth: () => void;
   syncStreakState: (streak: LoginStreakState) => void;
-  claimStreakReward: (day: number) => { success: boolean; rewardAirtimeNgn?: number };
-  updateUserStats: (xpDelta: number, pointsDelta: number, wonMatch: boolean) => void;
 }
 
 const cookieStorage = getCookiesStorageDefinitions();
 
 export const useAuthStore = create<AuthStoreState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       user: null,
       loginStreak: null,
       isAuthenticated: false,
@@ -45,41 +38,7 @@ export const useAuthStore = create<AuthStoreState>()(
         set({ loginStreak: streak });
       },
 
-      claimStreakReward: (day: number) => {
-        const currentStreak = get().loginStreak;
-        const user = get().user;
-        
-        if (!currentStreak || !user) return { success: false };
 
-        try {
-          const updated = claimStreakMilestone(currentStreak, day);
-          let rewardAirtime = 0;
-          
-          if (day === 14) rewardAirtime = user.isPremium ? 100 : 30;
-          if (day === 20) rewardAirtime = user.isPremium ? 300 : 100;
-          if (day === 30) rewardAirtime = user.isPremium ? 400 : 150;
-
-          set({ loginStreak: updated });
-          return { success: true, rewardAirtimeNgn: rewardAirtime };
-        } catch {
-          return { success: false };
-        }
-      },
-
-      updateUserStats: (xpDelta: number, pointsDelta: number, wonMatch: boolean) => {
-        set((state) => {
-          if (!state.user) return state;
-          return {
-            user: {
-              ...state.user,
-              xp: state.user.xp + xpDelta,
-              points: state.user.points + pointsDelta,
-              matchesPlayedMonth: state.user.matchesPlayedMonth + 1,
-              matchesWonMonth: wonMatch ? state.user.matchesWonMonth + 1 : state.user.matchesWonMonth,
-            },
-          };
-        });
-      },
     }),
     {
       name: 'cdp-auth-storage',

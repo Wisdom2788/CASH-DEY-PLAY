@@ -58,4 +58,8 @@ describe("loadAppEnv — unknown NODE_ENV must fail safe", () => {
     const env = loadAppEnv({ NODE_ENV: "development", ALLOW_DEV_AUTH_BYPASS: "true" });
     expect(env.allowDevAuthBypass).toBe(true);
   });
+
+  it("does not enable a deployed test backdoor", () => {
+    expect(loadAppEnv({ NODE_ENV: "test", ALLOW_DEV_AUTH_BYPASS: "true" }).allowDevAuthBypass).toBe(false);
+  });
 });

@@ -23,7 +23,7 @@ function mapRowToState(row: LoginStreakRow): LoginStreakState {
 }
 
 export class PostgresLoginStreakRepository implements ILoginStreakRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pick<Pool, "query">) {}
 
   async getState(userId: string): Promise<LoginStreakState | null> {
     const query = `

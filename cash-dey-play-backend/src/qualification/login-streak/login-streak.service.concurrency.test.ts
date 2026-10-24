@@ -73,12 +73,17 @@ describe("LoginStreakService.claimBonus — a reward can be claimed only once, e
 
   beforeEach(() => {
     audit = new RecordingRewardAuditRepository();
-    service = new LoginStreakService(
-      new InMemoryLoginStreakRepository(QUALIFIED_STATE),
-      new FixedCalendarClock(),
-      audit,
-      new InMemoryIdempotencyRepository(),
-    );
+    const repositories = { streak: new InMemoryLoginStreakRepository(QUALIFIED_STATE), audit, idempotency: new InMemoryIdempotencyRepository() };
+    let tail = Promise.resolve();
+    service = new LoginStreakService(new FixedCalendarClock(), {
+      run: async (_userId, action) => {
+        const before = tail;
+        let unlock!: () => void;
+        tail = new Promise<void>(resolve => { unlock = resolve; });
+        await before;
+        try { return await action(repositories); } finally { unlock(); }
+      },
+    });
   });
 
   it("records exactly one reward when the same request is retried sequentially with the same key", async () => {

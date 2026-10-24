@@ -10,9 +10,7 @@ import { createAuthMiddleware } from "./http/middleware/auth.middleware";
 import { createRateLimitMiddleware, MemoryRateLimitCounterStore, RedisRateLimitCounterStore, type RateLimitCounterStore, FailOpenRateLimitCounterStore } from "./http/middleware/rate-limit.middleware";
 import { createQualificationRouter } from "./http/routes/qualification.routes";
 
-import { PostgresLoginStreakRepository } from "./db/repositories/login-streak.repository";
-import { PostgresIdempotencyRepository } from "./db/repositories/idempotency.repository";
-import { PostgresRewardAuditRepository } from "./db/repositories/reward-audit.repository";
+import { PostgresStreakUnitOfWork } from "./db/streak-unit-of-work";
 import { LoginStreakService } from "./qualification/login-streak";
 import { LoginStreakController } from "./http/controllers/login-streak.controller";
 
@@ -77,13 +75,11 @@ export function createApp(dependencies: AppDependencies): Express {
   );
   app.use(express.json());
 
-  app.use(
-    createRateLimitMiddleware({
-      store: dependencies.rateLimitStore,
-      maxRequests: dependencies.ipRequestsPerMinute,
-      windowSeconds: 60,
-      scope: "ip",
-    }),
+  app.get("/healthz", (_req, res) => { res.json({ ok: true }); });
+  // Shared mobile-network addresses must not combine every authenticated player's limit.
+  app.use("/api/auth/telegram/login",
+    createRateLimitMiddleware({ store: dependencies.rateLimitStore,
+      maxRequests: dependencies.ipRequestsPerMinute, windowSeconds: 60, scope: "ip" }),
   );
   app.use(
     createAuthMiddleware({
@@ -193,10 +189,8 @@ function createProductionDependencies() {
   );
 
   const loginStreakService = new LoginStreakService(
-    new PostgresLoginStreakRepository(pool),
     clock,
-    new PostgresRewardAuditRepository(pool),
-    new PostgresIdempotencyRepository(pool),
+    new PostgresStreakUnitOfWork(pool),
   );
   const monthlyLeaderboardService = new MonthlyLeaderboardService(
     new PostgresMonthlyLeaderboardRepository(pool),

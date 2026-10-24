@@ -1,3 +1,5 @@
+> Historical reference. Current ordered implementation contracts and status: [delivery specifications](delivery/README.md). Conflicting instructions in this document are superseded there.
+
 # Validation of the agent's `implementation-specs.md`
 
 Checked on 21 Oct 2026 against: the Project Audit findings, the Build Order and Implementation Plan (Part I and Part II), the real repository (`src/db/schema.sql`, auth, repositories), and the PRD.
