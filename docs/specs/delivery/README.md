@@ -9,7 +9,7 @@ A spec is not an implementation. “Implemented locally” is not a passing host
 | Order | Specification | Dependency | Current status |
 |---|---|---|---|
 | 01 | [Containment and deployment baseline](01-containment.md) | Existing Step 1 | Implemented; unit/HTTP/PostgreSQL tests and both Vercel preview builds passed on e526b8d |
-| 02 | [Identity, time, migrations and contracts](02-foundations.md) | 01 | Implemented on feature/foundations; integration validation and production rehearsal pending |
+| 02 | [Identity, time, migrations and contracts](02-foundations.md) | 01 | Core implemented and CI verified (122 backend /26 frontend); production rehearsal pending |
 | 03 | [Ledger, audit and idempotency](03-ledger.md) | 02 | Specified; not implemented |
 | 04 | [Entitlements, tasks and referrals](04-entitlements.md) | 02–03 | Specified; not implemented |
 | 05 | [Whot engine and practice bot](05-game-engine.md) | 02 and agreed game rules | Specified; rule decisions remain open |
@@ -76,3 +76,7 @@ Stage 01 code at commit e526b8d419a029fc60a5e932c60d52e9e6658af9 passed **105/10
 ## Release policy
 
 Before production: all stages accepted, no unresolved Critical/High findings, data migrations rehearsed on a restored copy, real provider sandbox and real Telegram flows passed, operational owners named, account access/counsel/finance decisions recorded, dependency/security review completed, and a staged rollback/recovery exercise passed. New evidence can reopen a finding. Do not label a disabled capability functional.
+
+## Foundations evidence and next designs
+
+[Verify run40135745497](https://github.com/Wisdom2788/CASH-DEY-PLAY/actions/runs/40135745497) passed122 backend tests including all15 PostgreSQL cases, strict frontend typecheck, ESLint,26 frontend tests and build. Both Vercel previews passed on d746cab. [The next critical-flow design](03-12-critical-flow-design.md) defines authority, queue reservation, SQL/Redis consistency, game command ordering, idempotent reward settlement, Stars payment and payout recovery before those features are implemented. These later capabilities are not delivered yet.

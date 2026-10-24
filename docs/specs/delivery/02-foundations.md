@@ -1,6 +1,6 @@
 # Identity, clocks, migrations and contracts
 
-Status: **Implementation under validation on feature/foundations; not merged or applied to production**. Covers: H1–H4, H6, M1–M5/M8–M10/M12/M13. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
+Status: **Core implementation verified in CI on feature/foundations; not merged or applied to production**. Covers: H1–H4, H6, M1–M5/M8–M10/M12/M13. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
 
 ### Data and implementation
 
@@ -25,3 +25,9 @@ Record commit, schema version, commands/results, integration evidence, unresolve
 ## Reviewed implementation flow
 
 See [design and migration algorithms](02-foundations-design.md) and [production migration runbook](02-migration-runbook.md). Identity/time/auth/core session contracts and frontend state are implemented on the stage branch. Live database baselining, backup/restore rehearsal and rollout remain explicit release prerequisites. Match-model replacement, complete task-day qualification and payment/provider workflows stay in their later owning stages.
+
+## Automated evidence
+
+Runtime commit d746cab76d1457abc6a89e2abcf214a2f76d5529 passed [Verify run40135745497](https://github.com/Wisdom2788/CASH-DEY-PLAY/actions/runs/40135745497): **122/122 backend tests**, including15 real-PostgreSQL cases; both migrations applied successfully, followed by a repeat deploy with no pending migrations. Frontend strict typecheck, ESLint,26 tests and build passed. Both Vercel preview contexts succeeded. Later documentation-only changes do not alter the tested runtime.
+
+Production baseline/rehearsal remains a release gate. Existing SQL inside legacy match/leaderboard controllers and broader feature-response schemas are migrated with their owning game/leaderboard modules; this stage does not assert those modules or their eligibility rules are complete. Realtime/payment/payout capability flags remain false.
