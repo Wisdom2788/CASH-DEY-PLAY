@@ -30,6 +30,8 @@ Reviewed25 October2026 against stage05 runtime c37671022378bd4c78413a2d78e3979bc
 - [x] 07 internal worker CI acceptance: PostgreSQL18 run40216621540 passed concurrency, stale discovery, clock-after-lock, rollback, replay, lifecycle and shutdown checks on runtime9c5a9ba05e009798fcc22d8360c124ea4d912171. Hosted worker and full realtime/ranked acceptance remain open.
 - [x] 07 authenticated read/reconnect core implemented: durable session generation, shared expiring JWT, current-session and participant-only SQL snapshots; gateway opt-in/public capability off.
 - [x] 07 read/reconnect CI acceptance: PostgreSQL18 run40218117090 passed real Socket.IO/two-gateway, ownership/privacy/revocation/reconnect/rollback and seven-migration replay checks on runtimef37120ca88e0a24b3bc37ab803fc78bc05ca860f. Public gameplay remains gated.
+- [x] 07 atomic moves implemented: strict intentions, SQL session guard held through game commit, post-lock database time and actor-bound replay; move flag off by default.
+- [ ] 07 move CI acceptance: concurrency/replacement/expiry/rollback/private replay, two-gateway moves and fail-closed limit checks pending.
 - [ ] 08: Real streak milestone credits/ad-free rewards and referral qualification/points.
 - [ ] 09: Telegram Stars order/payment/refund lifecycle verified with staging bot.
 - [ ] 10: Airtime delivery, ambiguous-result reconciliation, refunds, caps and float operations.

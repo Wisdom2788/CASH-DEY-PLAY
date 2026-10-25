@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { attachRealtimeGateway } from "./realtime/gateway";
+import { GameRepository } from "./game-engine/repository";
 import { RealtimeSessionRepository } from "./realtime/session.repository";
 import { randomUUID } from "node:crypto";
 import { PRODUCT_RULES } from "./config/product-rules.config";
@@ -139,6 +140,7 @@ const REDIS_READY_TIMEOUT_MS = 10_000;
 
 interface RateLimitSetup {
   readonly store: RateLimitCounterStore;
+  readonly mutationStore: RateLimitCounterStore;
   /** Resolves when the store can be used (or after a timeout, so a bad Redis address cannot stop the API starting). */
   readonly whenReady: Promise<void>;
 }
@@ -148,7 +150,8 @@ function createRateLimitStore(redisUrl: string, nodeEnv: NodeEnvironment): RateL
     if (nodeEnv !== "production") {
       console.warn("REDIS_URL is not set; using process-local rate limits. Do not run more than one API instance.");
     }
-    return { store: new MemoryRateLimitCounterStore(), whenReady: Promise.resolve() };
+    const store=new MemoryRateLimitCounterStore();
+    return {store,mutationStore:store,whenReady:Promise.resolve()};
   }
 
   const redis = new Redis(redisUrl, {
@@ -180,7 +183,8 @@ function createRateLimitStore(redisUrl: string, nodeEnv: NodeEnvironment): RateL
     });
   });
 
-  return { store: new FailOpenRateLimitCounterStore(new RedisRateLimitCounterStore(redis)), whenReady };
+  const mutationStore=new RedisRateLimitCounterStore(redis);
+  return { store: new FailOpenRateLimitCounterStore(mutationStore), mutationStore, whenReady };
 }
 
 function createProductionDependencies() {
@@ -228,18 +232,19 @@ function createProductionDependencies() {
     trustProxyHops: env.trustProxyHops,
   };
 
-  return { dependencies, rateLimitReady: rateLimit.whenReady };
+  return { dependencies, rateLimitReady: rateLimit.whenReady,mutationRateLimits:rateLimit.mutationStore };
 }
 
 if (require.main === module) {
   const env = loadAppEnv();
-  const { dependencies, rateLimitReady } = createProductionDependencies();
+  const { dependencies, rateLimitReady,mutationRateLimits } = createProductionDependencies();
   const app = createApp(dependencies);
   // Do not accept traffic until the rate-limit store is connected (or the wait timed out and said so in the logs).
   void rateLimitReady.then(() => {
     const server=createServer(app);
     if(env.realtimeReadEnabled)attachRealtimeGateway(server,{jwtSecret:dependencies.jwtSecret,origin:dependencies.corsOrigin,
-      rateLimits:dependencies.rateLimitStore,sessions:new RealtimeSessionRepository(dependencies.pool)});
+      rateLimits:dependencies.rateLimitStore,sessions:new RealtimeSessionRepository(dependencies.pool),
+      ...(env.realtimeMovesEnabled?{actions:{games:new GameRepository(dependencies.pool),rateLimits:mutationRateLimits}}:{})});
     server.listen(env.port, () => {
       console.log(`Server listening on port ${env.port}`);
     });

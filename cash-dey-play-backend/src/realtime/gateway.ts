@@ -1,5 +1,7 @@
 import { Server as HttpServer } from 'node:http';
 import { Server } from 'socket.io';
+import { GameRepository } from '../game-engine/repository';
+import { actionSchema,GameError } from '../game-engine/model';
 import { z } from 'zod';
 import { verifyAccessToken } from '../auth/access-token';
 import { RateLimitCounterStore } from '../http/middleware/rate-limit.middleware';
@@ -8,12 +10,18 @@ import { RealtimeConnection,RealtimeError,RealtimeSessionRepository } from './se
 interface GatewayOptions {
  jwtSecret:string;origin:string;rateLimits:RateLimitCounterStore;
  sessions:Pick<RealtimeSessionRepository,'claim'|'assertCurrent'|'release'|'resume'>;
+ actions?:{games:Pick<GameRepository,'actForConnection'>;rateLimits:RateLimitCounterStore};
 }
 const authSchema=z.strictObject({token:z.string().min(1).max(8192)});
 const empty=z.strictObject({});const matchRequest=z.strictObject({matchId:z.string().uuid()});
-function code(error:unknown):string{return error instanceof RealtimeError?error.code:'UNAVAILABLE';}
+const moveRequest=z.strictObject({matchId:z.string().uuid(),actionId:actionSchema.shape.id,expectedVersion:actionSchema.shape.expectedVersion,command:actionSchema.shape.command});
+function code(error:unknown):string{
+ if(error instanceof RealtimeError)return error.code;
+ if(error instanceof GameError&&error.code!=='INVALID_STATE')return error.code;
+ return 'UNAVAILABLE';
+}
 
-/** Read-only protocol slice. No client room joins, actions, rewards or cached packet recovery. */
+/** Reads and opt-in atomic moves. No client room joins, rewards or cached packet recovery. */
 export function attachRealtimeGateway(server:HttpServer,options:GatewayOptions):Server {
  const io=new Server(server,{transports:['websocket'],maxHttpBufferSize:8192,
   cors:{origin:options.origin},allowRequest:(req,done)=>done(null,req.headers.origin===options.origin)});
@@ -46,6 +54,14 @@ export function attachRealtimeGateway(server:HttpServer,options:GatewayOptions):
    void(async()=>{
     if(await options.rateLimits.increment(`rt:event:${connection.userId}`,60)>60)throw new RealtimeError('RATE_LIMITED');
     verifyToken();
+    if(event==='match:action'&&options.actions){
+     const parsed=moveRequest.safeParse(args[0]);if(!parsed.success)throw new RealtimeError('INVALID_INPUT');
+     // Use the shared store directly. Errors deny the action; no local fallback for writes.
+     if(await options.actions.rateLimits.increment(`rt:move:${connection.userId}`,60)>60)throw new RealtimeError('RATE_LIMITED');
+     const {matchId,actionId,expectedVersion,command}=parsed.data;
+     const view=await options.actions.games.actForConnection(connection,matchId,{id:actionId,expectedVersion,command});
+     if(socket.connected)ack({ok:true,data:{matchId,view}});return;
+    }
     if(event!=='session:resume'&&event!=='match:view')throw new RealtimeError('INVALID_INPUT');
     let matchId:string|undefined;
     if(event==='match:view'){

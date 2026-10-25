@@ -1,6 +1,6 @@
 # Realtime session, ranked queue and rematches
 
-Status: **Durable worker and authenticated read/reconnect core implemented; public realtime/ranked flow incomplete**. Covers: C7/later C8, H3/H4/H11, hidden-card and anti-cheat boundaries. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
+Status: **Durable worker, authenticated read/reconnect and atomic move core implemented; public realtime/ranked flow incomplete**. Covers: C7/later C8, H3/H4/H11, hidden-card and anti-cheat boundaries. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
 
 ### Model and protocol
 
@@ -28,3 +28,5 @@ Record commit, schema version, commands/results, integration evidence, unresolve
 Internal worker design/runbook: [07-worker-design.md](07-worker-design.md). The worker discovers due/bot turns in SQL, rechecks version/time under the match lock, commits replayable transitions/outbox and recovers normal practice completions. No sockets, Redis queue, ranked admission or payout/reward settlement are enabled. Internal-worker PostgreSQL18 CI run40216621540 passed on runtime9c5a9ba05e009798fcc22d8360c124ea4d912171, with backend/frontend checks, repeated migration deployment and reconciliation passing. Full-stage acceptance remains open.
 
 Authenticated read/reconnect design: [07-session-design.md](07-session-design.md). The gateway is opt-in and supports only session:resume/match:view. Seventh migration required; public realtime capability stays false. Internal read/reconnect acceptance passed PostgreSQL18 CI run40218117090 on runtimef37120ca88e0a24b3bc37ab803fc78bc05ca860f; two actual gateways shared durable session ownership correctly.
+
+Atomic move design: [07-actions-design.md](07-actions-design.md). Separate opt-in moves retain player/session locks through the game write and use post-lock database time; public realtime stays off. CI acceptance pending. Committed-event delivery is still open.

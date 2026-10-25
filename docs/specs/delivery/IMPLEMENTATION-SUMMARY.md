@@ -43,3 +43,7 @@ Latest worker verification: https://github.com/Wisdom2788/CASH-DEY-PLAY/actions/
 - [x] Backend dependency advisory remediation: refreshed body-parser2.4.0, proxy-addr2.0.8, qs6.16.1 and Zod4.6.7 within allowed version ranges; `npm audit --omit=dev` reports zero known findings on25 October2026. Added a high/critical production-dependency CI gate. This is advisory evidence, not proof of absence of vulnerabilities.
 
 Latest authenticated read/reconnect evidence: https://github.com/Wisdom2788/CASH-DEY-PLAY/actions/runs/40218117090 . All266 backend tests across31 suites passed; this verifies the named slice, not public gameplay or production readiness.
+
+- [x] 07 atomic move implementation: strict client intentions, player/session/match lock order, current generation/revocation checks retained through commit, post-lock database clock/expiry, actor-bound idempotent receipts and atomic event/state/outbox. Separate move flag defaults off; production Redis mutation limiter fails closed.
+- [ ] 07 move acceptance: PostgreSQL race/expiry/rollback/replay tests, actual two-gateway actions and local gateway/configuration checks awaiting CI. No new migration; all seven existing migrations remain required.
+- [ ] 07 delivery/public flow remains open: committed-event fanout/recovery, Redis matchmaking, ranked admission/quota/settlement, frontend state-version handling, real-device and load acceptance.

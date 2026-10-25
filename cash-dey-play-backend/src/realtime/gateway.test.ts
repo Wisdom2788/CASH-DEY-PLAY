@@ -6,6 +6,7 @@ import { io,Socket } from 'socket.io-client';
 import { Server } from 'socket.io';
 import { AccessIdentity } from '../auth/access-token';
 import { MemoryRateLimitCounterStore } from '../http/middleware/rate-limit.middleware';
+import { GameError } from '../game-engine/model';
 import { attachRealtimeGateway } from './gateway';
 import { RealtimeConnection,RealtimeError,ResumeSnapshot } from './session.repository';
 
@@ -14,6 +15,7 @@ const token=(seconds=60)=>jwt.sign({userId:'tg_123',telegramId:123,tokenVersion:
  {algorithm:'HS256',issuer:'cash-dey-play',audience:'cash-dey-play-mini-app',expiresIn:seconds});
 describe('real Socket.IO read gateway',()=>{
  let server:HttpServer,gateway:Server,url:string,clients:Socket[],current:RealtimeConnection|null,revoked:boolean;
+ let act:jest.Mock;let moveLimit:jest.Mock;let options:Parameters<typeof attachRealtimeGateway>[1];
  let sessions:Parameters<typeof attachRealtimeGateway>[1]['sessions'];
  beforeEach(async()=>{
   clients=[];current=null;revoked=false;
@@ -28,7 +30,9 @@ describe('real Socket.IO read gateway',()=>{
     await sessions.assertCurrent(connection);return {protocolVersion:1,phase:'IDLE',serverTime:Date.now(),match:null};
    }),
   };
-  server=createServer();gateway=attachRealtimeGateway(server,{jwtSecret:secret,origin,rateLimits:new MemoryRateLimitCounterStore(),sessions});
+  act=jest.fn().mockResolvedValue({version:1,hand:[]});moveLimit=jest.fn().mockResolvedValue(1);
+  options={jwtSecret:secret,origin,rateLimits:new MemoryRateLimitCounterStore(),sessions,actions:{games:{actForConnection:act},rateLimits:{increment:moveLimit}}};
+  server=createServer();gateway=attachRealtimeGateway(server,options);
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));url=`http://127.0.0.1:${(server.address() as AddressInfo).port}`;
  });
  afterEach(async()=>{for(const client of clients)client.disconnect();await new Promise<void>(resolve=>gateway.close(()=>resolve()));});
@@ -85,4 +89,37 @@ describe('real Socket.IO read gateway',()=>{
   const third=await connect();
   expect(await third.timeout(2000).emitWithAck('session:resume',{})).toEqual({ok:false,error:{code:'RATE_LIMITED'}});
  });
+ const move=()=>({matchId:randomUUID(),actionId:'human-move-01',expectedVersion:0,command:{type:'DRAW'}});
+ it('maps move intentions to the server connection and engine action, without a client clock',async()=>{
+  const client=await connect();const payload=move();
+  expect(await client.timeout(2000).emitWithAck('match:action',payload)).toEqual({ok:true,data:{matchId:payload.matchId,view:{version:1,hand:[]}}});
+  expect(act).toHaveBeenCalledWith(current,payload.matchId,{id:payload.actionId,expectedVersion:0,command:{type:'DRAW'}});
+  expect(moveLimit).toHaveBeenCalledWith('rt:move:tg_123',60);
+ });
+ it('keeps actions disabled without explicit action configuration',async()=>{
+  delete options.actions;const client=await connect();
+  expect(await client.timeout(2000).emitWithAck('match:action',move())).toEqual({ok:false,error:{code:'INVALID_INPUT'}});expect(act).not.toHaveBeenCalled();
+ });
+ it('rejects move identity, timestamp, reward, result and unknown command fields',async()=>{
+  const client=await connect();
+  for(const extra of [{userId:'tg_456'},{at:0},{winner:'tg_123'},{reward:100},{command:{type:'TIMEOUT'}},{command:{type:'DRAW',amount:5}}]){
+   expect(await client.timeout(2000).emitWithAck('match:action',{...move(),...extra})).toEqual({ok:false,error:{code:'INVALID_INPUT'}});
+  }expect(act).not.toHaveBeenCalled();expect(moveLimit).not.toHaveBeenCalled();
+ });
+ it('denies moves when the shared rate store fails or exceeds the budget',async()=>{
+  const first=await connect();moveLimit.mockRejectedValueOnce(new Error('private Redis URL'));
+  expect(await first.timeout(2000).emitWithAck('match:action',move())).toEqual({ok:false,error:{code:'UNAVAILABLE'}});
+  const second=await connect();moveLimit.mockResolvedValueOnce(61);
+  expect(await second.timeout(2000).emitWithAck('match:action',move())).toEqual({ok:false,error:{code:'RATE_LIMITED'}});expect(act).not.toHaveBeenCalled();
+ });
+ it('returns bounded engine rejection codes and suppresses corrupt-state details',async()=>{
+  const client=await connect();
+  for(const code of ['STALE_VERSION','ACTION_CONFLICT','WRONG_TURN','ILLEGAL_MOVE','EXPIRED'] as const){
+   act.mockRejectedValueOnce(new GameError(code));
+   expect(await client.timeout(2000).emitWithAck('match:action',move())).toEqual({ok:false,error:{code}});
+  }
+  act.mockRejectedValueOnce(new GameError('INVALID_STATE'));
+  expect(await client.timeout(2000).emitWithAck('match:action',move())).toEqual({ok:false,error:{code:'UNAVAILABLE'}});
+ });
+
 });

@@ -1,3 +1,4 @@
+import { RealtimeConnection,RealtimeError,RealtimeSessionRepository } from '../realtime/session.repository';
 import { createHash, randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { Pool, PoolClient } from 'pg';
@@ -26,7 +27,7 @@ function parseId(id: string): void { if (typeof id !== 'string' || !/^[0-9a-f]{8
 
 /**
  * Internal PostgreSQL game store. It is deliberately not wired to HTTP routes,
- * matchmaking, Redis, sockets, settlement, or an enabled product rules profile.
+ * matchmaking, Redis and settlement. Socket writes use actForConnection, never the trusted-clock act adapter.
  */
 export class GameRepository {
   constructor(private readonly pool: Pool, private readonly random: RandomInt = cryptoRandomInt) {}
@@ -68,6 +69,15 @@ export class GameRepository {
     const parsed = actionSchema.safeParse(action); if (!parsed.success || !accountId.test(userId)) throw new GameError('INVALID_INPUT');
     return this.transition(matchId, parsed.data.id, userId, at, (state, seat, entropy) =>
       ({state:applyCommand(state, seat, parsed.data, at, entropy),command:parsed.data.command}), hash(['ACTION',userId,parsed.data]));
+  }
+
+  /** Socket action: authenticated session locks and the game write share one transaction. No caller clock accepted. */
+  async actForConnection(connection:RealtimeConnection,matchId:string,action:Action):Promise<PlayerView> {
+    const parsed=actionSchema.safeParse(action);
+    if(!parsed.success||!accountId.test(connection.userId))throw new GameError('INVALID_INPUT');
+    return this.transition(matchId,parsed.data.id,connection.userId,null,(state,seat,entropy,at)=>
+      ({state:applyCommand(state,seat,parsed.data,at,entropy),command:parsed.data.command}),
+      hash(['ACTION',connection.userId,parsed.data]),false,connection);
   }
 
   async botAct(matchId: string, at: number, id = `bot-${randomUUID()}`): Promise<PlayerView> {
@@ -157,20 +167,23 @@ export class GameRepository {
     } catch(error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
   }
 
-  private async transition(matchId:string,id:string,userId:string|null,at:number,
-    transition:(state:GameState,seat:Seat,random:RandomInt)=>{state:GameState;command:Action['command']},requestHash:string|null,bot=false):Promise<PlayerView> {
-    parseId(matchId); if(!actionId.test(id) || (!bot&&(id.startsWith('bot-')||id.startsWith('sys-timeout-'))) || !Number.isSafeInteger(at) || at<0) throw new GameError('INVALID_INPUT');
+  private async transition(matchId:string,id:string,userId:string|null,at:number|null,
+    transition:(state:GameState,seat:Seat,random:RandomInt,at:number)=>{state:GameState;command:Action['command']},requestHash:string|null,bot=false,connection?:RealtimeConnection):Promise<PlayerView> {
+    parseId(matchId); if(!actionId.test(id) || (!bot&&(id.startsWith('bot-')||id.startsWith('sys-timeout-'))) || (at!==null&&(!Number.isSafeInteger(at)||at<0)) || (at===null&&!connection)) throw new GameError('INVALID_INPUT');
     const client=await this.pool.connect();
     try {
       await client.query('BEGIN'); await client.query("SET LOCAL lock_timeout='5s'"); await client.query("SET LOCAL statement_timeout='10s'");
+      if(connection)await new RealtimeSessionRepository(this.pool).lockCurrent(client,connection);
       const row=await this.lockMatch(client,matchId); const seatResult=bot
         ? await client.query<{seat:number}>('SELECT seat FROM game_players WHERE match_id=$1 AND is_bot ORDER BY seat',[matchId])
         : await client.query<{seat:number}>('SELECT seat FROM game_players WHERE match_id=$1 AND user_id=$2 AND NOT is_bot',[matchId,userId]);
       if(!seatResult.rows.length || seatResult.rows.length>1) throw new GameError('INVALID_INPUT'); const seat=seatResult.rows[0]!.seat as Seat;
       const state=restoreGame(row.private_state); const fp=requestHash??hash(['BOT_ACTION',id]);
       const prior=await client.query<{request_hash:string;actor_user_id:string|null;actor_seat:number|null;projected_response:PlayerView}>('SELECT request_hash,actor_user_id,actor_seat,projected_response FROM game_events WHERE match_id=$1 AND action_id=$2',[matchId,id]);
+      if(at===null)at=Number((await client.query<{ms:string}>("SELECT floor(extract(epoch FROM clock_timestamp())*1000)::text AS ms")).rows[0]!.ms);
+      if(connection&&at>=connection.expiresAt)throw new RealtimeError('UNAUTHORIZED');
       if(prior.rows[0]) { if(prior.rows[0].request_hash!==fp || prior.rows[0].actor_user_id!==userId || prior.rows[0].actor_seat!==seat) throw new GameError('ACTION_CONFLICT'); const response=prior.rows[0].projected_response; await client.query('COMMIT'); return response; }
-      const entropy=recordRandom(this.random); const applied=transition(state,seat,entropy.random); const next=applied.state; const response=projectGame(next,seat);
+      const entropy=recordRandom(this.random); const applied=transition(state,seat,entropy.random,at); const next=applied.state; const response=projectGame(next,seat);
       const payload:PrivatePayload={kind:'ACTION',seat,action:{id,expectedVersion:state.version,command:applied.command},at,entropy:entropy.choices};
       const command=applied.command;
       await this.persistTransition(client,row,next,id,fp,seat,userId, payload,response,at,command?.type);

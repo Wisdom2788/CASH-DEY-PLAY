@@ -28,7 +28,7 @@ export class RealtimeSessionRepository {
   });
  }
  async assertCurrent(connection:RealtimeConnection):Promise<void>{
-  await this.transaction(client=>this.guard(client,connection));
+  await this.transaction(client=>this.lockCurrent(client,connection));
  }
  async release(connection:RealtimeConnection):Promise<void>{
   await this.transaction(async client=>{await client.query('DELETE FROM realtime_sessions WHERE user_id=$1 AND connection_id=$2',[connection.userId,connection.connectionId]);});
@@ -36,7 +36,7 @@ export class RealtimeSessionRepository {
  async resume(connection:RealtimeConnection,matchId?:string):Promise<ResumeSnapshot>{
   if(matchId!==undefined&&!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(matchId))throw new RealtimeError('INVALID_INPUT');
   return this.transaction(async client=>{
-   await this.guard(client,connection);
+   await this.lockCurrent(client,connection);
    const result=await client.query<{id:string;mode:'PRACTICE'|'RANKED';private_state:unknown;seat:number}>(`
     SELECT m.id,m.mode,m.private_state,p.seat FROM game_players p JOIN game_matches m ON m.id=p.match_id
     WHERE p.user_id=$1 AND NOT p.is_bot AND ($2::uuid IS NULL OR m.id=$2)
@@ -54,7 +54,8 @@ export class RealtimeSessionRepository {
   const row=result.rows[0];
   if(!row||String(row.telegram_id)!==String(identity.telegramId)||identity.userId!==`tg_${identity.telegramId}`||row.token_version!==identity.tokenVersion)throw new RealtimeError('UNAUTHORIZED');
  }
- private async guard(client:PoolClient,connection:RealtimeConnection):Promise<void>{
+ /** Caller owns the transaction and must retain these user/session locks through its write. */
+ async lockCurrent(client:PoolClient,connection:RealtimeConnection):Promise<void>{
   await this.checkUser(client,connection);
   const result=await client.query<{connection_id:string;token_version:number;expires_at:Date}>(
    'SELECT connection_id,token_version,expires_at FROM realtime_sessions WHERE user_id=$1 FOR SHARE',[connection.userId]);

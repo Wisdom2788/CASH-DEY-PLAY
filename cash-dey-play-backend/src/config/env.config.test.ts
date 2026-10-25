@@ -68,4 +68,10 @@ describe("loadAppEnv — unknown NODE_ENV must fail safe", () => {
     expect(loadAppEnv({NODE_ENV:'test',ENABLE_REALTIME_READ:'true'}).realtimeReadEnabled).toBe(true);
   });
 
+  it('keeps moves separately gated and requires the read gateway before enabling them',()=>{
+    expect(loadAppEnv({NODE_ENV:'test',ENABLE_REALTIME_READ:'true'}).realtimeMovesEnabled).toBe(false);
+    expect(()=>loadAppEnv({NODE_ENV:'test',ENABLE_REALTIME_MOVES:'true'})).toThrow('requires ENABLE_REALTIME_READ');
+    expect(loadAppEnv({NODE_ENV:'test',ENABLE_REALTIME_READ:'true',ENABLE_REALTIME_MOVES:'true'}).realtimeMovesEnabled).toBe(true);
+  });
+
 });

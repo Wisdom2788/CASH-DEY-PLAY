@@ -17,6 +17,7 @@ export interface AppEnv {
   readonly ipRequestsPerMinute: number;
   readonly trustProxyHops: number;
   readonly realtimeReadEnabled: boolean;
+  readonly realtimeMovesEnabled: boolean;
 }
 
 const MINIMUM_PRODUCTION_JWT_SECRET_LENGTH = 32;
@@ -71,8 +72,11 @@ export function loadAppEnv(processEnv: NodeJS.ProcessEnv = process.env): AppEnv 
 
   const jwtSecret = configuredJwtSecret.length > 0 ? configuredJwtSecret : PUBLIC_DEVELOPMENT_JWT_SECRET;
 
+  if(processEnv.ENABLE_REALTIME_MOVES==="true"&&processEnv.ENABLE_REALTIME_READ!=="true")throw new Error("ENABLE_REALTIME_MOVES requires ENABLE_REALTIME_READ");
+
   return {
     nodeEnv,
+    realtimeMovesEnabled: processEnv.ENABLE_REALTIME_MOVES === "true",
     realtimeReadEnabled: processEnv.ENABLE_REALTIME_READ === "true",
     trustProxyHops: integerSetting(processEnv.TRUST_PROXY_HOPS,0,"TRUST_PROXY_HOPS",0,5),
     port: integerSetting(processEnv.PORT,3000,"PORT",1,65535),

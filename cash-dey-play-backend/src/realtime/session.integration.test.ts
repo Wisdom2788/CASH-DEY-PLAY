@@ -92,7 +92,7 @@ suite('durable realtime sessions on PostgreSQL',()=>{
  it('uses SQL ownership across two actual gateways, without leaking match data or resetting deadlines',async()=>{
   const match=await ranked();const clients:Socket[]=[];const origin='https://mini.example';const secret='q'.repeat(40);
   const servers=[createServer(),createServer()];
-  const gateways=servers.map(server=>attachRealtimeGateway(server,{jwtSecret:secret,origin,rateLimits:new MemoryRateLimitCounterStore(),sessions:new RealtimeSessionRepository(pool)}));
+  const gateways=servers.map(server=>attachRealtimeGateway(server,{jwtSecret:secret,origin,rateLimits:new MemoryRateLimitCounterStore(),sessions:new RealtimeSessionRepository(pool),actions:{games:new GameRepository(pool),rateLimits:new MemoryRateLimitCounterStore()}}));
   try{
    await Promise.all(servers.map(server=>new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve))));
    const connect=async(index:number,id=123)=>{
@@ -102,13 +102,19 @@ suite('durable realtime sessions on PostgreSQL',()=>{
    };
    const first=await connect(0);const a=await first.timeout(2000).emitWithAck('session:resume',{});
    expect(a.data.match.view.hand).toEqual(match.state.hands[0]);
+   const intention={matchId:match.id,actionId:'socket-draw-01',expectedVersion:0,command:{type:'DRAW'}};
+   const moved=await first.timeout(2000).emitWithAck('match:action',intention);expect(moved.ok).toBe(true);expect(moved.data.view.version).toBe(1);
    const second=await connect(1);
-   expect(await first.timeout(2000).emitWithAck('session:resume',{})).toEqual({ok:false,error:{code:'SESSION_REPLACED'}});
-   const b=await second.timeout(2000).emitWithAck('session:resume',{});expect(b.data.match.view.deadlineAt).toBe(a.data.match.view.deadlineAt);
+   expect(await first.timeout(2000).emitWithAck('match:action',intention)).toEqual({ok:false,error:{code:'SESSION_REPLACED'}});
+   const b=await second.timeout(2000).emitWithAck('session:resume',{});expect(b.data.match.view.deadlineAt).toBe(moved.data.view.deadlineAt);
+   expect(await second.timeout(2000).emitWithAck('match:action',intention)).toEqual(moved);
+   const opponent=await connect(0,456);
+   expect(await opponent.timeout(2000).emitWithAck('match:action',{...intention,actionId:'opponent-socket-draw',expectedVersion:1})).toMatchObject({ok:true,data:{view:{version:2,seat:1}}});
    const other=await connect(0,789);
    expect(await other.timeout(2000).emitWithAck('match:view',{matchId:match.id})).toEqual({ok:false,error:{code:'NOT_FOUND'}});
    await pool.query("UPDATE users SET token_version=1 WHERE id='tg_123'");
-   expect(await second.timeout(2000).emitWithAck('session:resume',{})).toEqual({ok:false,error:{code:'UNAUTHORIZED'}});
+   expect(await second.timeout(2000).emitWithAck('match:action',intention)).toEqual({ok:false,error:{code:'UNAUTHORIZED'}});
+   expect((await games.replay(match.id)).version).toBe(2);
   }finally{
    for(const client of clients)client.disconnect();
    await Promise.all(gateways.map(gateway=>new Promise<void>(resolve=>gateway.close(()=>resolve()))));

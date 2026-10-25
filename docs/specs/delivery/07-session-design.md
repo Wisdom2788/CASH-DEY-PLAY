@@ -46,3 +46,5 @@ Socket.IO server/test client are pinned4.8.4. Backend dependency inspection also
 ## Recorded acceptance
 
 PostgreSQL18 Verify run40218117090 passed on runtimef37120ca88e0a24b3bc37ab803fc78bc05ca860f. Real Socket.IO clients and two gateways sharing PostgreSQL passed generation replacement, unauthorized-match/privacy, revocation and unchanged-deadline checks. Concurrent claims, old-generation cleanup, failed-claim rollback, lock-wait expiry, idle expiry and malformed token/event checks passed. All seven migrations deployed twice; backend/frontend checks/builds, production dependency audit, reconciliation and both Vercel previews passed. Public gameplay, hosted/device/load acceptance and the remaining protocol phases are still open.
+
+Follow-through: [atomic moves](07-actions-design.md) add a separate opt-in match:action path with the session guard retained in the write transaction. The read-only configuration remains the default, and public realtime is still disabled.
