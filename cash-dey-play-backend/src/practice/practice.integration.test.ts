@@ -5,6 +5,7 @@ import { Pool } from 'pg';
 import { PracticeRepository,PracticeStart } from './practice.repository';
 import { GameRepository } from '../game-engine/repository';
 import { chooseBotCommand } from '../game-engine/bot';
+import { runGamePass } from '../workers/game-worker';
 import { APPROVED_WHOT_RULES } from '../game-engine/approved-rules';
 const url=process.env.TEST_DATABASE_URL;
 if(process.env.REQUIRE_DB_TESTS==='true'&&!url)throw new Error('TEST_DATABASE_URL required');
@@ -91,8 +92,8 @@ suite('practice admission PostgreSQL boundary',()=>{
   await expect(repo.recoverCompletions()).rejects.toThrow('completion outbox failure');
   expect((await pool.query('SELECT count(*)::int n FROM practice_completions')).rows[0].n).toBe(0);
   await pool.query('DROP TRIGGER reject_completion ON outbox_events');
-  const delivered=await Promise.all(Array.from({length:10},()=>repo.recoverCompletions()));
-  expect(delivered.reduce((n,r)=>n+r.recorded,0)).toBe(1);
+  const delivered=await Promise.all(Array.from({length:10},()=>runGamePass(pool)));
+  expect(delivered.reduce((n,r)=>n+r.completed,0)).toBe(1);
   expect(await repo.recoverCompletions()).toEqual({scanned:0,recorded:0});
   expect((await pool.query('SELECT count(*)::int n FROM practice_completions')).rows[0].n).toBe(1);
   expect((await pool.query("SELECT count(*)::int n FROM outbox_events WHERE type='PRACTICE_COMPLETED'")).rows[0].n).toBe(1);

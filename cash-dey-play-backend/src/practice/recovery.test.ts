@@ -15,4 +15,13 @@ describe('practice recovery bounds',()=>{
   await expect(repo.recoverCompletions(3)).rejects.toThrow('storage failed');
   expect(record.mock.calls).toEqual([['one'],['two']]);
  });
+ it('stops before starting another completion transaction on shutdown',async()=>{
+  const stop=new AbortController();
+  const query=jest.fn().mockResolvedValue({rows:[{match_id:'one'},{match_id:'two'}]});
+  const repo=new PracticeRepository({query} as unknown as Pool);
+  const record=jest.spyOn(repo,'recordCompletion').mockImplementation(async()=>{stop.abort();return true;});
+  expect(await repo.recoverCompletions(100,stop.signal)).toEqual({scanned:2,recorded:1});
+  expect(record).toHaveBeenCalledTimes(1);
+ });
+
 });

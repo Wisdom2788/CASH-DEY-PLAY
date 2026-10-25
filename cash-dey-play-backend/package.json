@@ -17,7 +17,8 @@
     "db:preflight": "ts-node src/db/preflight.ts",
     "db:ledger:reconcile": "ts-node src/ledger/reconcile.ts",
     "db:referrals:resolve": "ts-node src/entitlements/resolve-pending.ts",
-    "db:practice:recover": "ts-node src/practice/recover-completions.ts"
+    "db:practice:recover": "ts-node src/practice/recover-completions.ts",
+    "worker:games": "node dist/workers/run-game-worker.js"
   },
   "keywords": [],
   "author": "",

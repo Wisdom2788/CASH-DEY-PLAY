@@ -1,6 +1,6 @@
 # Realtime session, ranked queue and rematches
 
-Status: **Specified; not implemented**. Covers: C7/later C8, H3/H4/H11, hidden-card and anti-cheat boundaries. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
+Status: **Internal durable worker implemented; realtime/ranked flow incomplete**. Covers: C7/later C8, H3/H4/H11, hidden-card and anti-cheat boundaries. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
 
 ### Model and protocol
 
@@ -23,3 +23,6 @@ Two real clients complete/reconnect/rematch; one million simulated pair attempts
 ## Implementation record
 
 Record commit, schema version, commands/results, integration evidence, unresolved decisions and recovery rehearsal here before marking complete. An acceptance criterion written above is not evidence that it passed.
+
+
+Internal worker design/runbook: [07-worker-design.md](07-worker-design.md). The worker discovers due/bot turns in SQL, rechecks version/time under the match lock, commits replayable transitions/outbox and recovers normal practice completions. No sockets, Redis queue, ranked admission or payout/reward settlement are enabled. CI acceptance must be recorded separately before integration.

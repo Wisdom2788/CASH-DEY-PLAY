@@ -94,6 +94,37 @@ export class GameRepository {
     } catch(error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
   }
 
+  /** Internal worker entry point. Discovery is advisory; ownership and time are rechecked under the row lock. */
+  async advanceDueMatch(matchId:string,expectedVersion:number):Promise<'SKIPPED'|'BOT_ACTION'|'TIMEOUT'> {
+    parseId(matchId);
+    if(!Number.isSafeInteger(expectedVersion)||expectedVersion<0)throw new GameError('INVALID_INPUT');
+    const client=await this.pool.connect();
+    try {
+      await client.query('BEGIN');await client.query("SET LOCAL lock_timeout='5s'");await client.query("SET LOCAL statement_timeout='10s'");
+      const row=await this.lockMatch(client,matchId);
+      if(row.status!=='ACTIVE'||row.version!==expectedVersion){await client.query('COMMIT');return 'SKIPPED';}
+      const state=restoreGame(row.private_state);
+      const clock=await client.query<{ms:string}>("SELECT floor(extract(epoch FROM clock_timestamp())*1000)::text AS ms");
+      const at=Number(clock.rows[0]!.ms);
+      const entropy=recordRandom(this.random);
+      if(at>=state.deadlineAt){
+        const id=`sys-timeout-${state.version}`;const fp=hash(['TIMEOUT',state.version]);
+        const next=applyTimeout(state,id,state.version,at,entropy.random);
+        await this.persistTransition(client,row,next,id,fp,null,null,{kind:'TIMEOUT',seat:state.turn,at,entropy:entropy.choices},
+          {seat0:projectGame(next,0),seat1:projectGame(next,1)},at);
+        await client.query('COMMIT');return 'TIMEOUT';
+      }
+      const bot=await client.query('SELECT 1 FROM game_players WHERE match_id=$1 AND seat=$2 AND is_bot',[matchId,state.turn]);
+      if(row.mode!=='PRACTICE'||!bot.rowCount){await client.query('COMMIT');return 'SKIPPED';}
+      const id=`bot-tick-${state.version}`;const command=chooseBotCommand(projectGame(state,state.turn));
+      const action:Action={id,expectedVersion:state.version,command};
+      const next=applyCommand(state,state.turn,action,at,entropy.random);
+      await this.persistTransition(client,row,next,id,hash(['BOT_ACTION',id]),state.turn,null,
+        {kind:'ACTION',seat:state.turn,action,at,entropy:entropy.choices},projectGame(next,state.turn),at,command.type);
+      await client.query('COMMIT');return 'BOT_ACTION';
+    }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
+  }
+
   /** Rebuilds state exclusively from private origin and append-only command/entropy records. */
   async replay(matchId: string): Promise<GameState> {
     parseId(matchId);

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { Pool } from 'pg';
 import { GameRepository } from './repository';
 import { Rules } from './model';
+import { runGamePass } from '../workers/game-worker';
 
 const url=process.env.TEST_DATABASE_URL;
 if(process.env.REQUIRE_DB_TESTS==='true'&&!url) throw new Error('TEST_DATABASE_URL required');
@@ -26,7 +27,7 @@ suite('Whot game persistence on PostgreSQL',()=>{
     await pool.query(migration('0_init'));
     await pool.query("INSERT INTO users(id,telegram_id,first_name) VALUES('tg_123',123,'One'),('tg_456',456,'Two')");
     await pool.query(migration('2026102401_foundations'));await pool.query(migration('2026102501_ledger'));
-    await pool.query(migration('2026102502_entitlements'));await pool.query(migration('2026102503_game_engine'));
+    await pool.query(migration('2026102502_entitlements'));await pool.query(migration('2026102503_game_engine'));await pool.query(migration('2026102504_practice'));
     repo=new GameRepository(pool,fixedRandom);
   });
   afterEach(async()=>{if(pool)await pool.end();if(admin&&schema)await admin.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);});
@@ -111,4 +112,71 @@ suite('Whot game persistence on PostgreSQL',()=>{
     if(after.status==='ACTIVE'&&after.turn===1) await repo.botAct(match.id,1002,'bot-action-01');
     expect((await repo.replay(match.id)).version).toBe((await pool.query('SELECT version FROM game_matches WHERE id=$1',[match.id])).rows[0]!.version);
   });
+  async function freshPractice(){
+    const at=Number((await pool.query("SELECT floor(extract(epoch FROM clock_timestamp())*1000)::text AS ms")).rows[0].ms);
+    return repo.createMatch({mode:'PRACTICE',rules:{...rules,turnMs:300000},players:[{userId:'tg_123',isBot:false},{userId:null,isBot:true}],at});
+  }
+
+  it('rechecks stale candidates and does not advance an early human turn',async()=>{
+    const match=await freshPractice();
+    expect(await repo.advanceDueMatch(match.id,0)).toBe('SKIPPED');
+    expect(await runGamePass(pool)).toEqual({scanned:0,advanced:0,completed:0});
+    await repo.act(match.id,'tg_123',{id:'move-before-stale-worker',expectedVersion:0,command:{type:'DRAW'}},match.state.lastAt);
+    expect(await repo.advanceDueMatch(match.id,0)).toBe('SKIPPED');
+    expect((await repo.view(match.id,'tg_123')).version).toBe(1);
+  });
+
+  it('serializes ten overlapping bot workers against one discovered version and replays',async()=>{
+    const match=await freshPractice();
+    await repo.act(match.id,'tg_123',{id:'human-before-workers',expectedVersion:0,command:{type:'DRAW'}},match.state.lastAt);
+    const results=await Promise.all(Array.from({length:10},()=>repo.advanceDueMatch(match.id,1)));
+    expect(results.filter(x=>x==='BOT_ACTION')).toHaveLength(1);
+    expect(results.filter(x=>x==='SKIPPED')).toHaveLength(9);
+    expect((await repo.replay(match.id)).version).toBe(2);
+  });
+
+  it('recovers elapsed deadlines once, with timeout taking precedence over an expired bot turn',async()=>{
+    const match=await practice();
+    await repo.act(match.id,'tg_123',{id:'human-before-expired-bot',expectedVersion:0,command:{type:'DRAW'}},1001);
+    const results=await Promise.all(Array.from({length:10},()=>repo.advanceDueMatch(match.id,1)));
+    expect(results.filter(x=>x==='TIMEOUT')).toHaveLength(1);
+    expect(results.filter(x=>x==='SKIPPED')).toHaveLength(9);
+    const state=await repo.replay(match.id);expect(state.reason).toBe('TIMEOUT');expect(state.version).toBe(2);
+    expect(await runGamePass(pool)).toEqual({scanned:0,advanced:0,completed:0});
+  });
+
+  it('discovers an elapsed human deadline without any in-memory timer or client input',async()=>{
+    const match=await practice();
+    expect(await runGamePass(pool)).toEqual({scanned:1,advanced:1,completed:0});
+    expect((await repo.replay(match.id)).reason).toBe('TIMEOUT');
+    expect(await repo.advanceDueMatch(match.id,0)).toBe('SKIPPED');
+  });
+
+  it('discovers a live bot turn and atomically rolls back a failed worker outbox write',async()=>{
+    const match=await freshPractice();
+    await repo.act(match.id,'tg_123',{id:'human-before-rollback-worker',expectedVersion:0,command:{type:'DRAW'}},match.state.lastAt);
+    await pool.query("CREATE FUNCTION reject_worker_outbox() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.type='GAME_STATE_CHANGED' THEN RAISE EXCEPTION 'worker outbox failure'; END IF; RETURN NEW; END $$");
+    await pool.query('CREATE TRIGGER reject_worker_outbox BEFORE INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION reject_worker_outbox()');
+    await expect(runGamePass(pool)).rejects.toThrow('worker outbox failure');
+    expect((await repo.replay(match.id)).version).toBe(1);
+    expect((await pool.query('SELECT count(*)::int n FROM game_events')).rows[0].n).toBe(1);
+    await pool.query('DROP TRIGGER reject_worker_outbox ON outbox_events');
+    expect(await runGamePass(pool)).toEqual({scanned:1,advanced:1,completed:0});
+    expect((await repo.replay(match.id)).version).toBe(2);
+  });
+
+  it('reads the server clock after waiting for the match lock',async()=>{
+    const at=Number((await pool.query("SELECT floor(extract(epoch FROM clock_timestamp())*1000)::text AS ms")).rows[0].ms);
+    const match=await repo.createMatch({mode:'PRACTICE',rules:{...rules,firstSeat:1,turnMs:1000},players:[{userId:'tg_123',isBot:false},{userId:null,isBot:true}],at});
+    const locker=await pool.connect();
+    let tick:Promise<'SKIPPED'|'BOT_ACTION'|'TIMEOUT'>|undefined;
+    try{
+      await locker.query('BEGIN');await locker.query('SELECT id FROM game_matches WHERE id=$1 FOR UPDATE',[match.id]);
+      tick=repo.advanceDueMatch(match.id,0);
+      await locker.query('SELECT pg_sleep(1.1)');await locker.query('COMMIT');
+      expect(await tick).toBe('TIMEOUT');
+      expect((await repo.replay(match.id)).reason).toBe('TIMEOUT');
+    }finally{await locker.query('ROLLBACK');locker.release();await tick;}
+  });
+
 });

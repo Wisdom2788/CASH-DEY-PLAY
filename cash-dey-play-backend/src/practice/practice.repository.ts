@@ -47,7 +47,7 @@ export class PracticeRepository {
   }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
  }
  /** Bounded crash recovery. Candidate filtering is advisory; recordCompletion validates authority again. */
- async recoverCompletions(limit=100):Promise<{scanned:number;recorded:number}>{
+ async recoverCompletions(limit=100,signal?:AbortSignal):Promise<{scanned:number;recorded:number}>{
   if(!Number.isSafeInteger(limit)||limit<1||limit>1000)throw new PracticeError('INVALID_INPUT');
   const candidates=await this.pool.query<{match_id:string}>(`
    SELECT s.match_id FROM practice_starts s
@@ -58,7 +58,10 @@ export class PracticeRepository {
    ORDER BY m.ended_at,s.match_id LIMIT $1`,[limit]);
   let recorded=0;
   // Independent transactions retain progress on failure; retries and concurrent runners are safe.
-  for(const row of candidates.rows)if(await this.recordCompletion(row.match_id))recorded++;
+  for(const row of candidates.rows){
+   if(signal?.aborted)break;
+   if(await this.recordCompletion(row.match_id))recorded++;
+  }
   return {scanned:candidates.rows.length,recorded};
  }
  /** Recovery-safe internal consumer; only a persisted normal finish qualifies. No client outcome accepted. */

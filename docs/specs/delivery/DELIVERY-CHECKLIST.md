@@ -26,6 +26,8 @@ Reviewed25 October2026 against stage05 runtime c37671022378bd4c78413a2d78e3979bc
 - [ ] 06 full: Verified ad integration, purpose-bound credits and public practice flow.
 - [x] 06 core: atomic/idempotent practice starts, five regular daily starts, paid premium/ad-free policy, shared ranked/practice admission locks and authoritative once-only normal completion records. PostgreSQL18 CI run40204197673 passed213 backend tests; provider verification/credits, public API/UI, processing jobs and downstream qualification remain open.
 - [ ] 07: Durable realtime sessions, Redis flow, ranked matchmaking, reconnect/recovery and result settlement.
+- [x] 07 internal worker implemented: database-clock bot turns/deadlines, row/version rechecks and practice completion recovery; opt-in process with graceful shutdown.
+- [ ] 07 internal worker CI acceptance: concurrency, stale discovery, rollback, replay, lifecycle and shutdown verification pending.
 - [ ] 08: Real streak milestone credits/ad-free rewards and referral qualification/points.
 - [ ] 09: Telegram Stars order/payment/refund lifecycle verified with staging bot.
 - [ ] 10: Airtime delivery, ambiguous-result reconciliation, refunds, caps and float operations.
