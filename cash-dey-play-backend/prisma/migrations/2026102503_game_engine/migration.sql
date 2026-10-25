@@ -32,9 +32,11 @@ CREATE TABLE game_players (
 CREATE INDEX game_players_user_idx ON game_players(user_id,match_id) WHERE user_id IS NOT NULL;
 
 CREATE FUNCTION enforce_game_seats() RETURNS trigger LANGUAGE plpgsql AS $$
-DECLARE target_id uuid; target_mode text; seat_count integer; bot_count integer; human_count integer;
+DECLARE target_id uuid; target_mode text; seat_count integer; bot_count integer; human_count integer; row_data jsonb;
 BEGIN
-  target_id := CASE WHEN TG_TABLE_NAME='game_matches' THEN COALESCE(NEW.id,OLD.id) ELSE COALESCE(NEW.match_id,OLD.match_id) END;
+  row_data := CASE WHEN TG_OP='DELETE' THEN to_jsonb(OLD) ELSE to_jsonb(NEW) END;
+  IF TG_TABLE_NAME='game_matches' THEN target_id := (row_data->>'id')::uuid;
+  ELSE target_id := (row_data->>'match_id')::uuid; END IF;
   SELECT mode INTO target_mode FROM game_matches WHERE id=target_id;
   IF NOT FOUND THEN RETURN NULL; END IF;
   SELECT count(*),count(*) FILTER(WHERE is_bot),count(*) FILTER(WHERE NOT is_bot)
