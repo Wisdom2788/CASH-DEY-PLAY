@@ -7,6 +7,7 @@ export function createTasksRouter(tasksController: TasksController): Router {
   const router = Router();
   
   router.get("/state", validateRequest(z.object({query:z.strictObject({})})), tasksController.getState);
+  router.post("/:key/claim",validateRequest(z.object({params:z.strictObject({key:z.enum(["MANDATORY_VIDEO_LOGIN","MANDATORY_VIDEO_UNLOCK"])}),query:z.strictObject({}),body:z.strictObject({})})),tasksController.claim);
   router.post("/complete", tasksController.completeTask);
   router.post("/optional-video", tasksController.watchOptionalVideo);
   router.post("/skip-cooldown", tasksController.skipCooldown);

@@ -1,4 +1,4 @@
-import { secondsUntilNextLagosMidnight } from "../../time/lagos-calendar-clock";
+import { DailyTasks } from "../../entitlements/daily-tasks";
 import { Pool } from "pg";
 import { TaskAlreadyCompletedError, UnknownTaskError } from "./tasks.errors";
 
@@ -32,6 +32,7 @@ export interface TasksStateRow {
 
 export interface TasksRepository {
   getTasksState(userId: string, today: string): Promise<TasksStateRow>;
+  claimExemptTask(userId:string,key:string): Promise<{pointsEarned:number;alreadyClaimed:boolean}>;
   completeTask(userId: string, taskId: string, today: string): Promise<{ pointsEarned: number }>;
   recordOptionalVideo(userId: string, today: string): Promise<{ success: boolean; practiceMatches: number }>;
 }
@@ -40,82 +41,11 @@ export class PostgresTasksRepository implements TasksRepository {
   constructor(private readonly pool: Pool) {}
 
   async getTasksState(userId: string, today: string): Promise<TasksStateRow> {
-    // Get completed tasks for today
-    const completedRes = await this.pool.query(
-      `SELECT task_key FROM task_completions WHERE user_id = $1 AND completed_on = $2`,
-      [userId, today]
-    );
-    const completedKeys = new Set(completedRes.rows.map((r: { task_key: string }) => r.task_key));
-
-    // Get optional video count for today
-    const videoRes = await this.pool.query(
-      `SELECT COUNT(*) as cnt FROM task_completions 
-       WHERE user_id = $1 AND completed_on = $2 AND task_key LIKE 'OPTIONAL_VIDEO_%'`,
-      [userId, today]
-    );
-    const optionalVideosWatchedToday = parseInt(videoRes.rows[0].cnt, 10);
-
-    // Get match wins today
-    const matchWinRes = await this.pool.query(
-      `SELECT COUNT(*) as cnt FROM matches
-       WHERE user_id = $1 AND winner_id = $1 AND lagos_date = $2::date`,
-      [userId, today]
-    );
-    const matchWins = parseInt(matchWinRes.rows[0].cnt, 10);
-
-    // Build canonical 4-task list
-    const tasks: TaskRow[] = [
-      {
-        id: "task_login_video",
-        title: "Watch Daily Login Video",
-        points: 50,
-        isCompleted: completedKeys.has("MANDATORY_VIDEO_LOGIN"),
-        type: "MANDATORY_VIDEO_LOGIN",
-        progress: completedKeys.has("MANDATORY_VIDEO_LOGIN") ? 1 : 0,
-        target: 1,
-      },
-      {
-        id: "task_unlock_video",
-        title: "Watch Match Unlock Video",
-        points: 50,
-        isCompleted: completedKeys.has("MANDATORY_VIDEO_UNLOCK"),
-        type: "MANDATORY_VIDEO_UNLOCK",
-        progress: completedKeys.has("MANDATORY_VIDEO_UNLOCK") ? 1 : 0,
-        target: 1,
-      },
-      {
-        id: "task_win_match",
-        title: "Win 1 Match",
-        points: 50,
-        isCompleted: matchWins >= 1,
-        type: "WIN_MATCH",
-        progress: Math.min(matchWins, 1),
-        target: 1,
-      },
-      {
-        id: "task_all_complete",
-        title: "Complete All Daily Tasks",
-        points: 50,
-        isCompleted: completedKeys.has("MANDATORY_VIDEO_LOGIN") && completedKeys.has("MANDATORY_VIDEO_UNLOCK") && matchWins >= 1,
-        type: "BONUS_ALL_COMPLETE",
-        progress: [completedKeys.has("MANDATORY_VIDEO_LOGIN"), completedKeys.has("MANDATORY_VIDEO_UNLOCK"), matchWins >= 1].filter(Boolean).length,
-        target: 3,
-      },
-    ];
-
-    const timeRemainingSeconds = secondsUntilNextLagosMidnight(new Date());
-
-    return {
-      tasks,
-      optionalVideosWatchedToday,
-      practiceMatchesUnlocked: optionalVideosWatchedToday, // 1:1 mapping
-      freeMatchesRemaining: Math.max(0, 3 - optionalVideosWatchedToday), // base 3 free
-      cooldownActive: false, // TODO: implement cooldown tracking
-      cooldownSecondsLeft: 0,
-      allBonusClaimed: tasks.every((t) => t.isCompleted),
-      timeRemainingSeconds,
-    };
+    void today;
+    return new DailyTasks(this.pool).state(userId);
   }
+
+  claimExemptTask(userId:string,key:string) {return new DailyTasks(this.pool).claim(userId,key);}
 
   /**
    * Completes a mandatory task once per player per Lagos day.

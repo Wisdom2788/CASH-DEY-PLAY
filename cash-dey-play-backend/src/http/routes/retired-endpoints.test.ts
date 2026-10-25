@@ -15,7 +15,7 @@ function signedHeaders(): Record<string, string> {
 }
 
 function buildTestApp() {
-  const poolQuery = jest.fn().mockResolvedValue({ rows: [], rowCount: 0 });
+  const poolQuery = jest.fn().mockResolvedValue({ rows: [{expires_at:null,ad_free:false}], rowCount: 1 });
   const recordMatchResult = jest.fn();
   const app = createApp({
     authService: {} as any,

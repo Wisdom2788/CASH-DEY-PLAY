@@ -7,7 +7,7 @@ import { buildSignedTelegramInitData, verifyTelegramInitData } from "../telegram
 const secret = "s".repeat(40);
 function buildApp() {
   const debit = jest.fn(); const complete = jest.fn(); const optional = jest.fn();
-  const app = createApp({ pool: { query: jest.fn().mockResolvedValue({ rows: [] }) }, authService: {},
+  const app = createApp({ pool: { query: jest.fn().mockResolvedValue({ rows: [{expires_at:null,ad_free:false}] }) }, authService: {},
     userRepository: { findAuthState: async (id: string) => ({ telegramId: Number(id.slice(3)), tokenVersion: 0 }) }, tasksRepository: { completeTask: complete, recordOptionalVideo: optional },
     walletRepository: { debitWallet: debit }, loginStreakService: {}, monthlyLeaderboardService: {},
     telegramBotToken: "test-bot", jwtSecret: secret, corsOrigin: "http://localhost:5173", allowDevAuthBypass: false,

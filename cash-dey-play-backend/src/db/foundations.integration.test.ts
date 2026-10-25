@@ -29,7 +29,7 @@ databaseTests("foundations migrations on PostgreSQL", () => {
   afterAll(async () => { if(admin) await admin.end(); });
   async function apply() {
     const client = await pool.connect();
-    try { await client.query(foundations); } catch(error) { await client.query("ROLLBACK"); throw error; }
+    try { await client.query(foundations); await client.query(readFileSync(join(root,"prisma/migrations/2026102501_ledger/migration.sql"),"utf8")); await client.query(readFileSync(join(root,"prisma/migrations/2026102502_entitlements/migration.sql"),"utf8")); } catch(error) { await client.query("ROLLBACK"); throw error; }
     finally {client.release();}
   }
   async function fixture() {
@@ -41,7 +41,7 @@ databaseTests("foundations migrations on PostgreSQL", () => {
     for(let i=0;i<2;i++) execFileSync(process.execPath,[join(root,"node_modules/prisma/build/index.js"),"migrate","deploy"],{
       cwd:root,env:{...process.env,DATABASE_URL:database.toString()},stdio:"pipe",timeout:60000,
     });
-    expect((await pool.query("SELECT count(*)::int AS count FROM _prisma_migrations WHERE finished_at IS NOT NULL")).rows[0].count).toBe(3);
+    expect((await pool.query("SELECT count(*)::int AS count FROM _prisma_migrations WHERE finished_at IS NOT NULL")).rows[0].count).toBe(4);
     expect((await pool.query("SELECT count(*)::int AS count FROM first_login_attributions")).rows[0].count).toBe(0);
   },130000);
   it("merges same-window identities without unclaiming, deduplicates tasks and rewrites the winner", async () => {

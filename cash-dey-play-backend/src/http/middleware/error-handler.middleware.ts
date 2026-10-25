@@ -1,5 +1,6 @@
 import { type NextFunction, type Request, type Response } from "express";
 import { ZodError } from "zod";
+import { TaskEligibilityError } from "../../entitlements/daily-tasks";
 import {
   BackdatedLoginError,
   InvalidLoginDateError,
@@ -25,6 +26,7 @@ export function errorHandler(
     return;
   }
 
+  if (err instanceof TaskEligibilityError) {res.status(403).json({requestId:req.requestId,error:"TaskNotEligible",message:err.message});return;}
   if (err instanceof ServiceUnavailableError) { res.status(503).json({ requestId:req.requestId, error:err.name,message:err.message }); return; }
   if (err instanceof SyntaxError && "body" in err) { res.status(400).json({ requestId:req.requestId, error:"ValidationError",message:"Malformed JSON" }); return; }
   if (typeof err === "object" && err !== null && "type" in err && err.type === "entity.too.large") { res.status(413).json({ requestId:req.requestId,error:"PayloadTooLarge",message:"Request body exceeds limit"}); return; }

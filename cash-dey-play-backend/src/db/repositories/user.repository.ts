@@ -1,4 +1,6 @@
 import { Pool } from "pg";
+import { assignReferralCode, resolveReferral } from "../../entitlements/referrals";
+import { PREMIUM_SQL } from "../../entitlements/entitlements";
 import { UserProfile } from "../../types";
 
 export interface AuthState { telegramId: number; tokenVersion: number; }
@@ -23,9 +25,10 @@ export class PostgresUserRepository implements UserRepository {
       await client.query("BEGIN");
       const created = await client.query<UserRow>(`INSERT INTO users(id,telegram_id,first_name,username,avatar_url,referral_code)
         VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(telegram_id) DO NOTHING RETURNING *`,
-        [id,telegramId,firstName,username,avatarUrl,`REF_${telegramId}`]);
+        [id,telegramId,firstName,username,avatarUrl,null]);
       let row = created.rows[0];
       if (row !== undefined) {
+        await assignReferralCode(client,id);
         // Capture even a null start parameter on first creation; later links cannot overwrite attribution.
         await client.query("INSERT INTO first_login_attributions(user_id,start_param) VALUES($1,$2)",[id,startParam]);
       } else {
@@ -35,7 +38,9 @@ export class PostgresUserRepository implements UserRepository {
       }
       if (row === undefined || row.id !== id) throw new Error("User identity invariant failed");
       await client.query("COMMIT");
-      return this.mapRow(row);
+      // Retryable attribution failure must not turn a committed login into an error.
+      await resolveReferral(this.pool,id).catch(()=>undefined);
+      return (await this.findById(id))!;
     } catch(error) { await client.query("ROLLBACK").catch(()=>undefined); throw error; }
     finally {client.release();}
   }
@@ -46,7 +51,7 @@ export class PostgresUserRepository implements UserRepository {
     return row ? {telegramId:Number(row.telegram_id),tokenVersion:row.token_version} : null;
   }
   async findById(id: string): Promise<UserProfile | null> {
-    const result = await this.pool.query<UserRow>("SELECT * FROM users WHERE id=$1",[id]);
+    const result = await this.pool.query<UserRow>(`SELECT u.*, ${PREMIUM_SQL} AS is_premium FROM users u WHERE id=$1`,[id]);
     return result.rows[0] ? this.mapRow(result.rows[0]) : null;
   }
   private mapRow(row: UserRow): UserProfile {

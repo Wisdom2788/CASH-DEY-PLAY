@@ -2,7 +2,7 @@ name: Verify
 on:
   pull_request:
   push:
-    branches: [main, step-1-loopholes, "feature/**", "fix/**"]
+    branches: [main, development, feature-implementation, hot-fixes]
 permissions:
   contents: read
 jobs:

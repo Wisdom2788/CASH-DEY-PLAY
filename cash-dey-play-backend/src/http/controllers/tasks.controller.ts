@@ -18,6 +18,11 @@ export class TasksController {
     }
   };
 
+  claim = async (req:Request,res:Response,next:NextFunction):Promise<void> => {
+    try {res.json({data:await this.tasksRepo.claimExemptTask(requireUserId(req),String(req.params.key))});}
+    catch(error){next(error);}
+  };
+
   completeTask = async (_req: Request, _res: Response, next: NextFunction): Promise<void> => {
     next(new NotImplementedFeatureError("Verified video rewards"));
   };
