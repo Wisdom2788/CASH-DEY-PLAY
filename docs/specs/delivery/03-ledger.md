@@ -1,6 +1,6 @@
 # Ledger, audit and idempotency foundations
 
-Status: **Core implemented on feature/ledger; release and owning reward integrations pending**. Covers: C2/C5/C6, M3/M6 and all reward/payout writes. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
+Status: **Core integrated into development; release and owning reward integrations pending**. Covers: C2/C5/C6, M3/M6 and all reward/payout writes. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
 
 ### Model
 

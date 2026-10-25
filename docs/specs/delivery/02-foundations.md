@@ -1,6 +1,6 @@
 # Identity, clocks, migrations and contracts
 
-Status: **Core implementation verified in CI on feature/foundations; not merged or applied to production**. Covers: H1–H4, H6, M1–M5/M8–M10/M12/M13. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
+Status: **Core implementation integrated into development and verified in CI; not applied to production**. Covers: H1–H4, H6, M1–M5/M8–M10/M12/M13. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
 
 ### Data and implementation
 

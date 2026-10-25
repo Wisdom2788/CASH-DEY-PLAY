@@ -1,6 +1,6 @@
 # Entitlements, daily tasks and durable referrals
 
-Status: **Core implemented on feature-implementation in PR5; staging and external source integrations pending**. Covers: H6/H7/H10, H11, M9/M12/M13. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
+Status: **Core integrated into development through merged PR5; staging and external source integrations pending**. Covers: H6/H7/H10, H11, M9/M12/M13. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
 
 ### Tables and rule authority
 
@@ -31,3 +31,5 @@ New accounts receive random eight-character codes with bounded savepoint retries
 Runtime5fcd496 passed PostgreSQL18 CI run40185792652, including the exact-expiry and parallel login/claim regressions. Subsequent HTTP contract, runtime frontend schema and task-outbox additions require their own recorded PR5 CI result. The older SQL-mocking task tests and obsolete award repository were replaced by the real entitlement/claim tests, rather than retaining an alternate unverified award path.
 
 Still pending: staging backup/restore and migrations; actual verified ads/ranked settlement writers; paid Stars purchase/refund lifecycle; scheduled attribution recovery; referral qualification/150-point credit in stage08; exact qualification-tier/three-day policies at the owning stage; configured staging bot/miniapp and two-device share test. No premium payment, ad credit, ranked match or referral reward is claimed operational.
+
+Final integrated runtime852b8ce passed171 backend tests including42 real PostgreSQL18 cases and28 frontend tests in Verify run40185969585. Repeated migrations, reconciliation, typechecks/lint/builds and both Vercel previews passed. See DELIVERY-CHECKLIST.md for full-stage versus core acceptance and remaining gates.
