@@ -22,7 +22,7 @@ Updated 25 October 2026. Checkboxes describe the named implementation scope; ful
 - [ ] Hosted staging: isolated database/Redis/test bot and provider sandboxes.
 - [ ] Production promotion: reviewed development release after backup/restore and integration gates.
 
-Most recent runtime CI:213 backend tests passed on PostgreSQL18, with frontend checks passing and zero ledger reconciliation mismatches (run40204197673). Passing automated tests is evidence for tested behavior, not completion of external integrations.
+Most recent runtime CI:239 backend tests passed across28 suites on PostgreSQL18, with frontend checks passing and zero ledger reconciliation mismatches (run40216621540). Passing automated tests is evidence for tested behavior, not completion of external integrations.
 
 - [x] 06 admission core: atomic starts/completions, exact response replay, paid/ad-free policy, five regular daily starts, shared ranked/practice locking and failure rollback verified in PostgreSQL18 CI run40204197673 (213 backend tests passed). Provider adapter, credits, public API/UI and recovery scheduling remain open.
 
@@ -31,5 +31,7 @@ Most recent runtime CI:213 backend tests passed on PostgreSQL18, with frontend c
 - [ ] Backup restore validation: owner reports a 24 October SQL export; successful local restoration, schema/data checks and a fresh pre-migration export remain unverified. A dump file or a DBeaver connection alone does not establish recovery.
 
 - [x] 07 durable worker implementation: database-clock bot turns/timeouts, advisory versioned discovery, row-lock rechecks, atomic replayable state/event/outbox transitions, completion recovery and graceful shutdown. Opt-in `npm run worker:games`; no production worker enabled.
-- [ ] 07 worker acceptance: PostgreSQL concurrency, stale-candidate, timeout/bot precedence, rollback, discovery and replay tests plus lifecycle/retry/shutdown checks awaiting CI evidence.
+- [x] 07 worker acceptance: PostgreSQL18 CI run40216621540 passed on runtime9c5a9ba05e009798fcc22d8360c124ea4d912171. Concurrency, stale-candidate, timeout/bot precedence, clock capture after lock wait, rollback, discovery/replay and lifecycle/retry/shutdown checks passed. Both migration deploys, backend/frontend checks, reconciliation and Vercel previews passed. No worker deployed.
 - [ ] 07 full acceptance remains open: socket authentication, Redis queue/ownership, reconnect, ranked admission/settlement, device tests and measured load/recovery. This internal worker does not close those requirements.
+
+Latest worker verification: https://github.com/Wisdom2788/CASH-DEY-PLAY/actions/runs/40216621540 . Evidence applies to the internal worker slice; full stage07 remains unchecked.

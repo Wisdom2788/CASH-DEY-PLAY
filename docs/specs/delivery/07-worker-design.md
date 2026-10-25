@@ -24,3 +24,7 @@ Use a disposable PostgreSQL database to test stale candidate after a human move,
 ## Operator execution
 
 Apply the six existing migrations, then `npm run build` and `npm run worker:games` in the backend with a securely configured DATABASE_URL. This long-running process is separate from the API and must use the same intended environment/database. The existing API start command is unchanged. Do not run it against production before release gates are met. No provider, Redis or new schema migration is needed for this internal worker; the actual public game flow still requires those owning integrations. Stop it using SIGTERM/SIGINT; completion recovery also observes shutdown between transactions. Supervising or deploying the worker is a separate operational task.
+
+## Recorded verification
+
+PostgreSQL18 CI run40216621540 passed on runtime9c5a9ba05e009798fcc22d8360c124ea4d912171. Tests exercised ten competing workers for bot/timeout transitions, stale scan versions, clock capture after a real lock wait, expired bot timeout precedence, outbox rollback/retry, full private replay, completion recovery through the worker and lifecycle/shutdown. Backend/frontend typechecks/tests/builds, repeated migration deploys, ledger reconciliation and both Vercel previews passed. This is isolated automated evidence, not hosted worker, real-device, timing/load or full realtime acceptance.
