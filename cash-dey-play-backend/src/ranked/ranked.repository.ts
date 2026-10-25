@@ -7,7 +7,7 @@ import { cryptoRandomInt } from '../game-engine/crypto-random';
 import { RealtimeConnection,RealtimeSessionRepository } from '../realtime/session.repository';
 
 export class RankedError extends Error {
- constructor(readonly code:'INVALID_INPUT'|'ACTIVE_ADMISSION'|'DAILY_LIMIT'|'COOLDOWN'|'STALE_TICKET'|'OFFER_EXPIRED'|'INCOMPATIBLE'|'STALE_OWNER'){super(code);}
+ constructor(readonly code:'INVALID_INPUT'|'ALREADY_IN_MATCH'|'ALREADY_IN_QUEUE'|'RANKED_DAILY_LIMIT'|'RANKED_COOLDOWN'|'STALE_TICKET'|'OFFER_EXPIRED'|'INCOMPATIBLE'|'STALE_OWNER'){super(code);}
 }
 interface Ticket {id:string;user_id:string;connection_id:string;request_key:string;state:'SEARCHING'|'OFFER'|'STARTED'|'CANCELLED'|'EXPIRED';joined_at:Date;last_seen_at:Date;search_expires_at:Date}
 interface Offer {id:string;a_ticket:string;b_ticket:string;state:'PENDING'|'STARTED'|'CANCELLED'|'EXPIRED';accepted_a:boolean;accepted_b:boolean;created_at:Date;expires_at:Date;match_id:string|null}
@@ -48,9 +48,9 @@ export class RankedRepository {
    cooldownUntil:rankedCooldownUntil(entitlement.isPremium,second?.ended_at?.getTime()??null,clock.at.getTime(),clock.reset.getTime()),resetAt:clock.reset.getTime()};
  }
  private async eligible(c:PoolClient,userId:string,clock:{at:Date;day:string;reset:Date},exclude?:string):Promise<Allowance>{
-  const value=await this.allowance(c,userId,clock,exclude);if(value.remaining<1)throw new RankedError('DAILY_LIMIT');
-  if(value.cooldownUntil)throw new RankedError('COOLDOWN');
-  if((await c.query("SELECT 1 FROM game_players p JOIN game_matches m ON m.id=p.match_id WHERE p.user_id=$1 AND m.status='ACTIVE' LIMIT 1",[userId])).rowCount)throw new RankedError('ACTIVE_ADMISSION');
+  const value=await this.allowance(c,userId,clock,exclude);if(value.remaining<1)throw new RankedError('RANKED_DAILY_LIMIT');
+  if(value.cooldownUntil)throw new RankedError('RANKED_COOLDOWN');
+  if((await c.query("SELECT 1 FROM game_players p JOIN game_matches m ON m.id=p.match_id WHERE p.user_id=$1 AND m.status='ACTIVE' LIMIT 1",[userId])).rowCount)throw new RankedError('ALREADY_IN_MATCH');
   return value;
  }
  async join(connection:RealtimeConnection,key:string):Promise<Ticket>{
@@ -61,7 +61,7 @@ export class RankedRepository {
    if(old)return old;
    const clock=await this.clock(c);await this.eligible(c,connection.userId,clock);
    const live=(await c.query<Ticket>("SELECT * FROM ranked_tickets WHERE user_id=$1 AND state IN('SEARCHING','OFFER')",[connection.userId])).rows[0];
-   if(live)throw new RankedError('ACTIVE_ADMISSION');
+   if(live)throw new RankedError('ALREADY_IN_QUEUE');
    const id=randomUUID();const result=await c.query<Ticket>(`INSERT INTO ranked_tickets(id,user_id,connection_id,request_key,state,joined_at,last_seen_at,search_expires_at)
     VALUES($1,$2,$3,$4,'SEARCHING',$5,$5,$5::timestamptz+interval '120 seconds') RETURNING *`,[id,connection.userId,connection.connectionId,key,clock.at]);
    await this.epoch(c,connection.userId,true);return result.rows[0]!;
@@ -78,16 +78,19 @@ export class RankedRepository {
  }
  async cancel(connection:RealtimeConnection,ticketId:string):Promise<void>{
   if(!uuid.test(ticketId))throw new RankedError('INVALID_INPUT');
-  // Offered tickets require the bilateral cancellation path so lock order stays canonical.
-  const row=(await this.pool.query<Ticket>('SELECT * FROM ranked_tickets WHERE id=$1 AND user_id=$2',[ticketId,connection.userId])).rows[0];
-  if(!row)throw new RankedError('INVALID_INPUT');
-  const offer=(await this.pool.query<Offer>("SELECT * FROM ranked_offers WHERE state='PENDING' AND (a_ticket=$1 OR b_ticket=$1)",[ticketId])).rows[0];
-  if(offer){await this.respond(connection,offer.id,false);return;}
-  await this.tx(async c=>{await this.lockUsers(c,[connection.userId]);await this.sessions.lockCurrent(c,connection);
-   const result=await c.query("UPDATE ranked_tickets SET state='CANCELLED' WHERE id=$1 AND user_id=$2 AND state='SEARCHING'",[ticketId,connection.userId]);
-   if(result.rowCount)await this.epoch(c,connection.userId,false);
-   else if((await c.query("SELECT 1 FROM ranked_tickets WHERE id=$1 AND state='OFFER'",[ticketId])).rowCount)throw new RankedError('ACTIVE_ADMISSION');
-  });
+  // If SEARCHING becomes OFFER while acquiring the user lock, restart with both users in canonical order.
+  for(let attempt=0;attempt<3;attempt++){
+   const row=(await this.pool.query<Ticket>('SELECT * FROM ranked_tickets WHERE id=$1 AND user_id=$2',[ticketId,connection.userId])).rows[0];
+   if(!row)throw new RankedError('INVALID_INPUT');
+   const offer=(await this.pool.query<Offer>("SELECT * FROM ranked_offers WHERE state='PENDING' AND (a_ticket=$1 OR b_ticket=$1)",[ticketId])).rows[0];
+   if(offer){await this.respond(connection,offer.id,false);return;}
+   try{await this.tx(async c=>{
+    await this.lockUsers(c,[connection.userId]);await this.sessions.lockCurrent(c,connection);
+    const result=await c.query("UPDATE ranked_tickets SET state='CANCELLED' WHERE id=$1 AND user_id=$2 AND state='SEARCHING'",[ticketId,connection.userId]);
+    if(result.rowCount)await this.epoch(c,connection.userId,false);
+    else if((await c.query("SELECT 1 FROM ranked_tickets WHERE id=$1 AND state='OFFER'",[ticketId])).rowCount)throw new RankedError('ALREADY_IN_QUEUE');
+   });return;}catch(error){if(!(error instanceof RankedError)||error.code!=='ALREADY_IN_QUEUE'||attempt===2)throw error;}
+  }
  }
  async acquireFence(token:string):Promise<RankedFence|null>{
   if(!uuid.test(token))throw new RankedError('INVALID_INPUT');
@@ -114,7 +117,7 @@ export class RankedRepository {
    const id=randomUUID();const offer=(await c.query<Offer>(`INSERT INTO ranked_offers(id,a_ticket,b_ticket,state,created_at,expires_at) VALUES($1,$2,$3,'PENDING',$4,$4::timestamptz+interval '10 seconds') RETURNING *`,[id,rows[0]!.id,rows[1]!.id,clock.at])).rows[0]!;
    for(const t of rows){await c.query("UPDATE ranked_tickets SET state='OFFER' WHERE id=$1",[t.id]);await c.query("INSERT INTO ranked_reservations(offer_id,user_id,state,lagos_date,reserved_at) VALUES($1,$2,'RESERVED',$3,$4)",[id,t.user_id,clock.day,clock.at]);await this.epoch(c,t.user_id,true);}
    return offer;
-  });}catch(error){if(error instanceof RankedError&&['INCOMPATIBLE','DAILY_LIMIT','COOLDOWN','ACTIVE_ADMISSION'].includes(error.code))return null;throw error;}
+  });}catch(error){if(error instanceof RankedError&&['INCOMPATIBLE','RANKED_DAILY_LIMIT','RANKED_COOLDOWN','ALREADY_IN_MATCH','ALREADY_IN_QUEUE'].includes(error.code))return null;throw error;}
  }
  private async releaseOffer(c:PoolClient,offer:Offer,rows:Ticket[],at:Date,fault?:string):Promise<void>{
   await c.query("UPDATE ranked_offers SET state=$2 WHERE id=$1 AND state='PENDING'",[offer.id,fault?'CANCELLED':'EXPIRED']);

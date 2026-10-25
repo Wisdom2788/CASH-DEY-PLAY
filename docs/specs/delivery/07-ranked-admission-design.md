@@ -30,7 +30,7 @@ Offers commit in SQL first. Crash before Redis cleanup leaves harmless stale cac
 
 ## Wire protocol and execution
 
-ENABLE_RANKED=true additionally requires ENABLE_REALTIME_READ=true, REDIS_URL and an explicit environment RANKED_QUEUE_NAMESPACE. Flags default off; public realtime remains false. Apply all eight migrations before enabling ranked.
+ENABLE_RANKED=true additionally requires ENABLE_REALTIME_READ=true, ENABLE_REALTIME_MOVES=true, REDIS_URL and an explicit environment RANKED_QUEUE_NAMESPACE. Flags default off; public realtime remains false. Apply all eight migrations before enabling ranked.
 
 - queue:join {requestKey}; queue:heartbeat {ticketId}; queue:cancel {ticketId}; offer:respond {offerId,accept}. Strict schemas reject extra identity/tier/time/result fields.
 - Mutations use the shared fail-closed limiter,30 requests/minute in addition to the general event budget. SQL may commit before a Redis sync fails: retry/resume the durable ticket, never invent rollback of a committed reservation.

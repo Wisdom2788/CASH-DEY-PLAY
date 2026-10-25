@@ -84,7 +84,7 @@ describe("loadAppEnv — unknown NODE_ENV must fail safe", () => {
   it('requires explicit ranked Redis configuration and keeps public queue off by default',()=>{
     expect(loadAppEnv({NODE_ENV:'test'}).rankedEnabled).toBe(false);
     expect(()=>loadAppEnv({NODE_ENV:'test',ENABLE_RANKED:'true'})).toThrow('Ranked requires');
-    expect(loadAppEnv({NODE_ENV:'test',ENABLE_RANKED:'true',ENABLE_REALTIME_READ:'true',REDIS_URL:'redis://localhost',RANKED_QUEUE_NAMESPACE:'test'}).rankedEnabled).toBe(true);
+    expect(loadAppEnv({NODE_ENV:'test',ENABLE_RANKED:'true',ENABLE_REALTIME_READ:'true',ENABLE_REALTIME_MOVES:'true',REDIS_URL:'redis://localhost',RANKED_QUEUE_NAMESPACE:'test'}).rankedEnabled).toBe(true);
   });
 
 });

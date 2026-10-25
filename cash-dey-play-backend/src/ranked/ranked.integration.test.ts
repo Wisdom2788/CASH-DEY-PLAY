@@ -55,6 +55,12 @@ suite('durable ranked admission and Redis matchmaking',()=>{
   const a=await ranked.resume(c(123));expect(a.phase).toBe('SEARCHING');expect(a.ranked.ticket!.joinedAt).toBe(o.ta.joined_at.getTime());
   expect(a.ranked.allowance).toMatchObject({used:0,reserved:0,remaining:3});expect((await ranked.resume(c(456))).ranked.ticket).toBeNull();
  });
+ it('cancels a search racing with offer creation without losing the opponent or charging either player',async()=>{
+  const a=await ranked.join(c(123),'cancel-race-a'),b=await ranked.join(c(456),'cancel-race-b');const fence=(await ranked.acquireFence(randomUUID()))!;
+  try{await Promise.all([ranked.createOffer(fence,a.id,b.id),ranked.cancel(c(123),a.id)]);}finally{await ranked.releaseFence(fence);}
+  expect((await ranked.resume(c(123))).ranked.ticket).toBeNull();expect((await ranked.resume(c(456))).phase).toBe('SEARCHING');
+  expect((await ranked.resume(c(123))).ranked.allowance).toMatchObject({used:0,reserved:0,remaining:3});
+ });
  it('expires offers and stale searches without charging or extending original search deadlines',async()=>{
   const o=await offer();await ranked.respond(c(123),o.offer.id,true);
   await pool.query("UPDATE ranked_offers SET created_at=clock_timestamp()-interval '20 seconds',expires_at=clock_timestamp()-interval '1 second'");await ranked.recover();
@@ -70,12 +76,12 @@ suite('durable ranked admission and Redis matchmaking',()=>{
  it('enforces three starts for premium too and keeps forfeits chargeable',async()=>{
   await premium(123);await premium(456);await premium(789);await premium(999);
   for(const opponent of [456,789,999]){const m=await start(123,opponent);await finish(m.matchId);}
-  await expect(ranked.join(c(123),'fourth-start-denied')).rejects.toMatchObject({code:'DAILY_LIMIT'});expect((await ranked.resume(c(123))).ranked.allowance.used).toBe(3);
+  await expect(ranked.join(c(123),'fourth-start-denied')).rejects.toMatchObject({code:'RANKED_DAILY_LIMIT'});expect((await ranked.resume(c(123))).ranked.allowance.used).toBe(3);
  });
  it('starts regular cooldown at the second finish; premium bypass and downgrade are rechecked',async()=>{
   const first=await start();await finish(first.matchId);const second=await start();await finish(second.matchId);
   const allowance=(await ranked.resume(c(123))).ranked.allowance;const end=(await pool.query('SELECT ended_at FROM game_matches WHERE id=$1',[second.matchId])).rows[0].ended_at as Date;
-  expect(allowance.cooldownUntil).toBe(Math.min(allowance.resetAt,end.getTime()+3600000));await expect(ranked.join(c(123),'blocked-cooldown')).rejects.toMatchObject({code:'COOLDOWN'});
+  expect(allowance.cooldownUntil).toBe(Math.min(allowance.resetAt,end.getTime()+3600000));await expect(ranked.join(c(123),'blocked-cooldown')).rejects.toMatchObject({code:'RANKED_COOLDOWN'});
   const order=await premium(123);expect((await ranked.resume(c(123))).ranked.allowance.cooldownUntil).toBeNull();
   const ta=await ranked.join(c(123),'premium-third-offer');const tb=await ranked.join(c(789),'new-opponent-offer');const f=(await ranked.acquireFence(randomUUID()))!;
   const next=await ranked.createOffer(f,ta.id,tb.id);await ranked.releaseFence(f);expect(next).not.toBeNull();await ranked.respond(c(789),next!.id,true);
@@ -90,10 +96,10 @@ suite('durable ranked admission and Redis matchmaking',()=>{
  it('moves a reservation to the actual Lagos start day across midnight without charging the old day',async()=>{
   const o=await offer();await pool.query("UPDATE ranked_reservations SET lagos_date=(clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date-1 WHERE state='RESERVED'");
   await ranked.respond(c(123),o.offer.id,true);const result=await ranked.respond(c(456),o.offer.id,true);expect(result.state).toBe('STARTED');
-  const day=(await ranked.resume(c(123))).ranked.allowance.day;expect((await pool.query('SELECT lagos_date::text day,slot FROM ranked_reservations')).rows).toEqual([{day,slot:1},{day,slot:1}]);
+  const day=(await ranked.resume(c(123))).ranked.allowance.day;expect((await pool.query('SELECT lagos_date::text AS day,slot FROM ranked_reservations')).rows).toEqual([{day,slot:1},{day,slot:1}]);
  });
  it('resets daily quota, pair count and finish-based cooldown at Lagos midnight without rewriting charges',async()=>{
-  const day=(await pool.query("SELECT (clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date::text day")).rows[0].day as string;
+  const day=(await pool.query("SELECT (clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date::text AS day")).rows[0].day as string;
   const past=Date.parse(day+'T00:00:00+01:00')-7200000;
   for(let i=0;i<2;i++){
    const at=past+i*100;const m=await games.createMatch({mode:'RANKED',rules:APPROVED_WHOT_RULES,players:[{userId:'tg_123',isBot:false},{userId:'tg_456',isBot:false}],at});
@@ -156,6 +162,39 @@ suite('durable ranked admission and Redis matchmaking',()=>{
    expect((await call(a,'match:action',{matchId:states[0].data.match.id,actionId:'socket-ranked-forfeit',expectedVersion:0,command:{type:'FORFEIT'}})).ok).toBe(true);
    expect((await call(b,'session:resume')).data.phase).toBe('RESULT');
   }finally{for(const client of clients)client.disconnect();await Promise.all(gateways.map(g=>new Promise<void>(resolve=>g.close(()=>resolve()))));const keys=await redis.keys(queue.prefix+'*').catch(()=>[]);if(keys.length)await redis.del(...keys);redis.disconnect();}
+ },20000);
+
+ async function withQueue(work:(queue:RedisRankedQueue,redis:Redis)=>Promise<void>){
+  if(!redisUrl||new URL(redisUrl).pathname!=='/15')throw new Error('Dedicated Redis test database required');
+  const redis=new Redis(redisUrl,{lazyConnect:true,maxRetriesPerRequest:1,commandTimeout:1000});redis.on('error',()=>undefined);const queue=new RedisRankedQueue(redis,'test-'+randomUUID());
+  try{await redis.connect();await work(queue,redis);}finally{const keys=await redis.keys(queue.prefix+'*').catch(()=>[]);if(keys.length)await redis.del(...keys);redis.disconnect();}
+ }
+ (redisUrl?it:it.skip)('never assigns four players twice under ten competing matchmaker workers',async()=>{
+  await Promise.all([123,456,789,999].map(id=>ranked.join(c(id),'concurrent-'+id)));
+  await withQueue(async queue=>{
+   const results=await Promise.all(Array.from({length:10},()=>new RankedMatchmaker(ranked,queue).pass()));expect(results.reduce((a,b)=>a+b,0)).toBe(2);
+   const offers=(await pool.query<{a_ticket:string;b_ticket:string}>('SELECT a_ticket,b_ticket FROM ranked_offers')).rows;expect(offers).toHaveLength(2);
+   expect(new Set(offers.flatMap(o=>[o.a_ticket,o.b_ticket])).size).toBe(4);
+   expect((await pool.query("SELECT count(*)::int n FROM ranked_reservations WHERE state='RESERVED'")).rows[0].n).toBe(4);
+  });
+ },20000);
+ (redisUrl?it:it.skip)('recovers a crash after SQL offer commit but before Redis removal without losing or pairing players again',async()=>{
+  const a=await ranked.join(c(123),'sql-first-a');const b=await ranked.join(c(456),'sql-first-b');
+  await withQueue(async(queue,redis)=>{
+   await new RankedMatchmaker(ranked,queue).sync();expect(await redis.zcard(queue.prefix+'queue')).toBe(2);
+   const fence=(await ranked.acquireFence(randomUUID()))!;const committed=await ranked.createOffer(fence,a.id,b.id);await ranked.releaseFence(fence);expect(committed).not.toBeNull();
+   // Simulate losing the process before any cache cleanup: the old SEARCHING entries are still present.
+   expect(await redis.zcard(queue.prefix+'queue')).toBe(2);expect(await new RankedMatchmaker(ranked,queue).pass()).toBe(0);expect(await redis.zcard(queue.prefix+'queue')).toBe(0);
+   expect((await ranked.resume(c(123))).ranked.allowance).toMatchObject({used:0,reserved:1});expect((await pool.query('SELECT count(*)::int n FROM ranked_offers')).rows[0].n).toBe(1);
+  });
+ },20000);
+ (redisUrl?it:it.skip)('retains both Redis tickets when SQL offer creation rolls back, then pairs after repair',async()=>{
+  await ranked.join(c(123),'sql-fail-a');await ranked.join(c(456),'sql-fail-b');
+  await withQueue(async(queue,redis)=>{
+   await pool.query("CREATE FUNCTION reject_offer() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'offer storage failure'; END $$");await pool.query('CREATE TRIGGER reject_offer BEFORE INSERT ON ranked_offers FOR EACH ROW EXECUTE FUNCTION reject_offer()');
+   await expect(new RankedMatchmaker(ranked,queue).pass()).rejects.toThrow('offer storage failure');expect(await redis.zcard(queue.prefix+'queue')).toBe(2);
+   expect((await ranked.resume(c(123))).phase).toBe('SEARCHING');await pool.query('DROP TRIGGER reject_offer ON ranked_offers');expect(await new RankedMatchmaker(ranked,queue).pass()).toBe(1);
+  });
  },20000);
 
 });
