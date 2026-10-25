@@ -29,4 +29,4 @@ Internal worker design/runbook: [07-worker-design.md](07-worker-design.md). The 
 
 Authenticated read/reconnect design: [07-session-design.md](07-session-design.md). The gateway is opt-in and supports only session:resume/match:view. Seventh migration required; public realtime capability stays false. Internal read/reconnect acceptance passed PostgreSQL18 CI run40218117090 on runtimef37120ca88e0a24b3bc37ab803fc78bc05ca860f; two actual gateways shared durable session ownership correctly.
 
-Atomic move design: [07-actions-design.md](07-actions-design.md). Separate opt-in moves retain player/session locks through the game write and use post-lock database time; public realtime stays off. CI acceptance pending. Committed-event delivery is still open.
+Atomic move design: [07-actions-design.md](07-actions-design.md). Separate opt-in moves retain player/session locks through the game write and use post-lock database time; public realtime stays off. Move acceptance passed PostgreSQL18 CI run40219993548 on runtimec69a5fbf2cb6b536c10ccd646a2307fed06350c2, including280 backend tests across32 suites and actual two-gateway actions. Committed-event delivery is still open.
