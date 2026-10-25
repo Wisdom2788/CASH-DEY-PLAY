@@ -6,6 +6,8 @@ import { io,Socket } from 'socket.io-client';
 import { Server } from 'socket.io';
 import { AccessIdentity } from '../auth/access-token';
 import { MemoryRateLimitCounterStore } from '../http/middleware/rate-limit.middleware';
+import { RankedRepository } from '../ranked/ranked.repository';
+import { RedisRankedQueue } from '../ranked/redis-queue';
 import { GameError } from '../game-engine/model';
 import { attachRealtimeGateway } from './gateway';
 import { RealtimeConnection,RealtimeError,ResumeSnapshot } from './session.repository';
@@ -120,6 +122,12 @@ describe('real Socket.IO read gateway',()=>{
   }
   act.mockRejectedValueOnce(new GameError('INVALID_STATE'));
   expect(await client.timeout(2000).emitWithAck('match:action',move())).toEqual({ok:false,error:{code:'UNAVAILABLE'}});
+ });
+
+ it('keeps queue events disabled by default and denies writes if the ranked limiter fails',async()=>{
+  const first=await connect();expect(await first.timeout(2000).emitWithAck('queue:join',{requestKey:'ranked-gated'})).toEqual({ok:false,error:{code:'INVALID_INPUT'}});
+  const join=jest.fn();options.ranked={repository:{join} as unknown as RankedRepository,queue:{} as RedisRankedQueue,rateLimits:{increment:async()=>{throw new Error('private redis details');}}};
+  expect(await first.timeout(2000).emitWithAck('queue:join',{requestKey:'ranked-gated'})).toEqual({ok:false,error:{code:'UNAVAILABLE'}});expect(join).not.toHaveBeenCalled();
  });
 
 });

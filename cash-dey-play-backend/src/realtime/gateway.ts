@@ -1,3 +1,5 @@
+import { RankedRepository,RankedError } from '../ranked/ranked.repository';
+import { RedisRankedQueue } from '../ranked/redis-queue';
 import { SnapshotDelivery } from './snapshot-delivery';
 import { GameNotificationSource } from './game-notifications';
 import { Server as HttpServer } from 'node:http';
@@ -13,13 +15,14 @@ interface GatewayOptions {
  jwtSecret:string;origin:string;rateLimits:RateLimitCounterStore;
  sessions:Pick<RealtimeSessionRepository,'claim'|'assertCurrent'|'release'|'resume'>;
  delivery?:{source:GameNotificationSource;snapshots:Pick<RealtimeSessionRepository,'deliverySnapshot'>;catchupMs?:number;ackMs?:number};
+ ranked?:{repository:RankedRepository;queue:RedisRankedQueue;rateLimits:RateLimitCounterStore};
  actions?:{games:Pick<GameRepository,'actForConnection'>;rateLimits:RateLimitCounterStore};
 }
 const authSchema=z.strictObject({token:z.string().min(1).max(8192)});
 const empty=z.strictObject({});const matchRequest=z.strictObject({matchId:z.string().uuid()});
 const moveRequest=z.strictObject({matchId:z.string().uuid(),actionId:actionSchema.shape.id,expectedVersion:actionSchema.shape.expectedVersion,command:actionSchema.shape.command});
 function code(error:unknown):string{
- if(error instanceof RealtimeError)return error.code;
+ if(error instanceof RealtimeError||error instanceof RankedError)return error.code;
  if(error instanceof GameError&&error.code!=='INVALID_STATE')return error.code;
  return 'UNAVAILABLE';
 }
@@ -63,6 +66,27 @@ export function attachRealtimeGateway(server:HttpServer,options:GatewayOptions):
    void(async()=>{
     if(await options.rateLimits.increment(`rt:event:${connection.userId}`,60)>60)throw new RealtimeError('RATE_LIMITED');
     verifyToken();
+    if(options.ranked&&['queue:join','queue:heartbeat','queue:cancel','offer:respond'].includes(event)){
+     const ranked=options.ranked;
+     if(await ranked.rateLimits.increment(`rt:ranked:${connection.userId}`,60)>30)throw new RealtimeError('RATE_LIMITED');
+     if(event==='queue:join'){
+      const parsed=z.strictObject({requestKey:z.string().regex(/^[A-Za-z0-9._:-]{8,128}$/)}).safeParse(args[0]);if(!parsed.success)throw new RealtimeError('INVALID_INPUT');
+      await ranked.repository.join(connection,parsed.data.requestKey);
+     }else if(event==='offer:respond'){
+      const parsed=z.strictObject({offerId:z.string().uuid(),accept:z.boolean()}).safeParse(args[0]);if(!parsed.success)throw new RealtimeError('INVALID_INPUT');
+      await ranked.repository.respond(connection,parsed.data.offerId,parsed.data.accept);
+      for(const entry of await ranked.repository.cacheForOffer(parsed.data.offerId))await ranked.queue.sync(entry);
+     }else{
+      const parsed=z.strictObject({ticketId:z.string().uuid()}).safeParse(args[0]);if(!parsed.success)throw new RealtimeError('INVALID_INPUT');
+      if(event==='queue:heartbeat')await ranked.repository.heartbeat(connection,parsed.data.ticketId);else await ranked.repository.cancel(connection,parsed.data.ticketId);
+     }
+     for(const entry of await ranked.repository.cacheEntries('',1,[connection.userId]))await ranked.queue.sync(entry);
+     const snapshot=await ranked.repository.resume(connection);if(socket.connected)ack({ok:true,data:snapshot});return;
+    }
+    if(event==='session:resume'&&options.ranked){
+     if(!empty.safeParse(args[0]).success)throw new RealtimeError('INVALID_INPUT');
+     const snapshot=await options.ranked.repository.resume(connection);if(socket.connected)ack({ok:true,data:snapshot});return;
+    }
     if(event==='match:action'&&options.actions){
      const parsed=moveRequest.safeParse(args[0]);if(!parsed.success)throw new RealtimeError('INVALID_INPUT');
      // Use the shared store directly. Errors deny the action; no local fallback for writes.

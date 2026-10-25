@@ -81,4 +81,10 @@ describe("loadAppEnv — unknown NODE_ENV must fail safe", () => {
     expect(loadAppEnv({NODE_ENV:'test',ENABLE_REALTIME_READ:'true',ENABLE_REALTIME_DELIVERY:'true',REDIS_URL:'redis://localhost',GAME_RELAY_CHANNEL:'cdp:test:game:v1'}).realtimeDeliveryEnabled).toBe(true);
   });
 
+  it('requires explicit ranked Redis configuration and keeps public queue off by default',()=>{
+    expect(loadAppEnv({NODE_ENV:'test'}).rankedEnabled).toBe(false);
+    expect(()=>loadAppEnv({NODE_ENV:'test',ENABLE_RANKED:'true'})).toThrow('Ranked requires');
+    expect(loadAppEnv({NODE_ENV:'test',ENABLE_RANKED:'true',ENABLE_REALTIME_READ:'true',REDIS_URL:'redis://localhost',RANKED_QUEUE_NAMESPACE:'test'}).rankedEnabled).toBe(true);
+  });
+
 });

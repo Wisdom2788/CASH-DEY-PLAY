@@ -35,3 +35,7 @@ Existing PRD primary formula is (wins/played)*(played/50), which simplifies to w
 7. Terms/payment support/privacy wording, appropriate local review, staging bot and real-device test access. Never put bot tokens in documentation or chat.
 
 Each resolution needs a dated decision entry, affected spec links and acceptance tests. Recommendations in historical documents are not approvals.
+
+## Ranked decisions recorded25 October2026
+
+Owner selected: maximum two ranked starts against the same opponent per Lagos day; regular one-hour cooldown starts at the finish of the second chargeable match, including forfeit/timeout, and resets at Lagos midnight. Current premium bypasses cooldown but retains the three-start daily cap. See07-ranked-admission-design.md. Rematch requests/hour, no-show lockouts and post-start technical compensation remain unresolved/deferred.

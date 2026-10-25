@@ -1,3 +1,5 @@
+import { RankedRepository } from "./ranked/ranked.repository";
+import { RedisRankedQueue } from "./ranked/redis-queue";
 import { RedisGameNotifications } from "./realtime/game-notifications";
 import { createServer } from "node:http";
 import { attachRealtimeGateway } from "./realtime/gateway";
@@ -250,8 +252,11 @@ if (require.main === module) {
       void notifications.start().catch(()=>console.warn('Game relay unavailable; SQL snapshot catch-up remains active'));
       server.once('close',()=>notifications?.close());
     }
+    let rankedQueue:RedisRankedQueue|undefined;
+    if(env.rankedEnabled){const client=new Redis(env.redisUrl,{enableOfflineQueue:false,maxRetriesPerRequest:1,commandTimeout:5000});client.on('error',()=>undefined);rankedQueue=new RedisRankedQueue(client,env.rankedQueueNamespace);server.once('close',()=>client.disconnect());}
     if(env.realtimeReadEnabled)attachRealtimeGateway(server,{jwtSecret:dependencies.jwtSecret,origin:dependencies.corsOrigin,
       rateLimits:dependencies.rateLimitStore,sessions:new RealtimeSessionRepository(dependencies.pool),
+      ...(rankedQueue?{ranked:{repository:new RankedRepository(dependencies.pool),queue:rankedQueue,rateLimits:mutationRateLimits}}:{}),
       ...(notifications?{delivery:{source:notifications,snapshots:new RealtimeSessionRepository(dependencies.pool)}}:{}),
       ...(env.realtimeMovesEnabled?{actions:{games:new GameRepository(dependencies.pool),rateLimits:mutationRateLimits}}:{})});
     server.listen(env.port, () => {
