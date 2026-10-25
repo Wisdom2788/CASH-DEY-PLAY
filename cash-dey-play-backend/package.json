@@ -16,7 +16,8 @@
     "db:baseline": "prisma migrate resolve --applied 0_init",
     "db:preflight": "ts-node src/db/preflight.ts",
     "db:ledger:reconcile": "ts-node src/ledger/reconcile.ts",
-    "db:referrals:resolve": "ts-node src/entitlements/resolve-pending.ts"
+    "db:referrals:resolve": "ts-node src/entitlements/resolve-pending.ts",
+    "db:practice:recover": "ts-node src/practice/recover-completions.ts"
   },
   "keywords": [],
   "author": "",

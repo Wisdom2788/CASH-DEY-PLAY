@@ -88,11 +88,12 @@ suite('practice admission PostgreSQL boundary',()=>{
   expect(human.reason).toBe('EMPTY_HAND');
   await pool.query("CREATE FUNCTION reject_completion() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.type='PRACTICE_COMPLETED' THEN RAISE EXCEPTION 'completion outbox failure'; END IF; RETURN NEW; END $$");
   await pool.query('CREATE TRIGGER reject_completion BEFORE INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION reject_completion()');
-  await expect(repo.recordCompletion(s.matchId)).rejects.toThrow('completion outbox failure');
+  await expect(repo.recoverCompletions()).rejects.toThrow('completion outbox failure');
   expect((await pool.query('SELECT count(*)::int n FROM practice_completions')).rows[0].n).toBe(0);
   await pool.query('DROP TRIGGER reject_completion ON outbox_events');
-  const delivered=await Promise.all(Array.from({length:10},()=>repo.recordCompletion(s.matchId)));
-  expect(delivered.filter(Boolean)).toHaveLength(1);
+  const delivered=await Promise.all(Array.from({length:10},()=>repo.recoverCompletions()));
+  expect(delivered.reduce((n,r)=>n+r.recorded,0)).toBe(1);
+  expect(await repo.recoverCompletions()).toEqual({scanned:0,recorded:0});
   expect((await pool.query('SELECT count(*)::int n FROM practice_completions')).rows[0].n).toBe(1);
   expect((await pool.query("SELECT count(*)::int n FROM outbox_events WHERE type='PRACTICE_COMPLETED'")).rows[0].n).toBe(1);
  });

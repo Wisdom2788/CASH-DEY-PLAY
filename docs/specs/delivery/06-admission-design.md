@@ -30,3 +30,9 @@ A recovery-safe internal consumer reads the authoritative stored match, validate
 ## Verification
 
 PostgreSQL tests cover same-key concurrent replay, competing start keys, fifth/sixth daily start, forfeits, previous Lagos day, paid premium and expiry/revocation, ad-free limits, legacy premium rejection, ranked queue/match races, admission rollback, authoritative normal finish, duplicate completion deliveries and completion-outbox rollback. CI is required; local absence of a disposable PostgreSQL URL is not database acceptance.
+
+## Completion recovery command
+
+`npm run db:practice:recover` processes at most 100 candidates per invocation (internal method accepts 1–1000). It selects oldest finished EMPTY_HAND practice admissions without a completion receipt. Active games, forfeits and draws are excluded before the batch limit so they cannot starve eligible finishes. Each candidate passes the existing authoritative validator and commits its completion plus outbox atomically. Overlapping runs may scan the same candidate; the unique receipt prevents duplicate effects. Failures stop the run with a nonzero exit, retain earlier committed progress, and leave failed work eligible for retry. The CLI emits aggregate counts, never connection strings or private game state. Repeat until scanned is zero; investigate a persistent error rather than bypassing validation. A late concurrent finish may require another invocation even after an empty batch.
+
+This is an operator command, not a scheduled consumer or task/reward/statistics projection. Scheduling remains open. Use only after the six existing migrations have been applied; no new migration is required. Updated PostgreSQL acceptance is pending; do not infer it from unit tests.

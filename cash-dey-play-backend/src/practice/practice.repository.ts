@@ -46,6 +46,21 @@ export class PracticeRepository {
    await client.query('COMMIT');return response;
   }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
  }
+ /** Bounded crash recovery. Candidate filtering is advisory; recordCompletion validates authority again. */
+ async recoverCompletions(limit=100):Promise<{scanned:number;recorded:number}>{
+  if(!Number.isSafeInteger(limit)||limit<1||limit>1000)throw new PracticeError('INVALID_INPUT');
+  const candidates=await this.pool.query<{match_id:string}>(`
+   SELECT s.match_id FROM practice_starts s
+   JOIN game_matches m ON m.id=s.match_id
+   WHERE m.mode='PRACTICE' AND m.status='FINISHED'
+    AND m.private_state->>'reason'='EMPTY_HAND' AND m.ended_at IS NOT NULL
+    AND NOT EXISTS(SELECT 1 FROM practice_completions c WHERE c.match_id=s.match_id)
+   ORDER BY m.ended_at,s.match_id LIMIT $1`,[limit]);
+  let recorded=0;
+  // Independent transactions retain progress on failure; retries and concurrent runners are safe.
+  for(const row of candidates.rows)if(await this.recordCompletion(row.match_id))recorded++;
+  return {scanned:candidates.rows.length,recorded};
+ }
  /** Recovery-safe internal consumer; only a persisted normal finish qualifies. No client outcome accepted. */
  async recordCompletion(matchId:string):Promise<boolean>{
   if(!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(matchId))throw new PracticeError('INVALID_INPUT');

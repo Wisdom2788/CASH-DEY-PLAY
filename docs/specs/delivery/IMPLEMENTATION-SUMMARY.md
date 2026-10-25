@@ -25,3 +25,7 @@ Updated 25 October 2026. Checkboxes describe the named implementation scope; ful
 Most recent runtime CI:213 backend tests passed on PostgreSQL18, with frontend checks passing and zero ledger reconciliation mismatches (run40204197673). Passing automated tests is evidence for tested behavior, not completion of external integrations.
 
 - [x] 06 admission core: atomic starts/completions, exact response replay, paid/ad-free policy, five regular daily starts, shared ranked/practice locking and failure rollback verified in PostgreSQL18 CI run40204197673 (213 backend tests passed). Provider adapter, credits, public API/UI and recovery scheduling remain open.
+
+- [x] 06 recovery command implemented: bounded oldest-first discovery of unrecorded normal practice finishes, authoritative validation, per-game atomic completion/outbox recording and safe repeated/concurrent runs. Run `npm run db:practice:recover` against the intended migrated database. No automatic scheduler or production deployment enabled.
+- [ ] 06 recovery PostgreSQL acceptance: updated integration case covers crash recovery, outbox rollback and ten concurrent recovery runners; must pass on a disposable PostgreSQL database before promotion. Local typechecking/unit checks are not database evidence.
+- [ ] Backup restore validation: owner reports a 24 October SQL export; successful local restoration, schema/data checks and a fresh pre-migration export remain unverified. A dump file or a DBeaver connection alone does not establish recovery.
