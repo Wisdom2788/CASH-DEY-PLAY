@@ -42,3 +42,7 @@ Socket.IO references: https://socket.io/docs/v4/middlewares/ (connection middlew
 ## Dependency verification
 
 Socket.IO server/test client are pinned4.8.4. Backend dependency inspection also found existing advisories in body-parser, proxy-addr, qs and Zod. Updates within allowed ranges resolve the reported findings: body-parser2.4.0, proxy-addr2.0.8, qs6.16.1 and Zod4.6.7. `npm audit --omit=dev` reported zero known advisories on25 October2026. CI now blocks high/critical production advisories. No application exploitability or universal security claim follows from a registry scan. References: https://github.com/advisories/GHSA-27r3-jxmh-p828 , https://github.com/advisories/GHSA-jqcg-44mw-7w3h , https://github.com/advisories/GHSA-mrhx-c7xc-m3w5 .
+
+## Recorded acceptance
+
+PostgreSQL18 Verify run40218117090 passed on runtimef37120ca88e0a24b3bc37ab803fc78bc05ca860f. Real Socket.IO clients and two gateways sharing PostgreSQL passed generation replacement, unauthorized-match/privacy, revocation and unchanged-deadline checks. Concurrent claims, old-generation cleanup, failed-claim rollback, lock-wait expiry, idle expiry and malformed token/event checks passed. All seven migrations deployed twice; backend/frontend checks/builds, production dependency audit, reconciliation and both Vercel previews passed. Public gameplay, hosted/device/load acceptance and the remaining protocol phases are still open.
