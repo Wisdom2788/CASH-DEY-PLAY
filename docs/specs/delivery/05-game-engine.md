@@ -1,14 +1,16 @@
 # Authoritative Whot engine and practice bot
 
-Status: **Specified; not implemented**. Covers: C7, H3, later H12, game-rule authority. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
+Status: **Core implemented; acceptance incomplete**. Covers: C7, H3, later H12, game-rule authority. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
 
 ### Preconditions
 
-Record exact Whot variant decisions in RULEBOOK.md before production engine acceptance. Current frontend deck helper creates53 cards while claiming54: deck multiplicities need an explicit authoritative table. Do not infer approval from the reference draft. Engine implementation remains pure TypeScript, independent of sockets/database/clock, with random source and instant passed in.
+Record exact Whot variant decisions in RULEBOOK.md before selecting a runtime rules profile or enabling play. Current frontend deck helper creates53 cards while claiming54: deck multiplicities need an explicit authoritative table. Do not infer approval from the reference draft. The engine is pure TypeScript, independent of sockets/database/clock, with random source and instant passed in. Proposed rules exist only in tests and remain unselected.
 
 ### Data and commands
 
-matches(id UUID,mode,status,rule_version,lagos_date,started_at,ended_at,version,reason), match_players(match_id,seat,user_id nullable only for labelled bot,is_winner), match_events(match_id,sequence,event_id UNIQUE,actor,command_type,private_event_payload,occurred_at). Unique participant per match; exactly two seats; ranked cannot include a bot. Private initial deck order is persisted for replay under restricted access. Cryptographic Fisher-Yates uses unbiased crypto.randomInt; never Math.random/32-bit seeded RNG for hidden information.
+The game tables bind a versioned rules profile to each private match snapshot and ordered action history. Participant uniqueness, exact two-seat cardinality and bot mode restrictions are enforced in PostgreSQL. Cryptographic Fisher-Yates uses unbiased crypto.randomInt; never Math.random or seeded randomness for hidden information.
+
+The implemented storage uses the new `game_matches`, `game_players` and `game_events` tables rather than repurposing legacy per-player `matches`. Deferred PostgreSQL constraints require two seats and enforce one human plus one bot in PRACTICE and two humans in RANKED. Snapshots and initial private state stay server-side; immutable private event payloads preserve command, instant and reshuffle entropy; projections are persisted per actor for exact idempotent responses. Snapshot, event and redacted `GAME_STATE_CHANGED` outbox intent commit in one transaction. The repository is internal and no public route, match admission, socket, Redis flow, or settlement capability is enabled.
 
 Commands: play(cardId,chosenSuit?), draw, pass only if rule allows, declare-last-card if required, forfeit, timeout. Server validates actor, ownership, turn, version, card compatibility, suit enumeration and actionId replay. A command returning a new immutable state preserves card conservation and cannot award rewards directly. Terminal result is settled separately once. Bot chooses only from its projected view and legal actions; latency is scheduled by server, not a blocking sleep.
 
@@ -18,8 +20,8 @@ Player view includes own hand, public top/discards allowed by agreed rules, oppo
 
 ### Acceptance and rollout
 
-Deck count/multiplicity/conservation; all special cards/openings/finishing/penalties/exhaustion; malicious card IDs, wrong actor/turn/version and duplicate action; random unbiased range contract; ten-thousand generated/bot games bounded to terminate under defined draw policy; replay equals final state; view leaks no secret keys/cards; timeout vs last move race. Server stores match_players/events transactionally. Expose practice only after stage06 implements allowance reservation and completed-match counting. Maintain rule_version so live matches finish under their starting rules.
+Pure-engine tests cover the configured mechanics, invalid restored states, wrong turn/version/ownership, duplicate payload conflict, timeout/action boundaries, private projections, deterministic replay and10,000 generated bot games. PostgreSQL integration tests cover deferred seat/mode constraints, participant-only reads, action races/idempotency, replay drift detection and snapshot/event/outbox rollback; they must pass in CI on PostgreSQL18 before the core is marked verified. Full stage acceptance still requires written decisions for every item in [05-rule-decisions.md](05-rule-decisions.md), passing database CI, and the agreed variant tests. Expose practice only after stage06 implements allowance reservation and completed-match counting. Ranked/realtime and settlement remain later stages. Maintain rule_version so live matches finish under their starting rules.
 
 ## Implementation record
 
-Record commit, schema version, commands/results, integration evidence, unresolved decisions and recovery rehearsal here before marking complete. An acceptance criterion written above is not evidence that it passed.
+Implementation record (25 October 2026): configurable engine, crypto entropy adapter, projected-view bot, PostgreSQL migration/repository and adversarial tests are implemented on `feature-implementation`. Local backend tests and typecheck have passed; PostgreSQL integration tests skip locally because no disposable database URL is configured, so database acceptance awaits required CI. Product decisions remain pending. No runtime rules profile or public play path is enabled. This is not a stage completion or deployment record.
