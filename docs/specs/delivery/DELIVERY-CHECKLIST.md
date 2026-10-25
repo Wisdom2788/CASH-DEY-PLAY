@@ -47,7 +47,9 @@ Some older spec headers/evidence named stage branches or draft PRs. The runtime 
 
 Staging means a separately deployed app running development. It needs its own database so migrations, tests and test rewards cannot affect production records. It also needs separate Redis credentials, a test Telegram bot and provider sandbox configuration as those integrations arrive. Vercel frontend previews alone do not provide that full environment.
 
-The confirmed Render workspace currently has the production backend tracking main and one free production PostgreSQL database. Attempting to create cash-dey-play-staging-db on free returned: cannot have more than one active free tier database. This is an account/plan limitation, not a schema or application error. No existing database was rejected or changed, and no paid resource was purchased. Options are an approved paid Render database, an approved separate provider, or local isolated testing while hosted staging remains pending. Never use the production database as a substitute staging database.
+An instance quota rejection means another managed instance could not be created under that plan. It does not establish that a paid instance is mandatory. Render documents additional logical databases within an existing PostgreSQL instance: https://render.com/docs/postgresql-creating-connecting#adding-multiple-databases-to-a-single-instance . A logical staging database requires a separate owner and restricted runtime credentials, with grants checked to prevent access to production application data. Resources and failures remain shared, so this offers less isolation than a separate instance. Separate instance/provider or local testing remain alternatives.
+
+Provisioning and backup/restore require a secure write-capable operator connection. The available SQL inspection connector is read-only. No infrastructure was created during this validation. Private operational inspection details are intentionally excluded from this public checklist.
 
 ## Next action
 
