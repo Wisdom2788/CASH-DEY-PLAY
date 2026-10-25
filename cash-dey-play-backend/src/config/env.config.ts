@@ -16,6 +16,7 @@ export interface AppEnv {
   readonly userRequestsPerMinute: number;
   readonly ipRequestsPerMinute: number;
   readonly trustProxyHops: number;
+  readonly realtimeReadEnabled: boolean;
 }
 
 const MINIMUM_PRODUCTION_JWT_SECRET_LENGTH = 32;
@@ -72,6 +73,7 @@ export function loadAppEnv(processEnv: NodeJS.ProcessEnv = process.env): AppEnv 
 
   return {
     nodeEnv,
+    realtimeReadEnabled: processEnv.ENABLE_REALTIME_READ === "true",
     trustProxyHops: integerSetting(processEnv.TRUST_PROXY_HOPS,0,"TRUST_PROXY_HOPS",0,5),
     port: integerSetting(processEnv.PORT,3000,"PORT",1,65535),
     databaseUrl,

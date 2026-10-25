@@ -29,6 +29,7 @@ describe("API safety boundaries", () => {
       jwt.sign(claims, secret, { ...options, issuer: "another-issuer" }),
       jwt.sign({ ...claims, userId: "tg_999" }, secret, options),
       jwt.sign(claims, secret, { ...options, expiresIn: -1 }),
+      jwt.sign(claims, secret, { issuer: options.issuer, audience: options.audience }),
     ]) expect((await request(app).get("/api/premium/status").auth(token, { type: "bearer" })).status).toBe(401);
   });
 

@@ -1,5 +1,5 @@
 import { type NextFunction, type Request, type Response } from "express";
-import jwt from "jsonwebtoken";
+import { verifyAccessToken } from "../../auth/access-token";
 import { type AuthState } from "../../db/repositories/user.repository";
 import { ServiceUnavailableError } from "../errors/http-errors";
 import { DEV_TELEGRAM_USER_ID_HEADER, TelegramAuthError, verifyTelegramInitData, type AuthenticatedTelegramUser } from "../telegram/verify-telegram-init-data";
@@ -26,11 +26,8 @@ export function createAuthMiddleware(options: AuthMiddlewareOptions) {
       let tokenVersion: number | undefined;
       const header=req.header("Authorization");
       if(header?.startsWith("Bearer ")) {
-        const decoded=jwt.verify(header.slice(7),options.jwtSecret,{algorithms:["HS256"],issuer:"cash-dey-play",audience:"cash-dey-play-mini-app"});
-        if(typeof decoded === "string" || !Number.isSafeInteger(decoded.telegramId) || decoded.telegramId <= 0 || decoded.userId !== `tg_${decoded.telegramId}` ||
-          (decoded.tokenVersion !== undefined && (!Number.isSafeInteger(decoded.tokenVersion) || decoded.tokenVersion < 0))) throw new TelegramAuthError("Invalid token claims");
-        // Stage01 tokens did not include a version; they are valid only while the account version is still zero.
-        tokenVersion=decoded.tokenVersion ?? 0;
+        const decoded=verifyAccessToken(header.slice(7),options.jwtSecret);
+        tokenVersion=decoded.tokenVersion;
         req.auth={telegramUserId:String(decoded.telegramId),firstName:"",username:null}; req.userId=decoded.userId;
       } else if(req.header("X-Telegram-Init-Data") && options.telegramBotToken) {
         req.auth=verifyTelegramInitData(req.header("X-Telegram-Init-Data")!,options.telegramBotToken);

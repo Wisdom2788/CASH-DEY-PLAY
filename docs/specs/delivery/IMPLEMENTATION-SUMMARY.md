@@ -35,3 +35,9 @@ Most recent runtime CI:239 backend tests passed across28 suites on PostgreSQL18,
 - [ ] 07 full acceptance remains open: socket authentication, Redis queue/ownership, reconnect, ranked admission/settlement, device tests and measured load/recovery. This internal worker does not close those requirements.
 
 Latest worker verification: https://github.com/Wisdom2788/CASH-DEY-PLAY/actions/runs/40216621540 . Evidence applies to the internal worker slice; full stage07 remains unchecked.
+
+- [x] 07 authenticated read/reconnect implementation: shared expiring JWT contract; durable newest-connection generation; per-event revocation/expiry/ownership checks; participant-only projections; fresh SQL reconnect snapshots; idle expiry and compare-delete cleanup. Opt-in gateway defaults off and public realtime capability remains false.
+- [ ] 07 read/reconnect acceptance: real Socket.IO client tests and PostgreSQL18/two-gateway ownership/privacy/revocation/rollback tests awaiting CI. Seventh migration required before enabling this gateway.
+- [ ] 07 public realtime remains open: atomic session-guarded move commands, committed-event delivery, Redis matchmaking, queue/offer/allowance snapshots, disconnect/recovery policy, ranked settlement, real devices and load tests.
+
+- [x] Backend dependency advisory remediation: refreshed body-parser2.4.0, proxy-addr2.0.8, qs6.16.1 and Zod4.6.7 within allowed version ranges; `npm audit --omit=dev` reports zero known findings on25 October2026. Added a high/critical production-dependency CI gate. This is advisory evidence, not proof of absence of vulnerabilities.

@@ -1,3 +1,6 @@
+import { createServer } from "node:http";
+import { attachRealtimeGateway } from "./realtime/gateway";
+import { RealtimeSessionRepository } from "./realtime/session.repository";
 import { randomUUID } from "node:crypto";
 import { PRODUCT_RULES } from "./config/product-rules.config";
 import express, { type Express } from "express";
@@ -234,7 +237,10 @@ if (require.main === module) {
   const app = createApp(dependencies);
   // Do not accept traffic until the rate-limit store is connected (or the wait timed out and said so in the logs).
   void rateLimitReady.then(() => {
-    app.listen(env.port, () => {
+    const server=createServer(app);
+    if(env.realtimeReadEnabled)attachRealtimeGateway(server,{jwtSecret:dependencies.jwtSecret,origin:dependencies.corsOrigin,
+      rateLimits:dependencies.rateLimitStore,sessions:new RealtimeSessionRepository(dependencies.pool)});
+    server.listen(env.port, () => {
       console.log(`Server listening on port ${env.port}`);
     });
   });

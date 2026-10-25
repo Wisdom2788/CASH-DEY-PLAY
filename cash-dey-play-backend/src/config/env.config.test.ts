@@ -62,4 +62,10 @@ describe("loadAppEnv — unknown NODE_ENV must fail safe", () => {
   it("does not enable a deployed test backdoor", () => {
     expect(loadAppEnv({ NODE_ENV: "test", ALLOW_DEV_AUTH_BYPASS: "true" }).allowDevAuthBypass).toBe(false);
   });
+  it('keeps the realtime read gateway opt-in independently of development auth',()=>{
+    expect(loadAppEnv({NODE_ENV:'test'}).realtimeReadEnabled).toBe(false);
+    expect(loadAppEnv({NODE_ENV:'test',ENABLE_REALTIME_READ:'TRUE'}).realtimeReadEnabled).toBe(false);
+    expect(loadAppEnv({NODE_ENV:'test',ENABLE_REALTIME_READ:'true'}).realtimeReadEnabled).toBe(true);
+  });
+
 });
