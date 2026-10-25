@@ -35,7 +35,7 @@ Reviewed25 October2026 against stage05 runtime c37671022378bd4c78413a2d78e3979bc
 - [x] 07 committed-update delivery implemented: leased game-only Redis relay, authorized projections, acknowledgement/retry and SQL catch-up; delivery flag off.
 - [x] 07 delivery CI acceptance: PostgreSQL18/Redis run40222049782 passed298 backend tests across35 suites on runtimed96c57a74bf2e98511420de5e20e6faa559258cd, including two gateways, subscriber-loss/SQL catch-up/reconnect, stale leases, domain/privacy, ACK recovery and slow-client fairness. Hosted/frontend/full-ranked acceptance remains open.
 - [x] 07 ranked admission and Redis queue core implemented: durable reservations/starts, daily3/cooldown/pair2, fenced rotating matching and SQL-first offers; eighth migration and flags required.
-- [ ] 07 ranked CI acceptance: quota/presence/owner/rollback/midnight and actual two-client matching tests pending; full-stage release remains open.
+- [x] 07 ranked CI acceptance: PostgreSQL18/Redis run40232140327 passed323 backend tests across38 suites on runtime6fb09d4cbdc1f261e33efafadc6c41d67d188e40, including quota/pair/cooldown/midnight, ten workers, stale-owner/crash gaps and actual two-client queue/offer/start/play. All eight migrations deployed twice. Full-stage/hosted/frontend/load/result acceptance remains open.
 - [ ] 08: Real streak milestone credits/ad-free rewards and referral qualification/points.
 - [ ] 09: Telegram Stars order/payment/refund lifecycle verified with staging bot.
 - [ ] 10: Airtime delivery, ambiguous-result reconciliation, refunds, caps and float operations.
