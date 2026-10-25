@@ -1,6 +1,6 @@
 import React from 'react';
 import Skeleton from 'react-loading-skeleton';
-import { useGetTasksState, useCompleteTask, useWatchOptionalVideo, useSkipCooldown } from '../../api/tasks.api';
+import { useGetTasksState, useCompleteTask, useWatchOptionalVideo, useSkipCooldown, useClaimExemptTask } from '../../api/tasks.api';
 import { useAuthStore } from '../../store/auth.store';
 import { useUIStore } from '../../store/ui.store';
 import { soundEffects } from '../../helpers/audio.helpers';
@@ -12,6 +12,7 @@ import routes from '../../config/routes.config';
 export default function TasksView() {
   const { data: tasksState, isLoading } = useGetTasksState();
   const completeTaskMutation = useCompleteTask();
+  const claimMutation=useClaimExemptTask();
   const watchOptionalVideoMutation = useWatchOptionalVideo();
   const skipCooldownMutation = useSkipCooldown();
 
@@ -34,6 +35,8 @@ export default function TasksView() {
   const handleTaskAction = (task: typeof tasks[0]) => {
     soundEffects.playButtonClick();
     if (task.isCompleted) return;
+    if(task.action==='CLAIM'){claimMutation.mutate(task.type,{onSuccess:()=>showToast('Task claimed.','success'),onError:()=>showToast('Claim unavailable. Refresh and try again.','error')});return;}
+    if(task.action==='NONE')return;
 
     if (task.type === 'MANDATORY_VIDEO_LOGIN' || task.type === 'MANDATORY_VIDEO_UNLOCK') {
       openRewardedAd({
@@ -164,7 +167,7 @@ export default function TasksView() {
               </div>
 
               <button
-                disabled={task.isCompleted || completeTaskMutation.isPending}
+                disabled={task.isCompleted || completeTaskMutation.isPending || claimMutation.isPending || task.action==='NONE'}
                 onClick={() => handleTaskAction(task)}
                 className={`px-3 py-1.5 rounded-full text-[11px] font-bold transition cursor-pointer ${
                   task.isCompleted
@@ -172,7 +175,7 @@ export default function TasksView() {
                     : 'bg-[#00B85F] hover:bg-[#009951] text-[#111214]'
                 }`}
               >
-                {task.isCompleted ? 'Claimed' : 'Start'}
+                {task.isCompleted ? 'Claimed' : task.action==='CLAIM' ? 'Claim' : task.action==='NONE' ? 'Pending' : 'Start'}
               </button>
             </div>
           ))}

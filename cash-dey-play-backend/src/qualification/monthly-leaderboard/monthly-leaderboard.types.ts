@@ -2,7 +2,7 @@
  * Business rule (confirmed with product owner):
  * - This track is calendar-month anchored (resets each real month), NOT a
  *   rolling personal window — distinct from login-streak.
- * - Eligibility requires completing at least 1 daily task on 20 DIFFERENT
+ * - Eligibility requires completing all four daily tasks on 20 DIFFERENT
  *   calendar days within that month — the days do NOT need to be
  *   consecutive, unlike the login streak.
  * - Eligibility also requires at least 15 match wins within that same month.

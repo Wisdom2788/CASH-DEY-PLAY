@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { Pool } from 'pg';
 import { DailyTasks } from './daily-tasks';
 import { loadEntitlements } from './entitlements';
-import { assignReferralCode,resolveReferral } from './referrals';
+import { assignReferralCode,resolveReferral,resolvePendingReferrals,referralLink } from './referrals';
 import { PostgresUserRepository } from '../db/repositories/user.repository';
 import { lagosDateOfInstant } from '../time/lagos-calendar-clock';
 const url=process.env.TEST_DATABASE_URL;
@@ -19,6 +19,7 @@ suite('entitlements, task claims and first-login referrals on PostgreSQL',()=>{
   for(const name of ['0_init','2026102401_foundations','2026102501_ledger'])await pool.query(readFileSync(join(__dirname,'../../prisma/migrations',name,'migration.sql'),'utf8'));
   await pool.query("INSERT INTO users(id,telegram_id,first_name,is_premium,referral_code) VALUES('tg_123',123,'Test',true,'ABCDEFGH')");
   await pool.query("INSERT INTO premium_subscriptions(user_id,expires_at) VALUES('tg_123',now()+interval '90 days')");
+  await pool.query("INSERT INTO task_completions(user_id,completed_on,task_key) VALUES('tg_123','2020-01-01','MANDATORY_VIDEO_LOGIN')");
   await pool.query(readFileSync(join(__dirname,'../../prisma/migrations/2026102502_entitlements/migration.sql'),'utf8'));
   tasks=new DailyTasks(pool);
  });
@@ -77,4 +78,23 @@ suite('entitlements, task claims and first-login referrals on PostgreSQL',()=>{
   try{await c.query('BEGIN');const generate=jest.fn().mockReturnValueOnce('ABCDEFGH').mockReturnValue('JKLMNPQR');await assignReferralCode(c,'tg_456',generate);await c.query('COMMIT');expect(generate).toHaveBeenCalledTimes(2);}finally{c.release();}
   expect((await pool.query("SELECT referral_code FROM users WHERE id='tg_456'")).rows[0].referral_code).toBe('JKLMNPQR');
  });
+ it('preserves recognized historical claims without awarding points again',async()=>{
+  const row=(await pool.query("SELECT status,points_awarded FROM daily_task_state WHERE lagos_date='2020-01-01'")).rows[0];
+  expect(row).toEqual({status:'CLAIMED',points_awarded:0});expect((await pool.query('SELECT points FROM users')).rows[0].points).toBe(0);
+ });
+ it('keeps committed login and retries attribution after resolution failure',async()=>{
+  await pool.query("CREATE FUNCTION reject_referral() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'resolution unavailable'; END $$");
+  await pool.query('CREATE TRIGGER reject_referral BEFORE INSERT ON referrals FOR EACH ROW EXECUTE FUNCTION reject_referral()');
+  const profile=await new PostgresUserRepository(pool).upsertTelegramUser(456,'New',null,null,'ref_ABCDEFGH');expect(profile.id).toBe('tg_456');
+  expect((await pool.query("SELECT resolved_at FROM first_login_attributions WHERE user_id='tg_456'")).rows[0].resolved_at).toBeNull();
+  await pool.query('DROP TRIGGER reject_referral ON referrals');expect(await resolvePendingReferrals(pool)).toBe(1);
+  expect((await pool.query('SELECT count(*)::int AS n FROM referrals')).rows[0].n).toBe(1);
+ });
+ it('ignores expired attribution and builds only configured Mini App links',async()=>{
+  await pool.query("INSERT INTO users(id,telegram_id,first_name) VALUES('tg_456',456,'New')");
+  await pool.query("INSERT INTO first_login_attributions(user_id,start_param,captured_at) VALUES('tg_456','ref_ABCDEFGH',now()-interval '31 days')");await resolveReferral(pool,'tg_456');
+  expect((await pool.query('SELECT count(*)::int AS n FROM referrals')).rows[0].n).toBe(0);
+  expect(referralLink('ABCDEFGH',undefined,'game')).toBeNull();expect(referralLink('ABCDEFGH','ExampleBot','game')).toBe('https://t.me/ExampleBot/game?startapp=ref_ABCDEFGH');
+ });
+
 });

@@ -109,7 +109,7 @@ export function createApp(dependencies: AppDependencies): Express {
   const monthlyLeaderboardController = new MonthlyLeaderboardController(
     dependencies.monthlyLeaderboardService,
   );
-  const userController = new UserController(dependencies.userRepository);
+  const userController = new UserController(dependencies.userRepository,dependencies.pool);
   const tasksController = new TasksController(dependencies.tasksRepository);
   const walletController = new WalletController(dependencies.walletRepository);
   const matchController = new MatchController(dependencies.pool);

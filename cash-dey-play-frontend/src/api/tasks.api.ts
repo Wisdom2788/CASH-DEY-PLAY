@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient, type UseQueryOptions, type UseMutationOptions } from '@tanstack/react-query';
 import { getService, postService, type RequestOptions } from './client';
 import { AxiosError } from 'axios';
+import { userProfileSchema } from './session.contracts';
+import { useAuthStore } from '../store/auth.store';
 import { API_ROUTES } from '../config/constant.config';
 import { TasksState, TaskCompletionResponse, OptionalVideoResponse } from '../types/interfaces/tasks.types';
 
@@ -66,4 +68,16 @@ export const useSkipCooldown = (
       mutationOptions?.onSuccess?.(data, variables, onMutateResult, context);
     },
   });
+};
+
+export const useClaimExemptTask = () => {
+ const queryClient=useQueryClient();
+ return useMutation<TaskCompletionResponse,AxiosError,string>({
+  mutationFn:key=>postService<Record<string,never>,TaskCompletionResponse>(`tasks/${encodeURIComponent(key)}/claim`,{}),
+  onSuccess:async()=>{
+   await queryClient.invalidateQueries({queryKey:[TaskQueryKeys.tasksState]});
+   const token=useAuthStore.getState().token;
+   try {const profile=userProfileSchema.parse(await getService(API_ROUTES.USER_ME));if(token && useAuthStore.getState().token===token)useAuthStore.getState().setAuthData(profile,token);}catch{/* The claim is committed; a profile refresh can be retried independently. */}
+  },
+ });
 };

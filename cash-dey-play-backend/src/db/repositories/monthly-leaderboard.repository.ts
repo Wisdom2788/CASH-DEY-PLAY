@@ -14,11 +14,10 @@ export class PostgresMonthlyLeaderboardRepository implements IMonthlyLeaderboard
     const nextMonthStart = startOfNextCalendarMonth(monthKey);
 
     const tasksQuery = `
-      SELECT COUNT(DISTINCT completed_on) AS distinct_task_days
-      FROM task_completions
-      WHERE user_id = $1
-        AND completed_on >= $2::date
-        AND completed_on < $3::date
+      SELECT COUNT(*) AS distinct_task_days FROM (
+        SELECT lagos_date FROM daily_task_state WHERE user_id=$1 AND lagos_date >= $2::date AND lagos_date < $3::date AND status='CLAIMED'
+        GROUP BY lagos_date HAVING count(*)=4
+      ) complete_days
     `;
     const matchesQuery = `
       SELECT COUNT(*) AS total_wins

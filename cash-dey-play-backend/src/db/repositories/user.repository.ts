@@ -38,11 +38,14 @@ export class PostgresUserRepository implements UserRepository {
       }
       if (row === undefined || row.id !== id) throw new Error("User identity invariant failed");
       await client.query("COMMIT");
-      // Retryable attribution failure must not turn a committed login into an error.
-      await resolveReferral(this.pool,id).catch(()=>undefined);
-      return (await this.findById(id))!;
+
     } catch(error) { await client.query("ROLLBACK").catch(()=>undefined); throw error; }
     finally {client.release();}
+    // Release before retry work: concurrent sign-ins must not reserve every pool connection.
+    await resolveReferral(this.pool,id).catch(()=>undefined);
+    const profile=await this.findById(id);
+    if(!profile)throw new Error("Committed user missing");
+    return profile;
   }
 
   async findAuthState(id: string): Promise<AuthState | null> {

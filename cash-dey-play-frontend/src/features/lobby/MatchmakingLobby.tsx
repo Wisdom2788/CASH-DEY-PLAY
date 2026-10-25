@@ -4,7 +4,8 @@ import React, { useEffect, useState } from 'react';
 import { useGameStore } from '../../store/game.store';
 import { useGetRecentOpponents, useStartMatch } from '../../api/match.api';
 import { useUIStore } from '../../store/ui.store';
-import { useAuthStore } from '../../store/auth.store';
+import { getService } from '../../api/client';
+import { z } from 'zod';
 import { MatchMode } from '../../types/enums/whot.enums';
 import { soundEffects } from '../../helpers/audio.helpers';
 import Skeleton from 'react-loading-skeleton';
@@ -13,7 +14,7 @@ export default function MatchmakingLobby() {
   const { isSearching, setSearching, syncMatchState } = useGameStore();
   const { showToast } = useUIStore();
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const [isCopyingInvite,setCopyingInvite]=useState(false);
   
   const { data: recentOpponents = [], isLoading: isLoadingOpponents } = useGetRecentOpponents();
   const startMatchMutation = useStartMatch();
@@ -58,12 +59,18 @@ export default function MatchmakingLobby() {
     );
   };
 
-  const handleInviteFriends = () => {
+  const handleInviteFriends = async () => {
     soundEffects.playButtonClick();
-    navigator.clipboard?.writeText(
-      `Join me on Cash Dey Play! Play Whot and earn airtime: https://t.me/CashDeyPlayBot?start=${user?.referralCode}`
-    );
-    showToast('Telegram invite link copied! Share with friends.', 'success');
+    if(isCopyingInvite)return;
+    setCopyingInvite(true);
+    try {
+      const summary=z.object({shareLink:z.string().url().nullable()}).parse(await getService('users/referrals'));
+      if(!summary.shareLink){showToast('Invites are not configured yet.','info');return;}
+      if(!navigator.clipboard){showToast('Clipboard is unavailable on this device.','info');return;}
+      await navigator.clipboard.writeText(summary.shareLink);
+      showToast('Telegram invite link copied.','success');
+    } catch {showToast('Could not copy invite. Please try again.','error');}
+    finally {setCopyingInvite(false);}
   };
 
   return (
@@ -261,6 +268,7 @@ export default function MatchmakingLobby() {
       {/* BEGIN: InviteFriendsButton */}
       <button
         onClick={handleInviteFriends}
+        disabled={isCopyingInvite}
         className="w-full h-[52px] rounded-full bg-[#111214] border-2 border-[#00B85F] flex items-center justify-center space-x-3 active:scale-[0.985] transition-transform hover:bg-[#00B85F]/10 cursor-pointer"
         type="button"
       >

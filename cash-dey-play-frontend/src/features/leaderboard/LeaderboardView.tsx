@@ -209,11 +209,11 @@ export default function LeaderboardView() {
             </div>
             <p className="text-[11px] text-[#A6ABB3]">
               Ranked purely by qualifying invites. Zero chance, zero RNG.
-              A referral qualifies once your friend completes all 3 daily tasks on{' '}
+              A referral qualifies once your friend completes all 4 daily tasks on{' '}
               <strong className="text-white">3 separate calendar days</strong> within 30 days.
             </p>
             <div className="text-[10px] text-[#00E676] pt-1 border-t border-[#222428]">
-              Prize share: 1st Place (50%), 2nd Place (30%), 3rd Place (20%) of pool!
+              Referral qualification and prize settlement are not available yet.
             </div>
           </div>
 

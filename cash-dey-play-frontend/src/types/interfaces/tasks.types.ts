@@ -2,6 +2,8 @@ export interface DailyTask {
   id: string;
   title: string;
   points: number;
+  action?: 'CLAIM' | 'WATCH_VIDEO' | 'NONE';
+  status?: 'AVAILABLE' | 'AUTO_READY' | 'CLAIMED';
   isCompleted: boolean;
   type: 'MANDATORY_VIDEO_LOGIN' | 'MANDATORY_VIDEO_UNLOCK' | 'WIN_MATCH' | 'BONUS_ALL_COMPLETE';
   progress: number;

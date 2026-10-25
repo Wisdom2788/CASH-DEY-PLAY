@@ -7,6 +7,7 @@ permissions:
   contents: read
 jobs:
   backend:
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -43,6 +44,7 @@ jobs:
       - run: npm run db:ledger:reconcile
       - run: npm run build
   frontend:
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     defaults:
       run:
