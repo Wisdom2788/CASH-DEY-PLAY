@@ -18,6 +18,8 @@ export interface AppEnv {
   readonly trustProxyHops: number;
   readonly realtimeReadEnabled: boolean;
   readonly realtimeMovesEnabled: boolean;
+  readonly realtimeDeliveryEnabled:boolean;
+  readonly gameRelayChannel:string;
 }
 
 const MINIMUM_PRODUCTION_JWT_SECRET_LENGTH = 32;
@@ -74,8 +76,12 @@ export function loadAppEnv(processEnv: NodeJS.ProcessEnv = process.env): AppEnv 
 
   if(processEnv.ENABLE_REALTIME_MOVES==="true"&&processEnv.ENABLE_REALTIME_READ!=="true")throw new Error("ENABLE_REALTIME_MOVES requires ENABLE_REALTIME_READ");
 
+  const realtimeDeliveryEnabled=processEnv.ENABLE_REALTIME_DELIVERY==="true";
+  const gameRelayChannel=processEnv.GAME_RELAY_CHANNEL??"";
+  if(realtimeDeliveryEnabled&&(processEnv.ENABLE_REALTIME_READ!=="true"||!redisUrl||!/^[A-Za-z0-9:_-]{1,100}$/.test(gameRelayChannel)))
+    throw new Error("Realtime delivery requires read gateway, Redis and an environment-scoped GAME_RELAY_CHANNEL");
   return {
-    nodeEnv,
+    nodeEnv,realtimeDeliveryEnabled,gameRelayChannel,
     realtimeMovesEnabled: processEnv.ENABLE_REALTIME_MOVES === "true",
     realtimeReadEnabled: processEnv.ENABLE_REALTIME_READ === "true",
     trustProxyHops: integerSetting(processEnv.TRUST_PROXY_HOPS,0,"TRUST_PROXY_HOPS",0,5),

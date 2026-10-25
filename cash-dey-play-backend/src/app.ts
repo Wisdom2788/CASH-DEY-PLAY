@@ -1,3 +1,4 @@
+import { RedisGameNotifications } from "./realtime/game-notifications";
 import { createServer } from "node:http";
 import { attachRealtimeGateway } from "./realtime/gateway";
 import { GameRepository } from "./game-engine/repository";
@@ -242,8 +243,16 @@ if (require.main === module) {
   // Do not accept traffic until the rate-limit store is connected (or the wait timed out and said so in the logs).
   void rateLimitReady.then(() => {
     const server=createServer(app);
+    let notifications:RedisGameNotifications|undefined;
+    if(env.realtimeDeliveryEnabled){
+      const subscriber=new Redis(env.redisUrl,{maxRetriesPerRequest:1,commandTimeout:5000});subscriber.on('error',()=>undefined);
+      notifications=new RedisGameNotifications(subscriber,env.gameRelayChannel);
+      void notifications.start().catch(()=>console.warn('Game relay unavailable; SQL snapshot catch-up remains active'));
+      server.once('close',()=>notifications?.close());
+    }
     if(env.realtimeReadEnabled)attachRealtimeGateway(server,{jwtSecret:dependencies.jwtSecret,origin:dependencies.corsOrigin,
       rateLimits:dependencies.rateLimitStore,sessions:new RealtimeSessionRepository(dependencies.pool),
+      ...(notifications?{delivery:{source:notifications,snapshots:new RealtimeSessionRepository(dependencies.pool)}}:{}),
       ...(env.realtimeMovesEnabled?{actions:{games:new GameRepository(dependencies.pool),rateLimits:mutationRateLimits}}:{})});
     server.listen(env.port, () => {
       console.log(`Server listening on port ${env.port}`);

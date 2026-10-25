@@ -7,6 +7,7 @@ import { Seat } from '../game-engine/model';
 export class RealtimeError extends Error {
  constructor(readonly code:'UNAUTHORIZED'|'SESSION_REPLACED'|'NOT_FOUND'|'INVALID_INPUT'|'UNAVAILABLE'|'RATE_LIMITED'|'BUSY'){super(code);}
 }
+export interface GameUpdate {matchId:string;eventId:string|null;view:PlayerView}
 export interface RealtimeConnection extends AccessIdentity {connectionId:string}
 export interface ResumeSnapshot {
  protocolVersion:1;phase:'IDLE'|'IN_MATCH'|'RESULT';serverTime:number;
@@ -46,6 +47,22 @@ export class RealtimeSessionRepository {
    if(!row)return {protocolVersion:1,phase:'IDLE',serverTime,match:null};
    const view=projectGame(restoreGame(row.private_state),row.seat as Seat);
    return {protocolVersion:1,phase:view.status==='ACTIVE'?'IN_MATCH':'RESULT',serverTime,match:{id:row.id,mode:row.mode,view}};
+  });
+ }
+ /** Fresh committed state; no Redis payload or private event projection is trusted. */
+ async deliverySnapshot(connection:RealtimeConnection):Promise<GameUpdate|null>{
+  return this.transaction(async client=>{
+   await this.lockCurrent(client,connection);
+   const result=await client.query<{id:string;version:number;private_state:unknown;seat:number;event_id:string|null}>(`
+    SELECT m.id,m.version,m.private_state,p.seat,e.event_id FROM game_players p JOIN game_matches m ON m.id=p.match_id
+    LEFT JOIN game_events e ON e.match_id=m.id AND e.sequence=m.version
+    WHERE p.user_id=$1 AND NOT p.is_bot
+    ORDER BY (m.status='ACTIVE') DESC,m.started_at DESC,m.id DESC LIMIT 1`,[connection.userId]);
+   if(await this.now(client)>=connection.expiresAt)throw new RealtimeError('UNAUTHORIZED');
+   const row=result.rows[0];if(!row)return null;
+   const view=projectGame(restoreGame(row.private_state),row.seat as Seat);
+   if(view.version!==row.version||(row.version>0&&!row.event_id))throw new RealtimeError('UNAVAILABLE');
+   return {matchId:row.id,eventId:row.event_id,view};
   });
  }
  private async checkUser(client:PoolClient,identity:AccessIdentity,exclusive=false):Promise<void>{

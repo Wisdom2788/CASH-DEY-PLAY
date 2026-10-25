@@ -49,3 +49,6 @@ Latest authenticated read/reconnect evidence: https://github.com/Wisdom2788/CASH
 - [ ] 07 delivery/public flow remains open: committed-event fanout/recovery, Redis matchmaking, ranked admission/quota/settlement, frontend state-version handling, real-device and load acceptance.
 
 Latest atomic-move evidence: https://github.com/Wisdom2788/CASH-DEY-PLAY/actions/runs/40219993548 . This is internal move acceptance, not committed-event delivery, full ranked gameplay or production readiness.
+
+- [x] 07 committed-update delivery implemented: game-only leased outbox relay, committed-source validation, redacted Redis notices, authorized per-player SQL projections, exact ACK cursor, duplicate/version suppression, bounded fanout and periodic/reconnect catch-up. Separate delivery worker/flag; all public/production flags remain off.
+- [ ] 07 delivery acceptance: real Redis + PostgreSQL/two-gateway relay, subscriber-loss/reconnect recovery, lease/crash/domain/privacy tests and actual socket ACK recovery awaiting CI. No new migration; hosted delivery worker and frontend ACK/version integration remain open.

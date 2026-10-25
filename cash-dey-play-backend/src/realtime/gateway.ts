@@ -1,3 +1,5 @@
+import { SnapshotDelivery } from './snapshot-delivery';
+import { GameNotificationSource } from './game-notifications';
 import { Server as HttpServer } from 'node:http';
 import { Server } from 'socket.io';
 import { GameRepository } from '../game-engine/repository';
@@ -10,6 +12,7 @@ import { RealtimeConnection,RealtimeError,RealtimeSessionRepository } from './se
 interface GatewayOptions {
  jwtSecret:string;origin:string;rateLimits:RateLimitCounterStore;
  sessions:Pick<RealtimeSessionRepository,'claim'|'assertCurrent'|'release'|'resume'>;
+ delivery?:{source:GameNotificationSource;snapshots:Pick<RealtimeSessionRepository,'deliverySnapshot'>;catchupMs?:number;ackMs?:number};
  actions?:{games:Pick<GameRepository,'actForConnection'>;rateLimits:RateLimitCounterStore};
 }
 const authSchema=z.strictObject({token:z.string().min(1).max(8192)});
@@ -25,6 +28,8 @@ function code(error:unknown):string{
 export function attachRealtimeGateway(server:HttpServer,options:GatewayOptions):Server {
  const io=new Server(server,{transports:['websocket'],maxHttpBufferSize:8192,
   cors:{origin:options.origin},allowRequest:(req,done)=>done(null,req.headers.origin===options.origin)});
+ const delivery=options.delivery?new SnapshotDelivery(options.delivery.source,options.delivery.catchupMs):undefined;
+ server.once('close',()=>delivery?.close());
  io.use((socket,next)=>{void(async()=>{
   const parsed=authSchema.safeParse(socket.handshake.auth);if(!parsed.success)throw new RealtimeError('UNAUTHORIZED');
   let identity;
@@ -44,7 +49,11 @@ export function attachRealtimeGateway(server:HttpServer,options:GatewayOptions):
     .catch(error=>disconnect(code(error))).finally(()=>{busy=false;});
   },5000);
   expiry.unref();monitor.unref();
-  socket.on('disconnect',()=>{clearTimeout(expiry);clearInterval(monitor);void options.sessions.release(connection).catch(()=>undefined);});
+  const unregister=delivery?.register({userId:connection.userId,
+   load:async()=>{verifyToken();return options.delivery!.snapshots.deliverySnapshot(connection);},
+   send:async update=>socket.timeout(options.delivery?.ackMs??2000).emitWithAck('match:update',update),
+   onError:error=>disconnect(code(error))});
+  socket.on('disconnect',()=>{unregister?.();clearTimeout(expiry);clearInterval(monitor);void options.sessions.release(connection).catch(()=>undefined);});
   socket.onAny((event:string,...args:unknown[])=>{
    const now=Date.now();if(now-frameWindow>=1000){frameWindow=now;frameCount=0;}
    if(++frameCount>30){disconnect('RATE_LIMITED');return;}

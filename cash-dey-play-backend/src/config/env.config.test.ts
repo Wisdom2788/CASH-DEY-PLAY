@@ -74,4 +74,11 @@ describe("loadAppEnv — unknown NODE_ENV must fail safe", () => {
     expect(loadAppEnv({NODE_ENV:'test',ENABLE_REALTIME_READ:'true',ENABLE_REALTIME_MOVES:'true'}).realtimeMovesEnabled).toBe(true);
   });
 
+  it('keeps delivery gated and requires an explicit Redis channel plus read gateway',()=>{
+    expect(loadAppEnv({NODE_ENV:'test'}).realtimeDeliveryEnabled).toBe(false);
+    expect(()=>loadAppEnv({NODE_ENV:'test',ENABLE_REALTIME_DELIVERY:'true'})).toThrow('delivery requires');
+    expect(()=>loadAppEnv({NODE_ENV:'test',ENABLE_REALTIME_READ:'true',ENABLE_REALTIME_DELIVERY:'true',REDIS_URL:'redis://localhost'})).toThrow('delivery requires');
+    expect(loadAppEnv({NODE_ENV:'test',ENABLE_REALTIME_READ:'true',ENABLE_REALTIME_DELIVERY:'true',REDIS_URL:'redis://localhost',GAME_RELAY_CHANNEL:'cdp:test:game:v1'}).realtimeDeliveryEnabled).toBe(true);
+  });
+
 });

@@ -36,3 +36,5 @@ Committed-event delivery/broadcast/recovery is the next slice. Opponents current
 ## Recorded acceptance
 
 PostgreSQL18 Verify run40219993548 passed280 backend tests across32 suites on runtimec69a5fbf2cb6b536c10ccd646a2307fed06350c2. This includes the replacement/expiry/rollback/idempotency/private-replay cases and actual two-gateway moves, reconnect retries, opponent turns and revocation. Gateway/configuration cases verify disabled-by-default actions, strict fields and limiter failure denial. All seven migrations deployed twice; frontend checks, production dependency audit, reconciliation and both Vercel previews passed. No production flag/environment changed, and delivery/full ranked/real-device/load acceptance remains open.
+
+Follow-through: [committed-update delivery](07-delivery-design.md) now implements the separate relay/snapshot path. The move acknowledgement contract remains unchanged; public realtime is still gated.
