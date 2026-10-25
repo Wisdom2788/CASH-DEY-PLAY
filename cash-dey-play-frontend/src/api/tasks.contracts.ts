@@ -1,0 +1,5 @@
+import { z } from 'zod';
+const types=['MANDATORY_VIDEO_LOGIN','MANDATORY_VIDEO_UNLOCK','WIN_MATCH','BONUS_ALL_COMPLETE'] as const;
+const task=z.object({id:z.string(),title:z.string(),points:z.number().int().min(0).max(50),isCompleted:z.boolean(),type:z.enum(types),progress:z.number().int().nonnegative(),target:z.number().int().positive(),action:z.enum(['CLAIM','WATCH_VIDEO','NONE']).optional(),status:z.enum(['AVAILABLE','AUTO_READY','CLAIMED']).optional()}).refine(t=>t.status!=='CLAIMED'||t.isCompleted,'Claimed task must be complete');
+export const tasksStateSchema=z.object({tasks:z.array(task).length(4).refine(rows=>new Set(rows.map(t=>t.type)).size===4,'Duplicate tasks'),optionalVideosWatchedToday:z.number().int().nonnegative(),practiceMatchesUnlocked:z.number().int().nonnegative(),freeMatchesRemaining:z.number().int().nonnegative(),cooldownActive:z.boolean(),cooldownSecondsLeft:z.number().int().nonnegative(),allBonusClaimed:z.boolean(),timeRemainingSeconds:z.number().int().min(0).max(86400)});
+export const taskClaimSchema=z.object({pointsEarned:z.union([z.literal(0),z.literal(50),z.literal(100)]),alreadyClaimed:z.boolean()});

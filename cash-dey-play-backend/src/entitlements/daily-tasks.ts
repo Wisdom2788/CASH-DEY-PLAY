@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Pool, PoolClient } from 'pg';
 import { loadEntitlements } from './entitlements';
 import { lagosDateOfInstant,secondsUntilNextLagosMidnight } from '../time/lagos-calendar-clock';
@@ -46,5 +47,6 @@ export class DailyTasks {
   await c.query('UPDATE users SET points=points+50,updated_at=$2 WHERE id=$1',[userId,at]);
   await c.query('INSERT INTO task_completions(user_id,completed_on,task_key) VALUES($1,$2,$3) ON CONFLICT DO NOTHING',[userId,date,key]);
   await c.query("INSERT INTO reward_audit_events(user_id,event_type,reason,triggering_rule) VALUES($1,'TASK_POINTS',$2,'daily-tasks-v1')",[userId,`${date}:${key}`]);
+  await c.query('INSERT INTO outbox_events(id,type,payload) VALUES($1,$2,$3)',[randomUUID(),'TASK_CLAIMED',{userId,lagosDate:date,taskKey:key,points:50}]);
  }
 }

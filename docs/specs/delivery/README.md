@@ -11,7 +11,7 @@ A spec is not an implementation. “Implemented locally” is not a passing host
 | 01 | [Containment and deployment baseline](01-containment.md) | Existing Step 1 | Implemented; unit/HTTP/PostgreSQL tests and both Vercel preview builds passed on e526b8d |
 | 02 | [Identity, time, migrations and contracts](02-foundations.md) | 01 | Core implemented and CI verified (122 backend /26 frontend); production rehearsal pending |
 | 03 | [Ledger, audit and idempotency](03-ledger.md) | 02 | Core implemented in draft PR4; production rehearsal and reward-owner wiring pending |
-| 04 | [Entitlements, tasks and referrals](04-entitlements.md) | 02–03 | Specified; not implemented |
+| 04 | [Entitlements, tasks and referrals](04-entitlements.md) | 02–03 | Core implemented in PR5; source integrations and staging verification pending |
 | 05 | [Whot engine and practice bot](05-game-engine.md) | 02 and agreed game rules | Specified; rule decisions remain open |
 | 06 | [Verified ads and practice limits](06-ads-practice.md) | 04–05 and provider contract | Specified; external provider capability unresolved |
 | 07 | [Realtime and ranked matchmaking](07-ranked.md) | 04–06 | Specified; not implemented |
@@ -20,6 +20,8 @@ A spec is not an implementation. “Implemented locally” is not a passing host
 | 10 | [Airtime payout delivery](10-payouts.md) | 03,08 and provider account | Specified; not implemented |
 | 11 | [Leaderboards, prizes and operations](11-leaderboards.md) | 07–10 | Specified; finance inputs unresolved |
 | 12 | [Frontend completion and launch gates](12-launch.md) | All prior stages | Specified; not implemented |
+
+Branch policy: [approved reusable workflow and staging prerequisites](BRANCH-WORKFLOW.md).
 
 Implementation proceeds in this order. Independent UI cleanup can accompany a stage, but cannot change unimplemented features to “done”. Keep each stage reviewable; never merge a partial financial protocol merely because its happy path works.
 

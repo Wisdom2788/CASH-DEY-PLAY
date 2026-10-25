@@ -1,6 +1,6 @@
 # Entitlements, daily tasks and durable referrals
 
-Status: **Specified; not implemented**. Covers: H6/H7/H10, H11, M9/M12/M13. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
+Status: **Core implemented on feature-implementation in PR5; staging and external source integrations pending**. Covers: H6/H7/H10, H11, M9/M12/M13. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
 
 ### Tables and rule authority
 
@@ -21,3 +21,13 @@ Expiry exactly now and three-day threshold; premium upgrade/refund during task c
 ## Implementation record
 
 Record commit, schema version, commands/results, integration evidence, unresolved decisions and recovery rehearsal here before marking complete. An acceptance criterion written above is not evidence that it passed.
+
+## Core implementation record (25 October 2026)
+
+Migration2026102502_entitlements revokes legacy premium flags/subscriptions, establishes paid order/contribution authority, imports recognized legacy task claims without points, and rejects ambiguous referral ownership. Profile/status read paid unrevoked records; the old boolean cannot authorize new code. Task state/claims lock the player and entitlement records, then evaluate an exact PostgreSQL timestamp. Requests accept no player-supplied ad or ranked-win proof. Unique claim identity, points, completion, audit and outbox persist together. Completing different tasks in parallel cannot lose or duplicate the automatic bonus. Four CLAIMED rows define a task day in monthly reads.
+
+New accounts receive random eight-character codes with bounded savepoint retries. Signed first-login intents resolve after releasing the login connection, avoiding pool starvation. Resolver failure retains durable intent without undoing the committed login. db:referrals:resolve retries bounded private batches. The authenticated referral summary contains username/progress/status, and a configured Telegram Mini App link; missing configuration returns null. Frontend copying waits for success and handles unavailable clipboard/configuration. Exempt task buttons call the real claim API and refresh profile from the server; no local points increment occurs.
+
+Runtime5fcd496 passed PostgreSQL18 CI run40185792652, including the exact-expiry and parallel login/claim regressions. Subsequent HTTP contract, runtime frontend schema and task-outbox additions require their own recorded PR5 CI result. The older SQL-mocking task tests and obsolete award repository were replaced by the real entitlement/claim tests, rather than retaining an alternate unverified award path.
+
+Still pending: staging backup/restore and migrations; actual verified ads/ranked settlement writers; paid Stars purchase/refund lifecycle; scheduled attribution recovery; referral qualification/150-point credit in stage08; exact qualification-tier/three-day policies at the owning stage; configured staging bot/miniapp and two-device share test. No premium payment, ad credit, ranked match or referral reward is claimed operational.

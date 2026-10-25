@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient, type UseQueryOptions, type UseMutationOptions } from '@tanstack/react-query';
 import { getService, postService, type RequestOptions } from './client';
 import { AxiosError } from 'axios';
+import { tasksStateSchema,taskClaimSchema } from './tasks.contracts';
 import { userProfileSchema } from './session.contracts';
 import { useAuthStore } from '../store/auth.store';
 import { API_ROUTES } from '../config/constant.config';
@@ -16,7 +17,7 @@ export const useGetTasksState = (
 ) => {
   return useQuery<TasksState, AxiosError>({
     queryKey: [TaskQueryKeys.tasksState],
-    queryFn: () => getService<TasksState>(API_ROUTES.TASKS_STATE, options),
+    queryFn: async () => tasksStateSchema.parse(await getService(API_ROUTES.TASKS_STATE, options)),
     ...queryOptions,
   });
 };
@@ -73,7 +74,7 @@ export const useSkipCooldown = (
 export const useClaimExemptTask = () => {
  const queryClient=useQueryClient();
  return useMutation<TaskCompletionResponse,AxiosError,string>({
-  mutationFn:key=>postService<Record<string,never>,TaskCompletionResponse>(`tasks/${encodeURIComponent(key)}/claim`,{}),
+  mutationFn:async key=>taskClaimSchema.parse(await postService(`tasks/${encodeURIComponent(key)}/claim`,{})),
   onSuccess:async()=>{
    await queryClient.invalidateQueries({queryKey:[TaskQueryKeys.tasksState]});
    const token=useAuthStore.getState().token;

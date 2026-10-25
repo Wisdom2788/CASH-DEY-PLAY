@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { Pool } from 'pg';
 import { DailyTasks } from './daily-tasks';
 import { loadEntitlements } from './entitlements';
-import { assignReferralCode,resolveReferral,resolvePendingReferrals,referralLink } from './referrals';
+import { assignReferralCode,resolveReferral,resolvePendingReferrals,referralLink,referralSummary } from './referrals';
 import { PostgresUserRepository } from '../db/repositories/user.repository';
 import { lagosDateOfInstant } from '../time/lagos-calendar-clock';
 const url=process.env.TEST_DATABASE_URL;
@@ -28,6 +28,8 @@ suite('entitlements, task claims and first-login referrals on PostgreSQL',()=>{
  async function exempt(){await pool.query("INSERT INTO ad_free_days(user_id,valid_on,starts_at) VALUES('tg_123',(clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date,((clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date)::timestamp AT TIME ZONE 'Africa/Lagos')");}
  it('revokes legacy flags and uses exact paid expiry/revocation instead',async()=>{
   expect((await pool.query("SELECT is_premium FROM users")).rows[0].is_premium).toBe(false);
+  await pool.query('UPDATE users SET is_premium=true');
+  expect((await new PostgresUserRepository(pool).findById('tg_123'))?.isPremium).toBe(false);
   const at=new Date('2026-10-25T12:00:00Z');const id=await premium(new Date('2026-10-24T12:00:00Z'),at);
   expect((await loadEntitlements(pool,'tg_123',at)).isPremium).toBe(false);
   expect((await loadEntitlements(pool,'tg_123',new Date(at.getTime()-1))).isPremium).toBe(true);
@@ -68,6 +70,7 @@ suite('entitlements, task claims and first-login referrals on PostgreSQL',()=>{
   await users.upsertTelegramUser(456,'New',null,null,'OTHERABC');
   expect((await pool.query('SELECT referrer_id,referred_id FROM referrals')).rows).toEqual([{referrer_id:'tg_123',referred_id:'tg_456'}]);
   expect((await users.findById('tg_456'))?.referralCode).toMatch(/^[A-Z2-9]{8}$/);
+  expect((await referralSummary(pool,'tg_123')).referrals).toEqual([{username:null,status:'PENDING',completeTaskDays:0}]);
  });
  it.each(['UNKNOWNX','ref_ABCDEFGH'])('does not self-attribute or resolve unknown links: %s',async code=>{
   await pool.query('INSERT INTO first_login_attributions(user_id,start_param) VALUES($1,$2)',['tg_123',code]);await resolveReferral(pool,'tg_123');
