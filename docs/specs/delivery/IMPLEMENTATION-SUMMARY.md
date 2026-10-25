@@ -11,7 +11,7 @@ Updated 25 October 2026. Checkboxes describe the named implementation scope; ful
 - [ ] 04 integrations: real ad/ranked/Stars writers, scheduled attribution retry and real-device invite verification.
 - [x] 05 engine core: crypto shuffle, configurable immutable Whot transitions, legality/ownership/version/deadline validation, private views, projected-view bot, replay and transactional match/player/event/outbox storage.
 - [x] 05 owner decision: Whot matrix approved 25 October 2026; immutable whot-v1 runtime profile records the approved variant.
-- [ ] 05 follow-through validation: CI for approved profile and the two-human ranked-storage correction must pass before marking this latest implementation verified.
+- [x] 05 follow-through validation: approved profile and two-human ranked-storage correction passed PostgreSQL18 CI run40201787923; all199 backend tests and frontend checks passed.
 - [ ] 06 verified ads and practice admission: provider authenticity/session evidence, purpose-bound credits, five regular daily starts, premium bypass, safe fallback and completion accounting.
 - [ ] 07 realtime/ranked: websocket authentication, Redis ownership/recovery, matchmaking, reconnect, timers and authoritative result settlement.
 - [ ] 08 rewards: streak milestone/ad-free grants and referral qualification/points.
@@ -22,4 +22,4 @@ Updated 25 October 2026. Checkboxes describe the named implementation scope; ful
 - [ ] Hosted staging: isolated database/Redis/test bot and provider sandboxes.
 - [ ] Production promotion: reviewed development release after backup/restore and integration gates.
 
-Most recent completed runtime CI before this follow-through:197 backend tests passed on PostgreSQL18; frontend checks and both Vercel previews passed (run40199853254). Passing automated tests is evidence for tested behavior, not completion of external integrations.
+Most recent runtime CI:199 backend tests passed on PostgreSQL18, with frontend checks passing (run40201787923). Passing automated tests is evidence for tested behavior, not completion of external integrations.
