@@ -72,7 +72,7 @@ suite('Whot game persistence on PostgreSQL',()=>{
   });
 
   it('rolls back snapshot, event and notification when the transactional outbox fails',async()=>{
-    const match=await practice();const view=await repo.view(match.id,'tg_123');const command=view.plays.length?{type:'PLAY' as const,cardId:view.plays[0]!}:{type:'DRAW' as const};
+    const match=await practice();const command={type:'DRAW' as const};
     await pool.query(`CREATE FUNCTION reject_game_outbox() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.type='GAME_STATE_CHANGED' THEN RAISE EXCEPTION 'outbox failure'; END IF; RETURN NEW; END $$`);
     await pool.query('CREATE TRIGGER reject_game_outbox BEFORE INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION reject_game_outbox()');
     await expect(repo.act(match.id,'tg_123',{id:'rollback-01',expectedVersion:0,command},1001)).rejects.toThrow('outbox failure');

@@ -11,6 +11,7 @@ CREATE TABLE game_matches (
   status text NOT NULL CHECK (status IN ('ACTIVE','FINISHED')),
   version integer NOT NULL DEFAULT 0 CHECK (version BETWEEN 0 AND 2000),
   started_at timestamptz NOT NULL,
+  lagos_date date GENERATED ALWAYS AS ((started_at AT TIME ZONE 'Africa/Lagos')::date) STORED,
   updated_at timestamptz NOT NULL,
   ended_at timestamptz,
   CHECK ((status='ACTIVE' AND ended_at IS NULL) OR (status='FINISHED' AND ended_at IS NOT NULL)),
@@ -52,6 +53,7 @@ CREATE CONSTRAINT TRIGGER game_player_seats_complete AFTER INSERT OR UPDATE OR D
   DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION enforce_game_seats();
 
 CREATE TABLE game_events (
+  event_id uuid NOT NULL UNIQUE,
   match_id uuid NOT NULL REFERENCES game_matches(id) ON DELETE CASCADE,
   sequence integer NOT NULL CHECK (sequence BETWEEN 1 AND 2000),
   action_id text NOT NULL CHECK (action_id ~ '^[A-Za-z0-9._:-]{1,128}$'),

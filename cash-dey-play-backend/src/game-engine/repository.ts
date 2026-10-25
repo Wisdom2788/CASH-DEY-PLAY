@@ -150,9 +150,9 @@ export class GameRepository {
     if(next.version!==row.version+1 || next.version>next.rules.maxActions) throw new GameError('INVALID_STATE');
     const type=payload.kind==='TIMEOUT'?'TIMEOUT':commandType;
     if(!type || !['PLAY','DRAW','PASS','FORFEIT','TIMEOUT'].includes(type)) throw new GameError('INVALID_STATE');
-    await client.query(`INSERT INTO game_events(match_id,sequence,action_id,request_hash,actor_seat,actor_user_id,command_type,private_payload,projected_response,occurred_at)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,[row.id,next.version,id,requestHash,seat,userId,type,payload,response,new Date(at)]);
-    await client.query(`UPDATE game_matches SET private_state=$2,status=$3,version=$4,updated_at=$5,ended_at=CASE WHEN $3='FINISHED' THEN $5 ELSE NULL END WHERE id=$1`,[row.id,next,next.status,next.version,new Date(at)]);
+    await client.query(`INSERT INTO game_events(event_id,match_id,sequence,action_id,request_hash,actor_seat,actor_user_id,command_type,private_payload,projected_response,occurred_at)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,[randomUUID(),row.id,next.version,id,requestHash,seat,userId,type,payload,response,new Date(at)]);
+    await client.query(`UPDATE game_matches SET private_state=$2,status=$3,version=$4,updated_at=$5,ended_at=CASE WHEN $3='FINISHED' THEN $5::timestamptz ELSE NULL::timestamptz END WHERE id=$1`,[row.id,next,next.status,next.version,new Date(at)]);
     await client.query('INSERT INTO outbox_events(id,type,payload) VALUES($1,$2,$3)',[randomUUID(),'GAME_STATE_CHANGED',{matchId:row.id,version:next.version}]);
   }
 }
