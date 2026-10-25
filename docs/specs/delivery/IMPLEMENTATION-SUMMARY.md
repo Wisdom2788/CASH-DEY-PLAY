@@ -22,6 +22,6 @@ Updated 25 October 2026. Checkboxes describe the named implementation scope; ful
 - [ ] Hosted staging: isolated database/Redis/test bot and provider sandboxes.
 - [ ] Production promotion: reviewed development release after backup/restore and integration gates.
 
-Most recent runtime CI:199 backend tests passed on PostgreSQL18, with frontend checks passing (run40201787923). Passing automated tests is evidence for tested behavior, not completion of external integrations.
+Most recent runtime CI:213 backend tests passed on PostgreSQL18, with frontend checks passing and zero ledger reconciliation mismatches (run40204197673). Passing automated tests is evidence for tested behavior, not completion of external integrations.
 
-- [ ] 06 admission core validation: internal atomic starts/completions and shared match-admission locking implemented; required PostgreSQL CI pending. Provider adapter, credits, public API/UI and recovery scheduling remain open.
+- [x] 06 admission core: atomic starts/completions, exact response replay, paid/ad-free policy, five regular daily starts, shared ranked/practice locking and failure rollback verified in PostgreSQL18 CI run40204197673 (213 backend tests passed). Provider adapter, credits, public API/UI and recovery scheduling remain open.

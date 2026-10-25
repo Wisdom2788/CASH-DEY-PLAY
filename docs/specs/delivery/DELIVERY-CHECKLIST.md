@@ -23,7 +23,8 @@ Reviewed25 October2026 against stage05 runtime c37671022378bd4c78413a2d78e3979bc
 - [ ] 04 remaining: real verified-ad/ranked/Stars source writers, admission limits/qualification policy integration, scheduled attribution retry, configured staging bot and two-device invite tests. Referral qualification/150-point awards belong to08.
 - [ ] 05: Full authoritative Whot and practice flow acceptance. Whot rules approved 25 October 2026; practice admission/limits remain a stage06 gate.
 - [x] 05 core: configurable authoritative engine, crypto shuffle, projected-view bot, private replay and transactional PostgreSQL persistence implemented. Verify run40199691573 passed197/197 backend tests on PostgreSQL18, including two migration deploys; frontend typecheck/lint/tests/build also passed. No rule profile or public game endpoint is enabled.
-- [ ] 06: Verified ad integration, purpose-bound credits and practice admission/completion limits.
+- [ ] 06 full: Verified ad integration, purpose-bound credits and public practice flow.
+- [x] 06 core: atomic/idempotent practice starts, five regular daily starts, paid premium/ad-free policy, shared ranked/practice admission locks and authoritative once-only normal completion records. PostgreSQL18 CI run40204197673 passed213 backend tests; provider verification/credits, public API/UI, processing jobs and downstream qualification remain open.
 - [ ] 07: Durable realtime sessions, Redis flow, ranked matchmaking, reconnect/recovery and result settlement.
 - [ ] 08: Real streak milestone credits/ad-free rewards and referral qualification/points.
 - [ ] 09: Telegram Stars order/payment/refund lifecycle verified with staging bot.
@@ -58,3 +59,5 @@ Provisioning and backup/restore require a secure write-capable operator connecti
 Owner sign-off for whot-v1 is recorded in05-rule-decisions.md and RULEBOOK.md. Next implement verified practice admission/limits in06, followed by07 realtime/Redis delivery and result settlement. No rule suggestion has become a product decision. Hosted release of02–04 remains gated by backup/restore and provider integration evidence.
 
 Cumulative implementation details: [IMPLEMENTATION-SUMMARY.md](IMPLEMENTATION-SUMMARY.md).
+
+Latest stage06 core evidence: runtime35bf29b7940b575630b9fb0c94c8e3393ea96df9, https://github.com/Wisdom2788/CASH-DEY-PLAY/actions/runs/40204197673 . Six migrations deployed twice,213 backend tests and all frontend checks passed; ledger reconciliation reported zero mismatches.

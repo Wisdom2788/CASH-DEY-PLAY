@@ -20,4 +20,4 @@ Invalid signature/source/user/purpose/unit; replayed and out-of-order callbacks;
 
 Record commit, schema version, commands/results, integration evidence, unresolved decisions and recovery rehearsal here before marking complete. An acceptance criterion written above is not evidence that it passed.
 
-Internal admission implementation: src/practice/practice.repository.ts and migration2026102504_practice. See [algorithm and remaining boundaries](06-admission-design.md). No provider callback/credit path or public practice route is enabled. PostgreSQL CI validation is pending.
+Internal admission implementation: src/practice/practice.repository.ts and migration2026102504_practice. See [algorithm and remaining boundaries](06-admission-design.md). No provider callback/credit path or public practice route is enabled. Runtime35bf29b7940b575630b9fb0c94c8e3393ea96df9 passed213/213 backend tests across26 suites on PostgreSQL18 in Verify run40204197673. All six migrations deployed twice, ledger reconciliation had zero mismatches and frontend checks passed. This verifies the named internal core, not the missing provider/public-flow integrations.
