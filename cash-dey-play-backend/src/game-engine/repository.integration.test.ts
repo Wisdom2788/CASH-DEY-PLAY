@@ -43,11 +43,12 @@ suite('Whot game persistence on PostgreSQL',()=>{
   });
 
   it('stores private initial state, returns participant-only projections and rejects other users',async()=>{
-    const match=await practice();const view=await repo.view(match.id,'tg_123');
+    const match=await repo.createMatch({mode:'PRACTICE',rules,players:[{userId:'tg_123',isBot:false},{userId:null,isBot:true}],at:Date.parse('2026-10-25T23:30:00Z')});const view=await repo.view(match.id,'tg_123');
     expect(view.seat).toBe(0);expect(Object.keys(view)).not.toContain('market');expect(Object.keys(view)).not.toContain('discard');
     await expect(repo.view(match.id,'tg_456')).rejects.toThrow('INVALID_INPUT');
-    const stored=(await pool.query('SELECT private_initial_state,private_state FROM game_matches WHERE id=$1',[match.id])).rows[0]!;
+    const stored=(await pool.query('SELECT private_initial_state,private_state,lagos_date::text FROM game_matches WHERE id=$1',[match.id])).rows[0]!;
     expect(stored.private_initial_state).toEqual(stored.private_state);
+    expect(stored.lagos_date).toBe('2026-10-26');
     await expect(pool.query('UPDATE game_matches SET private_initial_state=$2 WHERE id=$1',[match.id,{}])).rejects.toThrow(/immutable/);
   });
 

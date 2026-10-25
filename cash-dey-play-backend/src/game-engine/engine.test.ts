@@ -9,6 +9,11 @@ function fixture(h0:string[],h1:string[],top:string,overrides:Partial<Rules>={},
  const rules={...proposal,...overrides};const cards=buildDeck(rules);const get=(id:string):Card=>{const c=cards.find(c=>c.id===id);if(!c)throw new Error('Bad fixture');return c;};
  const used=[...h0,...h1,top];return restoreGame({...createGame(rules,100,random),hands:[h0.map(get),h1.map(get)],market:cards.filter(c=>!used.includes(c.id)),discard:[get(top)],...extra});
 }
+function marketFixture(discardIds:string[]):GameState {
+ const cards=buildDeck(proposal),get=(id:string)=>cards.find(c=>c.id===id)!;const own=['CIRCLE-4'];
+ const used=new Set([...own,...discardIds]);const opponent=cards.filter(c=>!used.has(c.id));
+ return restoreGame({...createGame(proposal,100,random),hands:[own.map(get),opponent],market:[],discard:discardIds.map(get)});
+}
 function play(s:GameState,id:string,chosenSuit?:'CIRCLE'|'SQUARE'){return applyCommand(s,s.turn,{id:`action-${s.version}`,expectedVersion:s.version,command:{type:'PLAY',cardId:id,...(chosenSuit?{chosenSuit}:{})}},s.lastAt+1,random);}
 describe('pure configurable Whot engine',()=>{
  it('constructs the explicit proposed54-card multiset and deals without mutating inputs',()=>{
@@ -48,6 +53,18 @@ describe('pure configurable Whot engine',()=>{
   const d=applyCommand(s,0,{id:'draw',expectedVersion:0,command:{type:'DRAW'}},101,random);expect(d.turn).toBe(0);expect(d.drawnId).not.toBeNull();
   expect(()=>play(d,'CIRCLE-4')).toThrow('ILLEGAL_MOVE');expect(()=>applyCommand(d,0,{id:'draw2',expectedVersion:1,command:{type:'DRAW'}},102,random)).toThrow('ILLEGAL_MOVE');
   expect(applyCommand(d,0,{id:'pass',expectedVersion:1,command:{type:'PASS'}},102,random).turn).toBe(1);
+ });
+ it('rejects optional draws under the disabled policy and safely reshuffles only older discards',()=>{
+  const noVoluntary=fixture(['CIRCLE-4','SQUARE-3'],['STAR-3'],'CIRCLE-3',{voluntaryDraw:false});
+  expect(()=>applyCommand(noVoluntary,0,{id:'optional-draw',expectedVersion:0,command:{type:'DRAW'}},101,random)).toThrow('ILLEGAL_MOVE');
+  const s=marketFixture(['CIRCLE-3','SQUARE-3']);const d=applyCommand(s,0,{id:'reshuffle',expectedVersion:0,command:{type:'DRAW'}},101,random);
+  expect(d.hands[0].map(c=>c.id)).toContain('CIRCLE-3');expect(d.discard.map(c=>c.id)).toEqual(['SQUARE-3']);expect(d.market).toHaveLength(0);assertConservation(d);
+ });
+ it('ends as an unawarded draw when no drawable card remains and applies timeout draw policy',()=>{
+  const empty=marketFixture(['SQUARE-3']);const end=applyCommand(empty,0,{id:'empty-market',expectedVersion:0,command:{type:'DRAW'}},101,random);
+  expect(end).toMatchObject({status:'FINISHED',winner:null,reason:'EXHAUSTED'});assertConservation(end);
+  const timeout=fixture(['CIRCLE-4','SQUARE-3'],['STAR-3'],'CIRCLE-3',{timeout:'DRAW_AND_PASS'});
+  const t=applyTimeout(timeout,'server-timer',0,timeout.deadlineAt,random);expect(t.status).toBe('ACTIVE');expect(t.turn).toBe(1);expect(t.hands[0]).toHaveLength(3);
  });
  it('supports declaration penalties and explicit special finishing policy',()=>{
   const s=fixture(['CIRCLE-4','SQUARE-3'],['STAR-3'],'CIRCLE-3',{lastCardPenalty:2});expect(play(s,'CIRCLE-4').hands[0]).toHaveLength(3);
