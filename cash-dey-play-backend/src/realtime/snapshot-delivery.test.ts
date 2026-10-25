@@ -28,11 +28,18 @@ describe('bounded snapshot delivery',()=>{
    expect(send).toHaveBeenCalledTimes(1);value=update(1,newer.matchId);source.emit(value);await settle();expect(send).toHaveBeenCalledTimes(1);
   }finally{delivery.close();}
  });
- it('bounds concurrent recipients and fairly drains queued work',async()=>{
+ it('bounds concurrent database reads and fairly drains queued work',async()=>{
+  const source=bus();const delivery=new SnapshotDelivery(source,5000,1);const v=update();let release!:(value:GameUpdate)=>void;
+  const first=jest.fn(()=>new Promise<GameUpdate>(resolve=>{release=resolve;}));const second=jest.fn(async()=>v);
+  try{delivery.register({userId:'tg_123',load:first,send:async x=>ack(x),onError:jest.fn()});delivery.register({userId:'tg_456',load:second,send:async x=>ack(x),onError:jest.fn()});
+   await settle();expect(first).toHaveBeenCalledTimes(1);expect(second).not.toHaveBeenCalled();release(v);await settle();expect(second).toHaveBeenCalledTimes(1);
+  }finally{delivery.close();}
+ });
+ it('does not let a slow acknowledgement block another player’s snapshot read',async()=>{
   const source=bus();const delivery=new SnapshotDelivery(source,5000,1);const v=update();let release!:(value:unknown)=>void;
-  const first=jest.fn(()=>new Promise(resolve=>{release=resolve;}));const load=jest.fn(async()=>v);
-  try{delivery.register({userId:'tg_123',load,send:first,onError:jest.fn()});delivery.register({userId:'tg_456',load,send:async x=>ack(x),onError:jest.fn()});
-   await settle();expect(load).toHaveBeenCalledTimes(1);release(ack(v));await settle();expect(load).toHaveBeenCalledTimes(2);
+  const slow=()=>new Promise(resolve=>{release=resolve;});const second=jest.fn(async x=>ack(x));
+  try{delivery.register({userId:'tg_123',load:async()=>v,send:slow,onError:jest.fn()});delivery.register({userId:'tg_456',load:async()=>v,send:second,onError:jest.fn()});
+   await settle();expect(second).toHaveBeenCalledTimes(1);release(ack(v));await settle();
   }finally{delivery.close();}
  });
  it('cancels queued/disconnected recipients and closes the source subscription',async()=>{

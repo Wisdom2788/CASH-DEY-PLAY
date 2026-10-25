@@ -36,12 +36,14 @@ export class SnapshotDelivery {
   while(!this.closed&&this.inFlight<this.concurrency&&this.queue.size){
    const next=this.queue.values().next().value as Pending;this.queue.delete(next);
    if(!next.active)continue;next.running=true;next.dirty=false;this.inFlight++;
-   void this.deliver(next).finally(()=>{next.running=false;this.inFlight--;if(next.dirty&&next.active&&!this.closed)this.queue.add(next);this.drain();});
+   void this.load(next).then(update=>{this.inFlight--;this.drain();return this.deliver(next,update);})
+    .finally(()=>{next.running=false;if(next.dirty&&next.active&&!this.closed)this.queue.add(next);this.drain();});
   }
  }
- private async deliver(recipient:Pending):Promise<void>{
-  let update:GameUpdate|null;
-  try{update=await recipient.load();}catch(error){if(recipient.active){try{recipient.onError(error);}catch{/* cleanup must not reject the delivery loop */}}return;}
+ private async load(recipient:Pending):Promise<GameUpdate|null>{
+  try{return await recipient.load();}catch(error){if(recipient.active){try{recipient.onError(error);}catch{/* cleanup must not reject the delivery loop */}}return null;}
+ }
+ private async deliver(recipient:Pending,update:GameUpdate|null):Promise<void>{
   if(!recipient.active||!update||(recipient.cursor?.matchId===update.matchId&&recipient.cursor.version>=update.view.version))return;
   try{
    const ack=ackSchema.safeParse(await recipient.send(update));
