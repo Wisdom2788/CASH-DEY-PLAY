@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Pool,PoolClient } from 'pg';
-import { loadEntitlements } from '../entitlements/entitlements';
+import { loadEntitlements,PREMIUM_SQL } from '../entitlements/entitlements';
 import { APPROVED_WHOT_RULES } from '../game-engine/approved-rules';
 import { createGame,projectGame,restoreGame } from '../game-engine/engine';
 import { cryptoRandomInt } from '../game-engine/crypto-random';
@@ -105,6 +105,19 @@ export class RankedRepository {
   WHERE a.user_id=$1 AND b.user_id=$2 AND a.lagos_date=$3 AND b.lagos_date=$3 AND a.state IN('RESERVED','STARTED') AND b.state IN('RESERVED','STARTED') AND ($4::uuid IS NULL OR a.offer_id<>$4)`,[a,b,day,exclude??null])).rows[0]!.n);}
  private async ticketPresent(c:PoolClient,t:Ticket,at:Date):Promise<boolean>{return t.last_seen_at.getTime()>at.getTime()-45000&&t.search_expires_at>at&&Boolean((await c.query(`SELECT 1 FROM realtime_sessions s JOIN users u ON u.id=s.user_id
   WHERE s.user_id=$1 AND s.connection_id=$2 AND s.expires_at>$3 AND s.token_version=u.token_version FOR SHARE OF s`,[t.user_id,t.connection_id,at])).rowCount);}
+ /** Advisory pruning only; the reservation transaction repeats every eligibility/ownership check. */
+ async candidateIds(ids?:string[]):Promise<string[]>{
+  if(ids&&!ids.length)return [];
+  return (await this.pool.query<{id:string}>(`SELECT t.id FROM ranked_tickets t JOIN users u ON u.id=t.user_id
+   JOIN realtime_sessions s ON s.user_id=t.user_id AND s.connection_id=t.connection_id AND s.token_version=u.token_version
+   WHERE t.state='SEARCHING' AND t.search_expires_at>clock_timestamp() AND t.last_seen_at>clock_timestamp()-interval '45 seconds'
+   AND s.expires_at>clock_timestamp() AND ($1::uuid[] IS NULL OR t.id=ANY($1))
+   AND NOT EXISTS(SELECT 1 FROM game_players p JOIN game_matches m ON m.id=p.match_id WHERE p.user_id=t.user_id AND m.status='ACTIVE')
+   AND (SELECT count(*) FROM ranked_reservations r WHERE r.user_id=t.user_id AND r.lagos_date=(clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date AND r.state IN('RESERVED','STARTED'))<3
+   AND (${PREMIUM_SQL} OR NOT EXISTS(SELECT 1 FROM ranked_reservations r JOIN game_matches m ON m.id=r.match_id
+    WHERE r.user_id=t.user_id AND r.lagos_date=(clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date AND r.state='STARTED' AND r.slot=2 AND m.ended_at+interval '1 hour'>clock_timestamp()))
+   ORDER BY t.joined_at,t.id LIMIT 100`,[ids??null])).rows.map(r=>r.id);
+ }
  async createOffer(fence:RankedFence,a:string,b:string):Promise<Offer|null>{
   if(!uuid.test(a)||!uuid.test(b)||a===b)throw new RankedError('INVALID_INPUT');
   try{return await this.tx(async c=>{

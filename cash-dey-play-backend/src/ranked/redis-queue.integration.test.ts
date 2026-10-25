@@ -23,5 +23,6 @@ if(process.env.REQUIRE_REDIS_TESTS==='true'&&!url)throw new Error('TEST_REDIS_UR
  it('advances the cursor even when the whole queue fits in one window',async()=>{
   const first=entry();const second={...entry(),userId:'tg_456'};await queue.sync(first);await queue.sync(second);const owner=randomUUID();await queue.acquire(owner);
   expect((await queue.scan(owner)).length).toBe(2);expect(await redis.get(queue.prefix+'cursor')).toBe('1');
+  expect((await queue.scan(owner)).length).toBe(2);expect(await redis.get(queue.prefix+'cursor')).toBe('0');
  });
 });

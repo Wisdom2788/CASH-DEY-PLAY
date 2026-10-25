@@ -15,7 +15,9 @@ export class RankedMatchmaker {
   const fence=await this.ranked.acquireFence(token);if(!fence){await this.queue.release(token);return 0;}
   let offers=0;
   try{
-   const candidates=await this.queue.scan(token);const used=new Set<string>();let attempts=0;
+   const cached=await this.ranked.candidateIds(await this.queue.scan(token));
+   // A narrow/stale cache window must not hide an eligible opponent elsewhere in durable truth.
+   const candidates=[...new Set([...cached,...(cached.length<3?await this.ranked.candidateIds():[])])];const used=new Set<string>();let attempts=0;
    for(let i=0;i<candidates.length&&attempts<100;i++){
     if(used.has(candidates[i]!))continue;
     for(let j=i+1;j<candidates.length&&attempts<100;j++){

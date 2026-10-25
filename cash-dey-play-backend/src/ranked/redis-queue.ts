@@ -18,7 +18,9 @@ const scanScript=`
  if redis.call('GET',KEYS[1])~=ARGV[1] then return nil end
  local n=redis.call('ZCARD',KEYS[2]);if n==0 then return {} end
  local start=tonumber(redis.call('GET',KEYS[3]) or '0')%n
- local rows=redis.call('ZRANGE',KEYS[2],start,start+tonumber(ARGV[2])-1)
+ local count=math.min(n,tonumber(ARGV[2]))
+ local rows=redis.call('ZRANGE',KEYS[2],start,start+count-1)
+ if #rows<count then local head=redis.call('ZRANGE',KEYS[2],0,count-#rows-1);for _,id in ipairs(head) do table.insert(rows,id) end end
  redis.call('SET',KEYS[3],tostring((start+math.max(1,math.floor(#rows/2)))%n))
  return rows`;
 const cleanScript=`
