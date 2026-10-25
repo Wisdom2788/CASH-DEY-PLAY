@@ -12,8 +12,9 @@ export class DailyTasks {
   if(!locked.rowCount) throw new TaskEligibilityError('Registered player required');
   await client.query('SELECT o.id FROM premium_orders o JOIN paid_entitlements e ON e.order_id=o.id WHERE o.user_id=$1 FOR SHARE OF o,e',[userId]);
   await client.query('SELECT user_id FROM ad_free_days WHERE user_id=$1 FOR SHARE',[userId]);
-  const at=(await client.query<{at:Date}>('SELECT clock_timestamp() AS at')).rows[0]!.at;
-  const date=lagosDateOfInstant(at);const entitlements=await loadEntitlements(client,userId,at);
+  const instant=(await client.query<{at:Date;exact_at:string}>(`SELECT at,to_char(at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS exact_at FROM (SELECT clock_timestamp() AS at) instant`)).rows[0]!;
+  const at=instant.at;
+  const date=lagosDateOfInstant(at);const entitlements=await loadEntitlements(client,userId,instant.exact_at);
   for(const key of TASK_KEYS) await client.query("INSERT INTO daily_task_state(user_id,lagos_date,task_key,status) VALUES($1,$2,$3,'AVAILABLE') ON CONFLICT DO NOTHING",[userId,date,key]);
   await client.query(`UPDATE daily_task_state SET status=$3 WHERE user_id=$1 AND lagos_date=$2 AND task_key IN('MANDATORY_VIDEO_LOGIN','MANDATORY_VIDEO_UNLOCK') AND status<>'CLAIMED'`,[userId,date,entitlements.adFree?'AUTO_READY':'AVAILABLE']);
   return {at,date,rows:(await client.query<DailyRow>('SELECT task_key,status FROM daily_task_state WHERE user_id=$1 AND lagos_date=$2',[userId,date])).rows};

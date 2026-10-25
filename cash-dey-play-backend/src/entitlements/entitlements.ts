@@ -3,7 +3,7 @@ export const PREMIUM_SQL = `EXISTS(SELECT 1 FROM premium_orders o JOIN paid_enti
  WHERE o.user_id=u.id AND o.status='PAID' AND o.charge_id IS NOT NULL AND e.revoked_at IS NULL
  AND e.starts_at<=clock_timestamp() AND e.expires_at>clock_timestamp())`;
 export interface EntitlementState {isPremium:boolean;adFree:boolean;expiresAt:Date|null}
-export async function loadEntitlements(client:Pick<PoolClient,'query'>|Pool,userId:string,at:Date):Promise<EntitlementState> {
+export async function loadEntitlements(client:Pick<PoolClient,'query'>|Pool,userId:string,at:Date|string):Promise<EntitlementState> {
  const r=await client.query<{expires_at:Date|null;ad_free:boolean}>(`SELECT
  (SELECT max(e.expires_at) FROM paid_entitlements e JOIN premium_orders o ON o.id=e.order_id
  WHERE o.user_id=$1 AND o.status='PAID' AND o.charge_id IS NOT NULL AND e.revoked_at IS NULL AND e.starts_at<=$2 AND e.expires_at>$2) AS expires_at,

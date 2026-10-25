@@ -25,7 +25,7 @@ suite('entitlements, task claims and first-login referrals on PostgreSQL',()=>{
  });
  afterEach(async()=>{await pool.end();await admin.query(`DROP SCHEMA "${schema}" CASCADE`);});afterAll(async()=>{await admin.end();});
  async function premium(start:Date,end:Date){const id=randomUUID();await pool.query("INSERT INTO premium_orders(id,user_id,plan_id,duration_days,stars_amount,currency,status,charge_id) VALUES($1,'tg_123','30d',30,55,'XTR','PAID',$2)",[id,randomUUID()]);await pool.query('INSERT INTO paid_entitlements(order_id,starts_at,expires_at) VALUES($1,$2,$3)',[id,start,end]);return id;}
- async function exempt(){await pool.query("INSERT INTO ad_free_days(user_id,valid_on,starts_at) VALUES('tg_123',(clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date,clock_timestamp())");}
+ async function exempt(){await pool.query("INSERT INTO ad_free_days(user_id,valid_on,starts_at) VALUES('tg_123',(clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date,((clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date)::timestamp AT TIME ZONE 'Africa/Lagos')");}
  it('revokes legacy flags and uses exact paid expiry/revocation instead',async()=>{
   expect((await pool.query("SELECT is_premium FROM users")).rows[0].is_premium).toBe(false);
   const at=new Date('2026-10-25T12:00:00Z');const id=await premium(new Date('2026-10-24T12:00:00Z'),at);
@@ -95,6 +95,18 @@ suite('entitlements, task claims and first-login referrals on PostgreSQL',()=>{
   await pool.query("INSERT INTO first_login_attributions(user_id,start_param,captured_at) VALUES('tg_456','ref_ABCDEFGH',now()-interval '31 days')");await resolveReferral(pool,'tg_456');
   expect((await pool.query('SELECT count(*)::int AS n FROM referrals')).rows[0].n).toBe(0);
   expect(referralLink('ABCDEFGH',undefined,'game')).toBeNull();expect(referralLink('ABCDEFGH','ExampleBot','game')).toBe('https://t.me/ExampleBot/game?startapp=ref_ABCDEFGH');
+ });
+
+ it('preserves PostgreSQL microsecond expiry boundaries',async()=>{
+  const id=await premium(new Date('2026-10-24T00:00:00Z'),new Date('2026-10-26T00:00:00Z'));
+  await pool.query("UPDATE paid_entitlements SET expires_at='2026-10-25T12:00:00.000500Z' WHERE order_id=$1",[id]);
+  expect((await loadEntitlements(pool,'tg_123','2026-10-25T12:00:00.000499Z')).isPremium).toBe(true);
+  expect((await loadEntitlements(pool,'tg_123','2026-10-25T12:00:00.000500Z')).isPremium).toBe(false);
+ });
+
+ it('rejects claims from unregistered users without creating state',async()=>{
+  await expect(tasks.claim('tg_999','MANDATORY_VIDEO_LOGIN')).rejects.toThrow(/Registered/);
+  expect((await pool.query("SELECT count(*)::int AS n FROM daily_task_state WHERE user_id='tg_999'")).rows[0].n).toBe(0);
  });
 
 });

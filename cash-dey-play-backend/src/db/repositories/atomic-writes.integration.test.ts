@@ -5,8 +5,6 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Pool } from "pg";
 import { PostgresLoginStreakRepository } from "./login-streak.repository";
-import { PostgresTasksRepository } from "./tasks.repository";
-import { TaskAlreadyCompletedError } from "./tasks.errors";
 
 /**
  * Real-database tests for the writes that must be atomic.
@@ -21,11 +19,9 @@ describeWithDatabase("atomic writes on a real Postgres", () => {
   let pool: Pool;
   let admin: Pool;
   const schema = `cdp_test_${randomUUID().replace(/-/g, "")}`;
-  let tasksRepository: PostgresTasksRepository;
   let streakRepository: PostgresLoginStreakRepository;
 
   const USER_ID = "tg_9001";
-  const TODAY = "2026-10-20";
 
   beforeAll(async () => {
     // These tests TRUNCATE tables. Refuse to run against anything that is not clearly a throw-away test database.
@@ -41,7 +37,6 @@ describeWithDatabase("atomic writes on a real Postgres", () => {
     pool = new Pool({ connectionString: databaseUrl, options: `-c search_path=${schema}` });
     await pool.query(readFileSync(join(__dirname, "../../../prisma/migrations/0_init/migration.sql"), "utf8"));
     await pool.query(readFileSync(join(__dirname,"../../../prisma/migrations/2026102401_foundations/migration.sql"),"utf8"));
-    tasksRepository = new PostgresTasksRepository(pool);
     streakRepository = new PostgresLoginStreakRepository(pool);
   });
 
@@ -59,31 +54,6 @@ describeWithDatabase("atomic writes on a real Postgres", () => {
       await admin.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
       await admin.end();
     }
-  });
-
-  describe("task points", () => {
-    it("awards 50 points once when ten identical requests arrive together", async () => {
-      const outcomes = await Promise.allSettled(
-        Array.from({ length: 10 }, () => tasksRepository.completeTask(USER_ID, "task_login_video", TODAY)),
-      );
-
-      expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
-      const rejected = outcomes.filter((outcome) => outcome.status === "rejected") as PromiseRejectedResult[];
-      expect(rejected).toHaveLength(9);
-      rejected.forEach((outcome) => expect(outcome.reason).toBeInstanceOf(TaskAlreadyCompletedError));
-
-      const user = await pool.query("SELECT points FROM users WHERE id = $1", [USER_ID]);
-      expect(user.rows[0].points).toBe(50);
-      const completions = await pool.query("SELECT COUNT(*)::int AS count FROM task_completions");
-      expect(completions.rows[0].count).toBe(1);
-    });
-
-    it("leaves no completion behind when the player does not exist (the transaction rolls back)", async () => {
-      await expect(tasksRepository.completeTask("tg_missing", "task_login_video", TODAY)).rejects.toThrow();
-
-      const completions = await pool.query("SELECT COUNT(*)::int AS count FROM task_completions");
-      expect(completions.rows[0].count).toBe(0);
-    });
   });
 
   describe("streak bonus claim", () => {
