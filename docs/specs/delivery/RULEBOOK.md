@@ -26,7 +26,7 @@ Existing PRD primary formula is (wins/played)*(played/50), which simplifies to w
 
 ## Decisions that block their owning implementation/release
 
-1. Whot variant: exact deck multiplicities, initial hand, opening special-card handling, draw/pass rule, penalty stacking, finishing on actions/wilds, market exhaustion/reshuffle, turn expiry and last-card declaration. Existing deck helper claims 54 but creates 53 cards; do not copy it blindly.
+1. RESOLVED 2026-10-25: owner approved the complete Whot matrix in05-rule-decisions.md. Runtime version whot-v1 records54 cards, six-card hands, no penalty stacking, draw-and-pass, final-special-card wins, no last-card declaration,30-second forfeit timeout and500-action unawarded-draw bound. Existing matches retain their persisted rules.
 2. Streak grace/window and unclaimed-milestone expiry; tier switches must not pay both free and premium variants of the same milestone.
 3. Match void policy: two client disconnects alone cannot establish an infrastructure fault. Define allowance reservation, forfeit and refund boundaries.
 4. Ad provider authentication, event identity, user/purpose/session correlation, replay protection and low-volume publisher availability. The public GET callback example alone does not prove all required capabilities.

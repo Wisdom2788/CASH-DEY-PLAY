@@ -42,6 +42,14 @@ suite('Whot game persistence on PostgreSQL',()=>{
     expect((await pool.query('SELECT count(*)::int AS n FROM game_matches')).rows[0]!.n).toBe(0);
   });
 
+  it('creates ranked storage for two distinct human participants',async()=>{
+    const match=await repo.createMatch({mode:'RANKED',rules,players:[{userId:'tg_123',isBot:false},{userId:'tg_456',isBot:false}],at:1000});
+    expect((await repo.view(match.id,'tg_123')).seat).toBe(0);
+    expect((await repo.view(match.id,'tg_456')).seat).toBe(1);
+    await expect(repo.botAct(match.id,1001)).rejects.toThrow('INVALID_INPUT');
+    await expect(repo.createMatch({mode:'RANKED',rules,players:[{userId:'tg_123',isBot:false},{userId:'tg_123',isBot:false}],at:1000})).rejects.toThrow('INVALID_INPUT');
+  });
+
   it('stores private initial state, returns participant-only projections and rejects other users',async()=>{
     const match=await repo.createMatch({mode:'PRACTICE',rules,players:[{userId:'tg_123',isBot:false},{userId:null,isBot:true}],at:Date.parse('2026-10-25T23:30:00Z')});const view=await repo.view(match.id,'tg_123');
     expect(view.seat).toBe(0);expect(Object.keys(view)).not.toContain('market');expect(Object.keys(view)).not.toContain('discard');

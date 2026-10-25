@@ -33,7 +33,8 @@ export class GameRepository {
 
   async createMatch(input: { id?: string; mode: Mode; rules: Rules; players: readonly [Player, Player]; at: number }): Promise<{ id: string; state: GameState }> {
     const rules = safeRule(input.rules); const id = input.id ?? randomUUID(); parseId(id);
-    if (!Number.isSafeInteger(input.at) || input.at < 0 || input.players.length !== 2 || input.players[0].isBot === input.players[1].isBot ||
+    if (!Number.isSafeInteger(input.at) || input.at < 0 || input.players.length !== 2 ||
+      (!['PRACTICE','RANKED'].includes(input.mode)) ||
       (input.mode === 'RANKED' && input.players.some(p => p.isBot)) ||
       (input.mode === 'PRACTICE' && input.players.filter(p => p.isBot).length !== 1) ||
       input.players.some(p => p.isBot ? p.userId !== null : typeof p.userId !== 'string' || !accountId.test(p.userId)) ||

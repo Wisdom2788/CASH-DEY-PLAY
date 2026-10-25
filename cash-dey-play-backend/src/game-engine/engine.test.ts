@@ -2,6 +2,7 @@ import { applyCommand,applyTimeout,assertConservation,createGame,projectGame,res
 import { buildDeck,Card,GameState,Rules } from './model';
 import { cryptoRandomInt,recordRandom,replayRandom } from './crypto-random';
 import { chooseBotCommand } from './bot';
+import { APPROVED_WHOT_RULES } from './approved-rules';
 // Proposal only. No application runtime imports this fixture or selects default rules.
 const proposal:Rules={version:'proposal-v1',deck:[{suit:'CIRCLE',numbers:[1,2,3,4,5,7,8,10,11,12,13,14]},{suit:'TRIANGLE',numbers:[1,2,3,4,5,7,8,10,11,12,13,14]},{suit:'CROSS',numbers:[1,2,3,5,7,10,11,13,14]},{suit:'SQUARE',numbers:[1,2,3,5,7,10,11,13,14]},{suit:'STAR',numbers:[1,2,3,4,5,7,8]}],wildCount:5,initialHand:6,firstSeat:0,stacking:'NONE',drawMode:'DRAW_AND_PASS',voluntaryDraw:true,penaltySkipsTurn:true,marketRetainsTurn:true,allowSpecialFinish:true,lastCardPenalty:0,turnMs:30000,maxActions:500,timeout:'FORFEIT'};
 const random=(max:number)=>max-1;
@@ -16,6 +17,10 @@ function marketFixture(discardIds:string[]):GameState {
 }
 function play(s:GameState,id:string,chosenSuit?:'CIRCLE'|'SQUARE'){return applyCommand(s,s.turn,{id:`action-${s.version}`,expectedVersion:s.version,command:{type:'PLAY',cardId:id,...(chosenSuit?{chosenSuit}:{})}},s.lastAt+1,random);}
 describe('pure configurable Whot engine',()=>{
+ it('pins the owner approved profile to the reviewed mechanics',()=>{
+  expect(APPROVED_WHOT_RULES).toEqual({...proposal,version:'whot-v1'});
+  expect(Object.isFrozen(APPROVED_WHOT_RULES.deck[0]!.numbers)).toBe(true);
+ });
  it('constructs the explicit proposed54-card multiset and deals without mutating inputs',()=>{
   expect(buildDeck(proposal)).toHaveLength(54);expect(new Set(buildDeck(proposal).map(c=>c.id)).size).toBe(54);
   const state=createGame(proposal,100,random);expect(state.hands.map(h=>h.length)).toEqual([6,6]);expect(state.market).toHaveLength(41);
