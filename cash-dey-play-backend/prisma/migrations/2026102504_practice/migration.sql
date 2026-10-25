@@ -14,14 +14,16 @@ CREATE TABLE practice_starts (
  started_at timestamptz NOT NULL,
  lagos_date date GENERATED ALWAYS AS ((started_at AT TIME ZONE 'Africa/Lagos')::date) STORED,
  response jsonb NOT NULL CHECK(jsonb_typeof(response)='object'),
- UNIQUE(user_id,request_key)
+ UNIQUE(user_id,request_key),UNIQUE(match_id,user_id),
+ FOREIGN KEY(match_id,user_id) REFERENCES game_players(match_id,user_id)
 );
 CREATE INDEX practice_starts_daily_idx ON practice_starts(user_id,lagos_date);
 CREATE TABLE practice_completions (
  match_id uuid PRIMARY KEY REFERENCES practice_starts(match_id),
  user_id text NOT NULL REFERENCES users(id),
  completed_at timestamptz NOT NULL,
- lagos_date date GENERATED ALWAYS AS ((completed_at AT TIME ZONE 'Africa/Lagos')::date) STORED
+ lagos_date date GENERATED ALWAYS AS ((completed_at AT TIME ZONE 'Africa/Lagos')::date) STORED,
+ FOREIGN KEY(match_id,user_id) REFERENCES practice_starts(match_id,user_id)
 );
 CREATE INDEX practice_completions_user_date_idx ON practice_completions(user_id,lagos_date);
 CREATE TRIGGER practice_starts_immutable BEFORE UPDATE OR DELETE ON practice_starts FOR EACH ROW EXECUTE FUNCTION reject_game_history_mutation();

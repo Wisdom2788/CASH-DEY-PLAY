@@ -115,4 +115,9 @@ suite('practice admission PostgreSQL boundary',()=>{
   await expect(repo.start('tg_123','short')).rejects.toMatchObject({code:'INVALID_INPUT'});
   await expect(repo.start('tg_999','valid-key-01')).rejects.toMatchObject({code:'NOT_FOUND'});
  });
+ it('enforces completion ownership in PostgreSQL as well as in the service',async()=>{
+  const s=await repo.start('tg_123','ownership-01');
+  await expect(pool.query("INSERT INTO practice_completions(match_id,user_id,completed_at) VALUES($1,'tg_456',clock_timestamp())",[s.matchId])).rejects.toThrow(/foreign key/);
+  expect((await pool.query('SELECT count(*)::int n FROM practice_completions')).rows[0].n).toBe(0);
+ });
 });
