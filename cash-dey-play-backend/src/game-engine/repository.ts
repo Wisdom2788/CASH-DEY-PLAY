@@ -43,6 +43,12 @@ export class GameRepository {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN'); await client.query("SET LOCAL lock_timeout='5s'"); await client.query("SET LOCAL statement_timeout='10s'");
+      // Share the admission lock with practice; sort multi-player locks to avoid deadlocks.
+      const humans=input.players.filter(p=>!p.isBot).map(p=>p.userId!).sort();
+      const locked=await client.query('SELECT id FROM users WHERE id=ANY($1::text[]) ORDER BY id FOR UPDATE',[humans]);
+      if(locked.rowCount!==humans.length) throw new GameError('INVALID_INPUT');
+      const busy=await client.query("SELECT 1 FROM game_players p JOIN game_matches m ON m.id=p.match_id WHERE p.user_id=ANY($1::text[]) AND m.status='ACTIVE' LIMIT 1",[humans]);
+      if(busy.rowCount) throw new GameError('INVALID_STATE');
       await client.query(`INSERT INTO game_matches(id,mode,rule_version,private_initial_state,private_state,status,version,started_at,updated_at)
         VALUES($1,$2,$3,$4,$4,'ACTIVE',0,$5,$5)`, [id,input.mode,rules.version,initial,new Date(input.at)]);
       for (const [seat, player] of input.players.entries()) await client.query('INSERT INTO game_players(match_id,seat,user_id,is_bot) VALUES($1,$2,$3,$4)',[id,seat,player.userId,player.isBot]);

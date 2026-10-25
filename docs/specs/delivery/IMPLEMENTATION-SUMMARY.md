@@ -12,7 +12,7 @@ Updated 25 October 2026. Checkboxes describe the named implementation scope; ful
 - [x] 05 engine core: crypto shuffle, configurable immutable Whot transitions, legality/ownership/version/deadline validation, private views, projected-view bot, replay and transactional match/player/event/outbox storage.
 - [x] 05 owner decision: Whot matrix approved 25 October 2026; immutable whot-v1 runtime profile records the approved variant.
 - [x] 05 follow-through validation: approved profile and two-human ranked-storage correction passed PostgreSQL18 CI run40201787923; all199 backend tests and frontend checks passed.
-- [ ] 06 verified ads and practice admission: provider authenticity/session evidence, purpose-bound credits, five regular daily starts, premium bypass, safe fallback and completion accounting.
+- [ ] 06 full verified ads and practice admission: provider authenticity/session evidence, purpose-bound credits, five regular daily starts, premium bypass, safe fallback and completion accounting.
 - [ ] 07 realtime/ranked: websocket authentication, Redis ownership/recovery, matchmaking, reconnect, timers and authoritative result settlement.
 - [ ] 08 rewards: streak milestone/ad-free grants and referral qualification/points.
 - [ ] 09 Stars: verified orders, payment/refund events and entitlement lifecycle with staging bot.
@@ -23,3 +23,5 @@ Updated 25 October 2026. Checkboxes describe the named implementation scope; ful
 - [ ] Production promotion: reviewed development release after backup/restore and integration gates.
 
 Most recent runtime CI:199 backend tests passed on PostgreSQL18, with frontend checks passing (run40201787923). Passing automated tests is evidence for tested behavior, not completion of external integrations.
+
+- [ ] 06 admission core validation: internal atomic starts/completions and shared match-admission locking implemented; required PostgreSQL CI pending. Provider adapter, credits, public API/UI and recovery scheduling remain open.

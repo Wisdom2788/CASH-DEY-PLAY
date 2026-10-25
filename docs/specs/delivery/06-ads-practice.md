@@ -1,6 +1,6 @@
 # Verified ads, practice admission and counters
 
-Status: **Specified; not implemented**. Covers: C2, H8/H11, M7, practice requirements. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
+Status: **Admission/completion core implemented; provider integration and public flow incomplete**. Covers: C2, H8/H11, M7, practice requirements. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
 
 ### Provider contract gate
 
@@ -19,3 +19,5 @@ Invalid signature/source/user/purpose/unit; replayed and out-of-order callbacks;
 ## Implementation record
 
 Record commit, schema version, commands/results, integration evidence, unresolved decisions and recovery rehearsal here before marking complete. An acceptance criterion written above is not evidence that it passed.
+
+Internal admission implementation: src/practice/practice.repository.ts and migration2026102504_practice. See [algorithm and remaining boundaries](06-admission-design.md). No provider callback/credit path or public practice route is enabled. PostgreSQL CI validation is pending.
