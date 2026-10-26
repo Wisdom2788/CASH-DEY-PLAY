@@ -1,3 +1,4 @@
+import { RankedDelivery } from './ranked-delivery';
 import { RankedRepository,RankedError } from '../ranked/ranked.repository';
 import { RedisRankedQueue } from '../ranked/redis-queue';
 import { SnapshotDelivery } from './snapshot-delivery';
@@ -15,7 +16,7 @@ interface GatewayOptions {
  jwtSecret:string;origin:string;rateLimits:RateLimitCounterStore;
  sessions:Pick<RealtimeSessionRepository,'claim'|'assertCurrent'|'release'|'resume'>;
  delivery?:{source:GameNotificationSource;snapshots:Pick<RealtimeSessionRepository,'deliverySnapshot'>;catchupMs?:number;ackMs?:number};
- ranked?:{repository:RankedRepository;queue:RedisRankedQueue;rateLimits:RateLimitCounterStore};
+ ranked?:{repository:RankedRepository;queue:RedisRankedQueue;rateLimits:RateLimitCounterStore;pushMs?:number;ackMs?:number};
  actions?:{games:Pick<GameRepository,'actForConnection'>;rateLimits:RateLimitCounterStore};
 }
 const authSchema=z.strictObject({token:z.string().min(1).max(8192)});
@@ -32,7 +33,8 @@ export function attachRealtimeGateway(server:HttpServer,options:GatewayOptions):
  const io=new Server(server,{transports:['websocket'],maxHttpBufferSize:8192,
   cors:{origin:options.origin},allowRequest:(req,done)=>done(null,req.headers.origin===options.origin)});
  const delivery=options.delivery?new SnapshotDelivery(options.delivery.source,options.delivery.catchupMs):undefined;
- server.once('close',()=>delivery?.close());
+ const rankedDelivery=options.ranked?new RankedDelivery(options.ranked.pushMs):undefined;
+ server.once('close',()=>{delivery?.close();rankedDelivery?.close();});
  io.use((socket,next)=>{void(async()=>{
   const parsed=authSchema.safeParse(socket.handshake.auth);if(!parsed.success)throw new RealtimeError('UNAUTHORIZED');
   let identity;
@@ -56,7 +58,9 @@ export function attachRealtimeGateway(server:HttpServer,options:GatewayOptions):
    load:async()=>{verifyToken();return options.delivery!.snapshots.deliverySnapshot(connection);},
    send:async update=>socket.timeout(options.delivery?.ackMs??2000).emitWithAck('match:update',update),
    onError:error=>disconnect(code(error))});
-  socket.on('disconnect',()=>{unregister?.();clearTimeout(expiry);clearInterval(monitor);void options.sessions.release(connection).catch(()=>undefined);});
+  const unregisterRanked=rankedDelivery?.register({load:async()=>{verifyToken();return options.ranked!.repository.resume(connection);},
+   send:update=>socket.timeout(options.ranked?.ackMs??2000).emitWithAck('session:update',update),onError:error=>disconnect(code(error))});
+  socket.on('disconnect',()=>{unregisterRanked?.();unregister?.();clearTimeout(expiry);clearInterval(monitor);void options.sessions.release(connection).catch(()=>undefined);});
   socket.onAny((event:string,...args:unknown[])=>{
    const now=Date.now();if(now-frameWindow>=1000){frameWindow=now;frameCount=0;}
    if(++frameCount>30){disconnect('RATE_LIMITED');return;}
@@ -66,10 +70,16 @@ export function attachRealtimeGateway(server:HttpServer,options:GatewayOptions):
    void(async()=>{
     if(await options.rateLimits.increment(`rt:event:${connection.userId}`,60)>60)throw new RealtimeError('RATE_LIMITED');
     verifyToken();
-    if(options.ranked&&['queue:join','queue:heartbeat','queue:cancel','offer:respond'].includes(event)){
+    if(options.ranked&&['queue:join','queue:heartbeat','queue:cancel','offer:respond','rematch:request','rematch:respond'].includes(event)){
      const ranked=options.ranked;
      if(await ranked.rateLimits.increment(`rt:ranked:${connection.userId}`,60)>30)throw new RealtimeError('RATE_LIMITED');
-     if(event==='queue:join'){
+     if(event==='rematch:request'){
+      const parsed=z.strictObject({opponentId:z.string().regex(/^tg_[1-9][0-9]{0,19}$/),requestKey:z.string().regex(/^[A-Za-z0-9._:-]{8,128}$/)}).safeParse(args[0]);if(!parsed.success)throw new RealtimeError('INVALID_INPUT');
+      await ranked.repository.requestRematch(connection,parsed.data.opponentId,parsed.data.requestKey);
+     }else if(event==='rematch:respond'){
+      const parsed=z.strictObject({requestId:z.string().uuid(),accept:z.boolean()}).safeParse(args[0]);if(!parsed.success)throw new RealtimeError('INVALID_INPUT');
+      await ranked.repository.respondRematch(connection,parsed.data.requestId,parsed.data.accept);
+     }else if(event==='queue:join'){
       const parsed=z.strictObject({requestKey:z.string().regex(/^[A-Za-z0-9._:-]{8,128}$/)}).safeParse(args[0]);if(!parsed.success)throw new RealtimeError('INVALID_INPUT');
       await ranked.repository.join(connection,parsed.data.requestKey);
      }else if(event==='offer:respond'){
@@ -81,6 +91,7 @@ export function attachRealtimeGateway(server:HttpServer,options:GatewayOptions):
       if(event==='queue:heartbeat')await ranked.repository.heartbeat(connection,parsed.data.ticketId);else await ranked.repository.cancel(connection,parsed.data.ticketId);
      }
      for(const entry of await ranked.repository.cacheEntries('',1,[connection.userId]))await ranked.queue.sync(entry);
+     rankedDelivery?.wake();
      const snapshot=await ranked.repository.resume(connection);if(socket.connected)ack({ok:true,data:snapshot});return;
     }
     if(event==='session:resume'&&options.ranked){

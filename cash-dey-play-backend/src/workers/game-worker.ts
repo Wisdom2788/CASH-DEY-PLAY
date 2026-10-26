@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+import { RankedSettlement } from '../ranked/settlement.repository';
 import { GameRepository } from '../game-engine/repository';
 import { PracticeRepository } from '../practice/practice.repository';
 
@@ -19,7 +20,8 @@ export async function runGamePass(pool:Pool,limit=100,signal?:AbortSignal):Promi
  }
  if(signal?.aborted)return {scanned:candidates.rows.length,advanced,completed:0};
  const completion=await new PracticeRepository(pool).recoverCompletions(limit,signal);
- return {scanned:candidates.rows.length,advanced,completed:completion.recorded};
+ const ranked=await new RankedSettlement(pool).recover(limit,signal);
+ return {scanned:candidates.rows.length,advanced,completed:completion.recorded+ranked};
 }
 
 export function waitForNextPass(signal:AbortSignal,ms=2000):Promise<void>{

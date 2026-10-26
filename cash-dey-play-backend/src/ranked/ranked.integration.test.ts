@@ -13,6 +13,8 @@ import { APPROVED_WHOT_RULES } from '../game-engine/approved-rules';
 import { GameRepository } from '../game-engine/repository';
 import { PracticeRepository } from '../practice/practice.repository';
 import { RealtimeConnection,RealtimeSessionRepository } from '../realtime/session.repository';
+import { RankedSettlement } from './settlement.repository';
+import { DailyTasks } from '../entitlements/daily-tasks';
 import { RankedRepository } from './ranked.repository';
 import { RedisRankedQueue } from './redis-queue';
 import { RankedMatchmaker } from './matchmaker';
@@ -37,6 +39,53 @@ suite('durable ranked admission and Redis matchmaking',()=>{
  async function offer(a=123,b=456){const ta=await ranked.join(c(a),'join-'+randomUUID());const tb=await ranked.join(c(b),'join-'+randomUUID());const fence=(await ranked.acquireFence(randomUUID()))!;try{return {offer:(await ranked.createOffer(fence,ta.id,tb.id))!,ta,tb};}finally{await ranked.releaseFence(fence);}}
  async function start(a=123,b=456){const queued=await offer(a,b);expect(queued.offer).not.toBeNull();await ranked.respond(c(a),queued.offer.id,true);const result=await ranked.respond(c(b),queued.offer.id,true);expect(result.state).toBe('STARTED');return {...queued,matchId:result.matchId!};}
  async function finish(matchId:string){const actor=(await pool.query<{user_id:string}>('SELECT user_id FROM game_players WHERE match_id=$1 AND seat=0',[matchId])).rows[0]!.user_id;return games.actForConnection(c(Number(actor.slice(3))),matchId,{id:'forfeit-'+randomUUID(),expectedVersion:0,command:{type:'FORFEIT'}});}
+ it('settles server forfeits once, feeds ranked-win task and all-complete bonus atomically',async()=>{
+  await premium(456);const tasks=new DailyTasks(pool);await tasks.claim('tg_456','MANDATORY_VIDEO_LOGIN');await tasks.claim('tg_456','MANDATORY_VIDEO_UNLOCK');
+  const m=await start();await finish(m.matchId);const settlement=new RankedSettlement(pool);
+  const results=await Promise.all(Array.from({length:10},()=>settlement.settle(m.matchId)));expect(results.filter(Boolean)).toHaveLength(1);
+  expect((await pool.query('SELECT user_id,outcome FROM ranked_results ORDER BY user_id')).rows).toEqual([{user_id:'tg_123',outcome:'LOSS'},{user_id:'tg_456',outcome:'WIN'}]);
+  expect((await pool.query("SELECT points FROM users WHERE id='tg_456'")).rows[0].points).toBe(200);
+  expect((await tasks.state('tg_456')).allBonusClaimed).toBe(true);
+  expect((await pool.query("SELECT count(*)::int n FROM outbox_events WHERE type='RANKED_SETTLED'")).rows[0].n).toBe(1);
+  await expect(pool.query("UPDATE ranked_results SET outcome='WIN' WHERE user_id='tg_123'")).rejects.toThrow('immutable');
+ });
+ it('rolls back result receipts, task points and outbox on a settlement failure then recovers',async()=>{
+  const m=await start();expect(await new RankedSettlement(pool).settle(m.matchId)).toBe(false);await finish(m.matchId);
+  await pool.query(`CREATE FUNCTION fail_settle() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.type='RANKED_SETTLED' THEN RAISE EXCEPTION 'injected'; END IF; RETURN NEW; END $$; CREATE TRIGGER fail_settle BEFORE INSERT ON outbox_events FOR EACH ROW EXECUTE FUNCTION fail_settle()`);
+  await expect(new RankedSettlement(pool).settle(m.matchId)).rejects.toThrow('injected');
+  expect((await pool.query('SELECT count(*)::int n FROM ranked_results')).rows[0].n).toBe(0);expect((await pool.query("SELECT points FROM users WHERE id='tg_456'")).rows[0].points).toBe(0);
+  await pool.query('DROP TRIGGER fail_settle ON outbox_events');expect(await new RankedSettlement(pool).recover()).toBe(1);
+  expect(await new RankedSettlement(pool).recover()).toBe(0);
+ });
+ it('attributes no-shows once, applies the warning/2/5/15 ladder and resets after24 hours',async()=>{
+  for(const [miss,minutes] of [[1,0],[2,2],[3,5],[4,15]]){
+   const o=await offer();await ranked.respond(c(123),o.offer.id,true);await ranked.respond(c(456),o.offer.id,false);await ranked.respond(c(456),o.offer.id,false);
+   const snapshot=await ranked.resume(c(456));expect(snapshot.ranked.penalty.misses).toBe(miss);expect(Boolean(snapshot.ranked.penalty.lockedUntil)).toBe(minutes!==0);
+   expect((await ranked.resume(c(123))).ranked.penalty.misses).toBe(0);
+   if(minutes){await expect(ranked.join(c(456),'locked-'+randomUUID())).rejects.toMatchObject({code:'RANKED_LOCKED'});await pool.query("UPDATE ranked_penalties SET locked_until=clock_timestamp()-interval '1 second' WHERE user_id='tg_456'");}
+   await ranked.cancel(c(123),o.ta.id);
+  }
+  await pool.query("UPDATE ranked_penalties SET last_miss_at=clock_timestamp()-interval '24 hours',locked_until=NULL WHERE user_id='tg_456'");
+  const o=await offer();await ranked.respond(c(456),o.offer.id,false);expect((await ranked.resume(c(456))).ranked.penalty).toEqual({misses:1,lockedUntil:null});
+  expect((await pool.query("SELECT count(*)::int n FROM ranked_no_shows WHERE user_id='tg_456'")).rows[0].n).toBe(5);
+ });
+ it('starts mutually accepted rematch once with no second ready check and rechecks opponent cap',async()=>{
+  const first=await start();await finish(first.matchId);await new RankedSettlement(pool).settle(first.matchId);
+  const request=await ranked.requestRematch(c(123),'tg_456','rematch-key');expect(await ranked.requestRematch(c(123),'tg_456','rematch-key')).toBe(request);
+  expect((await ranked.resume(c(456))).ranked.rematches).toMatchObject([{id:request,incoming:true,opponentId:'tg_123'}]);
+  await expect(ranked.respondRematch(c(123),request,true)).rejects.toMatchObject({code:'INVALID_INPUT'});
+  const starts=await Promise.all(Array.from({length:10},()=>ranked.respondRematch(c(456),request,true)));expect(new Set(starts.map(v=>v.matchId)).size).toBe(1);expect(starts[0]!.state).toBe('STARTED');
+  await finish(starts[0]!.matchId!);await premium(123);await premium(456);
+  await expect(ranked.requestRematch(c(123),'tg_456','third-pair')).rejects.toMatchObject({code:'INCOMPATIBLE'});
+ });
+ it('throttles three rolling-hour rematch requests and declines/expiries do not penalize or charge',async()=>{
+  const first=await start();await finish(first.matchId);await new RankedSettlement(pool).settle(first.matchId);
+  for(let i=0;i<3;i++){const id=await ranked.requestRematch(c(123),'tg_456','request-'+i);await ranked.respondRematch(c(456),id,false);}
+  await expect(ranked.requestRematch(c(123),'tg_456','request-four')).rejects.toMatchObject({code:'REMATCH_LIMIT'});
+  await pool.query("UPDATE ranked_rematches SET created_at=created_at-interval '1 hour',expires_at=expires_at-interval '1 hour'");
+  const id=await ranked.requestRematch(c(123),'tg_456','new-hour');await pool.query("UPDATE ranked_rematches SET created_at=created_at-interval '20 seconds',expires_at=clock_timestamp()-interval '1 second' WHERE id=$1",[id]);
+  expect((await ranked.respondRematch(c(456),id,true)).state).toBe('EXPIRED');expect((await ranked.resume(c(456))).ranked.penalty.misses).toBe(0);expect((await ranked.resume(c(456))).ranked.allowance.used).toBe(1);
+ });
  it('serializes duplicate queue joins and shares the admission lock with practice',async()=>{
   const joined=await Promise.all(Array.from({length:10},()=>ranked.join(c(123),'same-join-key')));expect(new Set(joined.map(t=>t.id)).size).toBe(1);
   await expect(new PracticeRepository(pool,'ALLOW_PROVIDER_UNAVAILABLE').start('tg_123','practice-conflict')).rejects.toMatchObject({code:'RANKED_QUEUE'});

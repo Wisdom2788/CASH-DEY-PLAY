@@ -7,7 +7,7 @@ import { cryptoRandomInt } from '../game-engine/crypto-random';
 import { RealtimeConnection,RealtimeSessionRepository } from '../realtime/session.repository';
 
 export class RankedError extends Error {
- constructor(readonly code:'INVALID_INPUT'|'ALREADY_IN_MATCH'|'ALREADY_IN_QUEUE'|'RANKED_DAILY_LIMIT'|'RANKED_COOLDOWN'|'STALE_TICKET'|'OFFER_EXPIRED'|'INCOMPATIBLE'|'STALE_OWNER'){super(code);}
+ constructor(readonly code:'INVALID_INPUT'|'ALREADY_IN_MATCH'|'ALREADY_IN_QUEUE'|'RANKED_DAILY_LIMIT'|'RANKED_COOLDOWN'|'STALE_TICKET'|'OFFER_EXPIRED'|'INCOMPATIBLE'|'STALE_OWNER'|'RANKED_LOCKED'|'REMATCH_LIMIT'|'REMATCH_EXPIRED'){super(code);}
 }
 interface Ticket {id:string;user_id:string;connection_id:string;request_key:string;state:'SEARCHING'|'OFFER'|'STARTED'|'CANCELLED'|'EXPIRED';joined_at:Date;last_seen_at:Date;search_expires_at:Date}
 interface Offer {id:string;a_ticket:string;b_ticket:string;state:'PENDING'|'STARTED'|'CANCELLED'|'EXPIRED';accepted_a:boolean;accepted_b:boolean;created_at:Date;expires_at:Date;match_id:string|null}
@@ -48,6 +48,7 @@ export class RankedRepository {
    cooldownUntil:rankedCooldownUntil(entitlement.isPremium,second?.ended_at?.getTime()??null,clock.at.getTime(),clock.reset.getTime()),resetAt:clock.reset.getTime()};
  }
  private async eligible(c:PoolClient,userId:string,clock:{at:Date;day:string;reset:Date},exclude?:string):Promise<Allowance>{
+  if((await c.query('SELECT 1 FROM ranked_penalties WHERE user_id=$1 AND locked_until>$2',[userId,clock.at])).rowCount)throw new RankedError('RANKED_LOCKED');
   const value=await this.allowance(c,userId,clock,exclude);if(value.remaining<1)throw new RankedError('RANKED_DAILY_LIMIT');
   if(value.cooldownUntil)throw new RankedError('RANKED_COOLDOWN');
   if((await c.query("SELECT 1 FROM game_players p JOIN game_matches m ON m.id=p.match_id WHERE p.user_id=$1 AND m.status='ACTIVE' LIMIT 1",[userId])).rowCount)throw new RankedError('ALREADY_IN_MATCH');
@@ -111,6 +112,7 @@ export class RankedRepository {
   return (await this.pool.query<{id:string}>(`SELECT t.id FROM ranked_tickets t JOIN users u ON u.id=t.user_id
    JOIN realtime_sessions s ON s.user_id=t.user_id AND s.connection_id=t.connection_id AND s.token_version=u.token_version
    WHERE t.state='SEARCHING' AND t.search_expires_at>clock_timestamp() AND t.last_seen_at>clock_timestamp()-interval '45 seconds'
+   AND NOT EXISTS(SELECT 1 FROM ranked_penalties p WHERE p.user_id=t.user_id AND p.locked_until>clock_timestamp())
    AND s.expires_at>clock_timestamp() AND ($1::uuid[] IS NULL OR t.id=ANY($1))
    AND NOT EXISTS(SELECT 1 FROM game_players p JOIN game_matches m ON m.id=p.match_id WHERE p.user_id=t.user_id AND m.status='ACTIVE')
    AND (SELECT count(*) FROM ranked_reservations r WHERE r.user_id=t.user_id AND r.lagos_date=(clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date AND r.state IN('RESERVED','STARTED'))<3
@@ -130,12 +132,13 @@ export class RankedRepository {
    const id=randomUUID();const offer=(await c.query<Offer>(`INSERT INTO ranked_offers(id,a_ticket,b_ticket,state,created_at,expires_at) VALUES($1,$2,$3,'PENDING',$4,$4::timestamptz+interval '10 seconds') RETURNING *`,[id,rows[0]!.id,rows[1]!.id,clock.at])).rows[0]!;
    for(const t of rows){await c.query("UPDATE ranked_tickets SET state='OFFER' WHERE id=$1",[t.id]);await c.query("INSERT INTO ranked_reservations(offer_id,user_id,state,lagos_date,reserved_at) VALUES($1,$2,'RESERVED',$3,$4)",[id,t.user_id,clock.day,clock.at]);await this.epoch(c,t.user_id,true);}
    return offer;
-  });}catch(error){if(error instanceof RankedError&&['INCOMPATIBLE','RANKED_DAILY_LIMIT','RANKED_COOLDOWN','ALREADY_IN_MATCH','ALREADY_IN_QUEUE'].includes(error.code))return null;throw error;}
+  });}catch(error){if(error instanceof RankedError&&['INCOMPATIBLE','RANKED_DAILY_LIMIT','RANKED_COOLDOWN','ALREADY_IN_MATCH','ALREADY_IN_QUEUE','RANKED_LOCKED'].includes(error.code))return null;throw error;}
  }
- private async releaseOffer(c:PoolClient,offer:Offer,rows:Ticket[],at:Date,fault?:string):Promise<void>{
+ private async releaseOffer(c:PoolClient,offer:Offer,rows:Ticket[],at:Date,fault?:string,penalize=true):Promise<void>{
   await c.query("UPDATE ranked_offers SET state=$2 WHERE id=$1 AND state='PENDING'",[offer.id,fault?'CANCELLED':'EXPIRED']);
   await c.query("UPDATE ranked_reservations SET state='RELEASED' WHERE offer_id=$1 AND state='RESERVED'",[offer.id]);
   for(const t of rows){const accepted=t.id===offer.a_ticket?offer.accepted_a:offer.accepted_b;
+   if(penalize&&(fault?t.user_id===fault:!accepted))await this.noShow(c,offer.id,t.user_id,at);
    const requeue=t.user_id!==fault&&(fault!==undefined||accepted)&&await this.ticketPresent(c,t,at);
    await c.query('UPDATE ranked_tickets SET state=$2 WHERE id=$1',[t.id,requeue?'SEARCHING':'CANCELLED']);await this.epoch(c,t.user_id,requeue);
   }
@@ -156,11 +159,15 @@ export class RankedRepository {
    if(actor.id===offer.a_ticket)offer.accepted_a=true;else offer.accepted_b=true;
    await c.query('UPDATE ranked_offers SET accepted_a=$2,accepted_b=$3 WHERE id=$1',[offer.id,offer.accepted_a,offer.accepted_b]);
    if(!offer.accepted_a||!offer.accepted_b)return {matchId:null,state:'PENDING'};
+   return this.startAccepted(c,offer,rows,clock);
+  });
+ }
+ private async startAccepted(c:PoolClient,offer:Offer,rows:Ticket[],clock:{at:Date;day:string;reset:Date}):Promise<{matchId:string|null;state:string}>{
    const allowances:Allowance[]=[];let invalidUser:string|undefined;
    try{
     for(const t of rows){invalidUser=t.user_id;if(!await this.ticketPresent(c,t,clock.at))throw new RankedError('INCOMPATIBLE');allowances.push(await this.eligible(c,t.user_id,clock,offer.id));}
     if(await this.pairCount(c,rows[0]!.user_id,rows[1]!.user_id,clock.day,offer.id)>=2)throw new RankedError('INCOMPATIBLE');
-   }catch(error){if(!(error instanceof RankedError))throw error;await this.releaseOffer(c,offer,rows,clock.at,invalidUser);return {matchId:null,state:'CANCELLED'};}
+   }catch(error){if(!(error instanceof RankedError))throw error;await this.releaseOffer(c,offer,rows,clock.at,invalidUser,false);return {matchId:null,state:'CANCELLED'};}
    const matchId=randomUUID();const state=createGame(APPROVED_WHOT_RULES,clock.at.getTime(),cryptoRandomInt);
    await c.query(`INSERT INTO game_matches(id,mode,rule_version,private_initial_state,private_state,status,version,started_at,updated_at) VALUES($1,'RANKED',$2,$3,$3,'ACTIVE',0,$4,$4)`,[matchId,state.rules.version,state,clock.at]);
    for(let i=0;i<rows.length;i++){
@@ -171,8 +178,60 @@ export class RankedRepository {
    await c.query("UPDATE ranked_offers SET state='STARTED',match_id=$2 WHERE id=$1",[offer.id,matchId]);
    await c.query("INSERT INTO outbox_events(id,type,payload) VALUES($1,'RANKED_STARTED',$2)",[randomUUID(),{matchId,offerId:offer.id}]);
    return {matchId,state:'STARTED'};
+
+ }
+ private async noShow(c:PoolClient,offerId:string,userId:string,at:Date):Promise<void>{
+  const receipt=await c.query('INSERT INTO ranked_no_shows(offer_id,user_id,occurred_at) VALUES($1,$2,$3) ON CONFLICT DO NOTHING RETURNING user_id',[offerId,userId,at]);
+  if(!receipt.rowCount)return;
+  const prior=(await c.query<{misses:number;last_miss_at:Date}>('SELECT misses,last_miss_at FROM ranked_penalties WHERE user_id=$1',[userId])).rows[0];
+  const misses=prior&&at.getTime()-prior.last_miss_at.getTime()<86400000?prior.misses+1:1;
+  const minutes=misses===1?0:misses===2?2:misses===3?5:15;
+  await c.query(`INSERT INTO ranked_penalties(user_id,misses,last_miss_at,locked_until) VALUES($1,$2,$3,$4)
+   ON CONFLICT(user_id) DO UPDATE SET misses=EXCLUDED.misses,last_miss_at=EXCLUDED.last_miss_at,locked_until=EXCLUDED.locked_until`,[userId,misses,at,minutes?new Date(at.getTime()+minutes*60000):null]);
+ }
+ async requestRematch(connection:RealtimeConnection,targetId:string,key:string):Promise<string>{
+  if(!/^tg_[1-9][0-9]{0,19}$/.test(targetId)||targetId===connection.userId||!/^[A-Za-z0-9._:-]{8,128}$/.test(key))throw new RankedError('INVALID_INPUT');
+  return this.tx(async c=>{
+   await this.lockUsers(c,[connection.userId,targetId]);await this.sessions.lockCurrent(c,connection);const clock=await this.clock(c);
+   const old=(await c.query<{id:string;target_id:string}>('SELECT id,target_id FROM ranked_rematches WHERE requester_id=$1 AND request_key=$2',[connection.userId,key])).rows[0];
+   if(old){if(old.target_id!==targetId)throw new RankedError('INVALID_INPUT');return old.id;}
+   if(Number((await c.query("SELECT count(*) n FROM ranked_rematches WHERE requester_id=$1 AND created_at>$2::timestamptz-interval '1 hour'",[connection.userId,clock.at])).rows[0].n)>=3)throw new RankedError('REMATCH_LIMIT');
+   if(!(await c.query(`SELECT 1 FROM ranked_results WHERE user_id=$1 AND opponent_id=$2 LIMIT 1`,[connection.userId,targetId])).rowCount)throw new RankedError('INCOMPATIBLE');
+   for(const user of [connection.userId,targetId])await this.rematchEligible(c,user,clock);
+   if(await this.pairCount(c,connection.userId,targetId,clock.day)>=2)throw new RankedError('INCOMPATIBLE');
+   const id=randomUUID();await c.query(`INSERT INTO ranked_rematches(id,requester_id,target_id,request_key,state,created_at,expires_at) VALUES($1,$2,$3,$4,'PENDING',$5,$5::timestamptz+interval '15 seconds')`,[id,connection.userId,targetId,key,clock.at]);return id;
   });
  }
+ private async rematchEligible(c:PoolClient,userId:string,clock:{at:Date;day:string;reset:Date},requestId?:string):Promise<string>{
+  await this.eligible(c,userId,clock);
+  if((await c.query("SELECT 1 FROM ranked_tickets WHERE user_id=$1 AND state IN('SEARCHING','OFFER')",[userId])).rowCount)throw new RankedError('ALREADY_IN_QUEUE');
+  if((await c.query(`SELECT 1 FROM ranked_rematches WHERE state='PENDING' AND expires_at>$2 AND (requester_id=$1 OR target_id=$1) AND ($3::uuid IS NULL OR id<>$3)`,[userId,clock.at,requestId??null])).rowCount)throw new RankedError('ALREADY_IN_QUEUE');
+  const session=(await c.query<{connection_id:string}>(`SELECT s.connection_id FROM realtime_sessions s JOIN users u ON u.id=s.user_id WHERE s.user_id=$1 AND s.expires_at>$2 AND s.token_version=u.token_version FOR SHARE OF s`,[userId,clock.at])).rows[0];
+  if(!session)throw new RankedError('INCOMPATIBLE');return session.connection_id;
+ }
+ async respondRematch(connection:RealtimeConnection,requestId:string,accept:boolean):Promise<{matchId:string|null;state:string}>{
+  if(!uuid.test(requestId)||typeof accept!=='boolean')throw new RankedError('INVALID_INPUT');
+  const initial=(await this.pool.query<{requester_id:string;target_id:string}>('SELECT requester_id,target_id FROM ranked_rematches WHERE id=$1',[requestId])).rows[0];
+  if(!initial||initial.target_id!==connection.userId)throw new RankedError('INVALID_INPUT');
+  return this.tx(async c=>{
+   await this.lockUsers(c,[initial.requester_id,initial.target_id]);await this.sessions.lockCurrent(c,connection);
+   const r=(await c.query<{state:string;expires_at:Date;match_id:string|null}>('SELECT * FROM ranked_rematches WHERE id=$1 FOR UPDATE',[requestId])).rows[0]!;
+   if(r.state!=='PENDING')return {matchId:r.match_id,state:r.state};
+   const clock=await this.clock(c);
+   if(!accept||r.expires_at<=clock.at){const state=r.expires_at<=clock.at?'EXPIRED':'DECLINED';await c.query('UPDATE ranked_rematches SET state=$2 WHERE id=$1',[requestId,state]);return {matchId:null,state};}
+   const users=[initial.requester_id,initial.target_id].sort();const connectionIds:string[]=[];
+   try{for(const user of users)connectionIds.push(await this.rematchEligible(c,user,clock,requestId));
+    if(await this.pairCount(c,users[0]!,users[1]!,clock.day)>=2)throw new RankedError('INCOMPATIBLE');
+   }catch(error){if(!(error instanceof RankedError))throw error;await c.query("UPDATE ranked_rematches SET state='CANCELLED' WHERE id=$1",[requestId]);return {matchId:null,state:'CANCELLED'};}
+   const ids=[randomUUID(),randomUUID()];
+   for(let i=0;i<2;i++)await c.query(`INSERT INTO ranked_tickets(id,user_id,connection_id,request_key,state,joined_at,last_seen_at,search_expires_at) VALUES($1,$2,$3,$4,'OFFER',$5,$5,$5::timestamptz+interval '120 seconds')`,[ids[i],users[i],connectionIds[i],'rematch:'+requestId,clock.at]);
+   const offerId=randomUUID();const offer=(await c.query<Offer>(`INSERT INTO ranked_offers(id,a_ticket,b_ticket,state,accepted_a,accepted_b,created_at,expires_at) VALUES($1,$2,$3,'PENDING',true,true,$4,$4::timestamptz+interval '10 seconds') RETURNING *`,[offerId,ids[0],ids[1],clock.at])).rows[0]!;
+   for(const user of users)await c.query("INSERT INTO ranked_reservations(offer_id,user_id,state,lagos_date,reserved_at) VALUES($1,$2,'RESERVED',$3,$4)",[offerId,user,clock.day,clock.at]);
+   const result=await this.startAccepted(c,offer,await this.tickets(c,ids),clock);
+   await c.query('UPDATE ranked_rematches SET state=$2,match_id=$3 WHERE id=$1',[requestId,result.matchId?'STARTED':'CANCELLED',result.matchId]);return result;
+  });
+ }
+
  async recover(limit=100,signal?:AbortSignal):Promise<void>{
   if(!Number.isSafeInteger(limit)||limit<1||limit>1000)throw new RankedError('INVALID_INPUT');
   if(signal?.aborted)return;
@@ -204,8 +263,12 @@ export class RankedRepository {
    ORDER BY (m.status='ACTIVE') DESC,m.started_at DESC,m.id DESC LIMIT 1`,[connection.userId])).rows[0];
   const match=game?{id:game.id,mode:game.mode,view:projectGame(restoreGame(game.private_state),game.seat)}:null;
   const phase=match?.view.status==='ACTIVE'?'IN_MATCH':offer?'OFFER':ticket?'SEARCHING':match?'RESULT':'IDLE';
+  const penalty=(await c.query<{misses:number;locked_until:Date|null;last_miss_at:Date}>('SELECT misses,locked_until,last_miss_at FROM ranked_penalties WHERE user_id=$1',[connection.userId])).rows[0];
+  const rematches=(await c.query<{id:string;requester_id:string;target_id:string;expires_at:Date}>(`SELECT id,requester_id,target_id,expires_at FROM ranked_rematches WHERE state='PENDING' AND expires_at>$2 AND (requester_id=$1 OR target_id=$1) ORDER BY created_at LIMIT 1`,[connection.userId,clock.at])).rows.map(r=>({id:r.id,opponentId:r.requester_id===connection.userId?r.target_id:r.requester_id,incoming:r.target_id===connection.userId,expiresAt:r.expires_at.getTime()}));
+  const recentOpponents=(await c.query<{opponent_id:string}>(`SELECT opponent_id FROM ranked_results WHERE user_id=$1 GROUP BY opponent_id ORDER BY max(finished_at) DESC,opponent_id LIMIT 10`,[connection.userId])).rows.map(r=>r.opponent_id);
+  const result=match?(await c.query<{outcome:string;reason:string;lagos_date:string}>('SELECT outcome,reason,lagos_date::text FROM ranked_results WHERE match_id=$1 AND user_id=$2',[match.id,connection.userId])).rows[0]??null:null;
   const publicTicket=ticket?{id:ticket.id,state:ticket.state,joinedAt:ticket.joined_at.getTime(),searchExpiresAt:ticket.search_expires_at.getTime()}:null;
   const publicOffer=offer?{id:offer.id,state:offer.state,expiresAt:offer.expires_at.getTime(),acceptedYou:ticket!.id===offer.a_ticket?offer.accepted_a:offer.accepted_b,acceptedOpponent:ticket!.id===offer.a_ticket?offer.accepted_b:offer.accepted_a}:null;
-  return {protocolVersion:1 as const,serverTime:clock.at.getTime(),phase,match,ranked:{ticket:publicTicket,offer:publicOffer,allowance}};
+  return {protocolVersion:1 as const,serverTime:clock.at.getTime(),phase,match,ranked:{ticket:publicTicket,offer:publicOffer,allowance,penalty:{misses:penalty&&clock.at.getTime()-penalty.last_miss_at.getTime()<86400000?penalty.misses:0,lockedUntil:penalty?.locked_until&&penalty.locked_until>clock.at?penalty.locked_until.getTime():null},rematches,recentOpponents,result}};
  });}
 }

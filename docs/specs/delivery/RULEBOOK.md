@@ -39,3 +39,7 @@ Each resolution needs a dated decision entry, affected spec links and acceptance
 ## Ranked decisions recorded25 October2026
 
 Owner selected: maximum two ranked starts against the same opponent per Lagos day; regular one-hour cooldown starts at the finish of the second chargeable match, including forfeit/timeout, and resets at Lagos midnight. Current premium bypasses cooldown but retains the three-start daily cap. See07-ranked-admission-design.md. Rematch requests/hour, no-show lockouts and post-start technical compensation remain unresolved/deferred.
+
+## Ranked policy decisions — 26 October2026
+
+Owner approved warning then2/5/15 minute lockouts for ready-check decline/expiry, resetting after24 hours without a miss; three rematch requests per rolling hour with mutual consent and15-second expiry, obeying normal quota/cooldown/pair cap; existing30-second authoritative turn clock continues during disconnects, with no automatic void/refund. Verified technical compensation requires audited operator review. These decisions supersede the old proposed disconnect-pause/automatic-double-disconnect VOID defaults in build-plan6.11. See07-full-ranked-design.md.

@@ -41,6 +41,17 @@ export class DailyTasks {
    return {pointsEarned,alreadyClaimed:false};
   });
  }
+ /** Internal settlement hook. Caller holds the user lock and commits the result receipt atomically. */
+ async awardRankedWin(c:PoolClient,userId:string,date:string,at:Date):Promise<number>{
+  for(const key of TASK_KEYS)await c.query("INSERT INTO daily_task_state(user_id,lagos_date,task_key,status) VALUES($1,$2,$3,'AVAILABLE') ON CONFLICT DO NOTHING",[userId,date,key]);
+  const rows=(await c.query<DailyRow>('SELECT task_key,status FROM daily_task_state WHERE user_id=$1 AND lagos_date=$2',[userId,date])).rows;
+  let points=0;
+  if(!rows.some(r=>r.task_key==='WIN_MATCH'&&r.status==='CLAIMED')){await this.award(c,userId,date,'WIN_MATCH',at,'RANKED_RESULT');points+=50;}
+  if(rows.filter(r=>r.task_key.startsWith('MANDATORY_VIDEO')&&r.status==='CLAIMED').length===2&&!rows.some(r=>r.task_key==='BONUS_ALL_COMPLETE'&&r.status==='CLAIMED')){
+   await this.award(c,userId,date,'BONUS_ALL_COMPLETE',at,'ALL_COMPLETE');points+=50;
+  }
+  return points;
+ }
  private async award(c:PoolClient,userId:string,date:string,key:string,at:Date,source:string){
   await c.query("INSERT INTO task_claims(user_id,lagos_date,task_key,source_event) VALUES($1,$2,$3,$4)",[userId,date,key,`${date}:${key}`]);
   await c.query("UPDATE daily_task_state SET status='CLAIMED',source=$4,claimed_at=$5,points_awarded=50 WHERE user_id=$1 AND lagos_date=$2 AND task_key=$3",[userId,date,key,source,at]);
