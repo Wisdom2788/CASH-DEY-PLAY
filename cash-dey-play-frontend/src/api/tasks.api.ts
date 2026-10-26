@@ -15,8 +15,14 @@ export const useGetTasksState = (
   queryOptions: Omit<UseQueryOptions<TasksState, AxiosError>, 'queryKey' | 'queryFn'> = {},
   options?: RequestOptions
 ) => {
+  const userId=useAuthStore(s=>s.user?.id);
+  const token=useAuthStore(s=>s.token);
   return useQuery<TasksState, AxiosError>({
-    queryKey: [TaskQueryKeys.tasksState],
+    queryKey: [TaskQueryKeys.tasksState,userId??null],
+    enabled:!!token,
+    refetchOnWindowFocus:'always',
+    refetchOnReconnect:true,
+    refetchInterval:query=>Math.max(1000,Math.min(60000,((query.state.data?.timeRemainingSeconds??59)+1)*1000)),
     queryFn: async () => tasksStateSchema.parse(await getService(API_ROUTES.TASKS_STATE, options)),
     ...queryOptions,
   });

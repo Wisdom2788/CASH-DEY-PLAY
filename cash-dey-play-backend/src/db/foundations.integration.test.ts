@@ -41,9 +41,16 @@ databaseTests("foundations migrations on PostgreSQL", () => {
     for(let i=0;i<2;i++) execFileSync(process.execPath,[join(root,"node_modules/prisma/build/index.js"),"migrate","deploy"],{
       cwd:root,env:{...process.env,DATABASE_URL:database.toString()},stdio:"pipe",timeout:60000,
     });
-    expect((await pool.query("SELECT count(*)::int AS count FROM _prisma_migrations WHERE finished_at IS NOT NULL")).rows[0].count).toBe(9);
+    expect((await pool.query("SELECT count(*)::int AS count FROM _prisma_migrations WHERE finished_at IS NOT NULL")).rows[0].count).toBe(10);
     expect((await pool.query("SELECT count(*)::int AS count FROM first_login_attributions")).rows[0].count).toBe(0);
   },130000);
+  it("refuses an ambiguous future task cutover without changing existing claims",async()=>{
+    await fixture();await apply();
+    await pool.query("INSERT INTO daily_task_state(user_id,lagos_date,task_key,status,claimed_at) VALUES('tg_123',(clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date+1,'WIN_MATCH','CLAIMED',clock_timestamp())");
+    const c=await pool.connect();try{await expect(c.query(readFileSync(join(root,'prisma/migrations/2026102701_rotating_tasks/migration.sql'),'utf8'))).rejects.toThrow('Future daily task');await c.query('ROLLBACK');}finally{c.release();}
+    expect((await pool.query("SELECT status FROM daily_task_state")).rows).toEqual([{status:'CLAIMED'}]);
+    expect((await pool.query("SELECT to_regclass('daily_task_policy') AS policy")).rows[0].policy).toBeNull();
+  });
   it("merges same-window identities without unclaiming, deduplicates tasks and rewrites the winner", async () => {
     await fixture();
     await pool.query("INSERT INTO login_streaks VALUES('123','2026-10-01','2026-10-20',20,1,true,now()),('tg_123','2026-10-01','2026-10-21',21,0,false,now())");

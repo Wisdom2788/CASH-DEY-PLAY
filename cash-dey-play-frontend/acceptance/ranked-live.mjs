@@ -19,6 +19,14 @@ const {RedisRankedQueue}=require('./dist/ranked/redis-queue');
 const {RankedMatchmaker}=require('./dist/ranked/matchmaker');
 const {runGamePass,runGameWorker,waitForNextPass}=require('./dist/workers/game-worker');
 const {MemoryRateLimitCounterStore}=require('./dist/http/middleware/rate-limit.middleware');
+const express=require('express'),cors=require('cors');
+const {createAuthMiddleware}=require('./dist/http/middleware/auth.middleware');
+const {TasksController}=require('./dist/http/controllers/tasks.controller');
+const {createTasksRouter}=require('./dist/http/routes/tasks.routes');
+const {PostgresTasksRepository}=require('./dist/db/repositories/tasks.repository');
+const {PostgresUserRepository}=require('./dist/db/repositories/user.repository');
+const {errorHandler}=require('./dist/http/middleware/error-handler.middleware');
+
 const db=process.env.TEST_DATABASE_URL,redisUrl=process.env.TEST_REDIS_URL;
 if(!db||!/(?:^|_)test(?:_|$)/i.test(new URL(db).pathname.slice(1))||!redisUrl||new URL(redisUrl).pathname!=='/15')throw new Error('Dedicated disposable test database and Redis/15 required');
 const schema='cdp_browser_'+randomUUID().replaceAll('-','');const admin=new Pool({connectionString:db});
@@ -29,12 +37,16 @@ try{
  await admin.query(`CREATE SCHEMA "${schema}"`);
  const migrations=fileURLToPath(new URL('../../cash-dey-play-backend/prisma/migrations/',import.meta.url));
  for(const name of (await readdir(migrations)).filter(x=>!x.endsWith('.toml')).sort())await pool.query(await readFile(`${migrations}/${name}/migration.sql`,'utf8'));
+ await pool.query("ALTER TABLE daily_task_policy DISABLE TRIGGER daily_task_policy_immutable; UPDATE daily_task_policy SET rotating_from=(clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date; ALTER TABLE daily_task_policy ENABLE TRIGGER daily_task_policy_immutable");
  await pool.query("INSERT INTO users(id,telegram_id,first_name) VALUES('tg_123001',123001,'Player A'),('tg_123002',123002,'Player B')");
  await redis.connect();await new Promise(resolve=>api.listen(0,'127.0.0.1',resolve));
  process.env.VITE_ENABLE_RANKED='true';process.env.VITE_API_URL=`http://127.0.0.1:${api.address().port}/api`;
  vite=await createViteServer({server:{host:'127.0.0.1',port:0}});await vite.listen();const origin=`http://127.0.0.1:${vite.httpServer.address().port}`;
  const subscriber=new Redis(redisUrl,{maxRetriesPerRequest:1,commandTimeout:2000});subscriber.on('error',()=>{});const relay='test-browser-relay:'+randomUUID();notifications=new RedisGameNotifications(subscriber,relay);await notifications.start();
  const secret='real-browser-fixture-secret-'.repeat(2);const ranked=new RankedRepository(pool),games=new GameRepository(pool);
+ const taskApi=express();taskApi.use(cors({origin}));taskApi.use(express.json());
+ const users=new PostgresUserRepository(pool);taskApi.use(createAuthMiddleware({jwtSecret:secret,allowDevAuthBypass:false,loadUser:id=>users.findAuthState(id)}));
+ taskApi.use('/api/tasks',createTasksRouter(new TasksController(new PostgresTasksRepository(pool))));taskApi.use(errorHandler);api.on('request',taskApi);
  const sessions=new RealtimeSessionRepository(pool);gateway=attachRealtimeGateway(api,{jwtSecret:secret,origin,sessions,delivery:{source:notifications,snapshots:sessions},rateLimits:new MemoryRateLimitCounterStore(),actions:{games,rateLimits:new MemoryRateLimitCounterStore()},ranked:{repository:ranked,queue,rateLimits:new MemoryRateLimitCounterStore()}});
  const matcher=new RankedMatchmaker(ranked,queue);loops=[runGameWorker(stop.signal,()=>matcher.pass(stop.signal),()=>failures.push('matcher'),s=>waitForNextPass(s,500)),runGameWorker(stop.signal,()=>runGamePass(pool,100,stop.signal),()=>failures.push('games'),s=>waitForNextPass(s,500)),runGameWorker(stop.signal,async()=>{delivered+=await runGameDeliveryPass(pool,notice=>redis.publish(relay,JSON.stringify(notice)),100,stop.signal);},()=>failures.push('delivery'),s=>waitForNextPass(s,250))];
  console.log('ranked-live: launch browser');
@@ -42,9 +54,10 @@ try{
  for(const id of [123001,123002]){
   const context=await browser.newContext({...devices['Pixel 7'],timezoneId:'Africa/Lagos'});contexts.push(context);
   const token=jwt.sign({userId:`tg_${id}`,telegramId:id,tokenVersion:0},secret,{issuer:'cash-dey-play',audience:'cash-dey-play-mini-app',expiresIn:120});
-  await context.addInitScript(value=>{window.__RANKED_TEST_TOKEN=value;window.__RANKED_TEST_SOCKETS=[];const Native=window.WebSocket;window.WebSocket=class extends Native{constructor(...args){super(...args);window.__RANKED_TEST_SOCKETS.push(this);}};},token);
+  await context.addInitScript(value=>{window.__RANKED_TEST_TOKEN=value.token;window.__RANKED_TEST_USER_ID=value.id;window.__RANKED_TEST_SOCKETS=[];const Native=window.WebSocket;window.WebSocket=class extends Native{constructor(...args){super(...args);window.__RANKED_TEST_SOCKETS.push(this);}};},{token,id});
   const page=await context.newPage();page.setDefaultTimeout(15000);page.setDefaultNavigationTimeout(15000);page.on('pageerror',e=>errors.push(e.message));pages.push(page);await page.goto(origin+'/acceptance/ranked-harness.html');
   await page.waitForFunction(()=>document.querySelector('[role="status"]')?.textContent==='Connected');
+  await page.getByRole('region',{name:'Daily objectives'}).waitFor();
  }
  console.log('ranked-live: both authenticated browsers connected');
  const [a,b]=pages;
@@ -63,7 +76,14 @@ try{
  await b.getByRole('button',{name:'Forfeit',exact:true}).click();await b.getByRole('button',{name:'Confirm forfeit',exact:true}).click();
  await a.getByRole('heading',{name:'WIN',exact:true}).waitFor();await b.getByRole('heading',{name:'LOSS',exact:true}).waitFor();
  assert.deepEqual((await pool.query('SELECT user_id,outcome FROM ranked_results ORDER BY user_id')).rows,[{user_id:'tg_123001',outcome:'WIN'},{user_id:'tg_123002',outcome:'LOSS'}]);
- assert.deepEqual((await pool.query('SELECT id,points FROM users ORDER BY id')).rows,[{id:'tg_123001',points:50},{id:'tg_123002',points:0}]);
+ const definitions=(await pool.query('SELECT definition FROM daily_task_schedules')).rows[0].definition;
+ const expectedPoints=definitions.filter(d=>d.key==='WIN_MATCH'||(d.key==='RANKED_FINISH'&&d.target===1)).length*50;
+ assert.deepEqual((await pool.query('SELECT id,points FROM users ORDER BY id')).rows,[{id:'tg_123001',points:expectedPoints},{id:'tg_123002',points:0}]);
+ for(const def of definitions){const expected=def.key==='WIN_MATCH'||def.key==='RANKED_FINISH'?1:0;
+  await a.getByRole('region',{name:'Daily objectives'}).getByRole('group',{name:def.title,exact:true}).getByText(`${Math.min(def.target,expected)} / ${def.target}`,{exact:true}).waitFor();
+ }
+ assert.equal((await a.request.post(`http://127.0.0.1:${api.address().port}/api/tasks/WIN_MATCH/claim`,{data:{progress:999}})).status(),401,'unsigned task claims rejected');
+
  console.log('ranked-live: SQL settlement and points verified; requeue both players');
  for(const page of pages){assert.equal(await page.getByRole('button',{name:/rematch/i}).count(),0);await page.getByRole('button',{name:'Find ranked opponent',exact:true}).click();await page.getByRole('region',{name:'Searching'}).waitFor();}
  await new Promise(resolve=>setTimeout(resolve,1500));
@@ -71,7 +91,7 @@ try{
  assert.equal((await pool.query("SELECT count(*)::int n FROM ranked_offers")).rows[0].n,1,'same-day pairing cannot generate a second offer');
  assert.equal((await pool.query("SELECT count(*)::int n FROM ranked_reservations WHERE state='STARTED'")).rows[0].n,2);
  assert.deepEqual(errors,[]);assert.deepEqual(failures,[]);assert.ok(delivered>=2,'committed move/finish outbox relayed through Redis');
- await a.screenshot({path:'/tmp/ranked-live-browser.png',fullPage:true});console.log(JSON.stringify({rankedLiveBrowser:{passed:true,players:2,flow:'queue/offer/move/network reconnect/SQL settlement/task points/repeat pairing blocked',matches:1,resultReceipts:2,startedCharges:2,pointsAwarded:50,privateProjection:true,relayedCommittedEvents:delivered}}));
+ await a.screenshot({path:'/tmp/ranked-live-browser.png',fullPage:true});console.log(JSON.stringify({rankedLiveBrowser:{passed:true,players:2,flow:'queue/offer/move/network reconnect/SQL settlement/rotating task UI and points/repeat pairing blocked',matches:1,resultReceipts:2,startedCharges:2,pointsAwarded:expectedPoints,privateProjection:true,relayedCommittedEvents:delivered}}));
 }finally{
  console.log('ranked-live: cleanup');
  stop.abort();if(browser)await browser.close();await Promise.allSettled(loops);if(gateway)await new Promise(resolve=>gateway.close(resolve));else if(api.listening)await new Promise(resolve=>api.close(resolve));if(vite)await vite.close();notifications?.close();

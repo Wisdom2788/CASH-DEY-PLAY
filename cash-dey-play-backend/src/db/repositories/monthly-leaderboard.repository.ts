@@ -15,15 +15,14 @@ export class PostgresMonthlyLeaderboardRepository implements IMonthlyLeaderboard
 
     const tasksQuery = `
       SELECT COUNT(*) AS distinct_task_days FROM (
-        SELECT lagos_date FROM daily_task_state WHERE user_id=$1 AND lagos_date >= $2::date AND lagos_date < $3::date AND status='CLAIMED'
-        GROUP BY lagos_date HAVING count(*)=4
+        SELECT lagos_date FROM qualified_task_days WHERE user_id=$1 AND lagos_date >= $2::date AND lagos_date < $3::date
       ) complete_days
     `;
     const matchesQuery = `
       SELECT COUNT(*) AS total_wins
-      FROM matches
+      FROM ranked_results
       WHERE user_id = $1
-        AND winner_id = $1
+        AND outcome = 'WIN'
         AND lagos_date >= $2::date
         AND lagos_date < $3::date
     `;

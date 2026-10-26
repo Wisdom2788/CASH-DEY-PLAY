@@ -21,7 +21,7 @@ export interface PlayerMonthStats {
   username: string;
   avatarUrl?: string;
   calendarMonth: string; // e.g. "2026-09"
-  activeTaskDaysCount: number; // days where user completed >= 1 daily task
+  activeTaskDaysCount: number; // days where all published daily objectives and bonus were completed
   matchesPlayed: number;
   matchesWon: number;
   matchesLost: number;

@@ -39,10 +39,9 @@ export async function referralSummary(pool:Pool,userId:string){
  const code=user.rows[0]?.referral_code??null;
  const rows=await pool.query<{username:string|null;status:string;complete_task_days:number}>(`SELECT u.username,
  CASE WHEN r.status='PENDING' AND r.expires_at<=clock_timestamp() THEN 'EXPIRED' ELSE r.status END AS status,
- (SELECT count(*)::int FROM (SELECT d.lagos_date FROM daily_task_state d WHERE d.user_id=r.referred_id AND d.status='CLAIMED'
- AND d.claimed_at>=r.created_at AND d.claimed_at<r.expires_at
- AND d.lagos_date>=(r.created_at AT TIME ZONE 'Africa/Lagos')::date AND d.lagos_date<=(r.expires_at AT TIME ZONE 'Africa/Lagos')::date
- GROUP BY d.lagos_date HAVING count(*)=4) days) AS complete_task_days
+ (SELECT count(*)::int FROM qualified_task_days d WHERE d.user_id=r.referred_id
+ AND d.first_claim_at>=r.created_at AND d.completed_at<r.expires_at
+ AND d.lagos_date>=(r.created_at AT TIME ZONE 'Africa/Lagos')::date AND d.lagos_date<=(r.expires_at AT TIME ZONE 'Africa/Lagos')::date) AS complete_task_days
  FROM referrals r JOIN users u ON u.id=r.referred_id WHERE r.referrer_id=$1 ORDER BY r.created_at DESC,r.id DESC LIMIT 50`,[userId]);
  return {code,shareLink:code?referralLink(code,process.env.TELEGRAM_BOT_USERNAME,process.env.TELEGRAM_MINI_APP_NAME):null,referrals:rows.rows.map(r=>({username:r.username,status:r.status,completeTaskDays:r.complete_task_days})),limit:50};
 }

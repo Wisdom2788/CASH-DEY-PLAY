@@ -1,5 +1,15 @@
 # Cumulative implementation summary
 
+## Rotating daily tasks — 27 October 2026
+
+- [x] Design shared daily rotation, trusted settled-event progress, 200-point budget and midnight cutover; see 04-rotating-tasks-design.md.
+- [x] Implement immutable schedule/policy storage, guarded task materialization, transactional once-only objectives/bonus and historical recovery.
+- [x] Replace fixed-count day qualification in ranked, referral and monthly readers; monthly wins use authoritative ranked results.
+- [x] Render server-driven objectives/targets, scoped task queries and midnight/foreground refresh.
+- [ ] Complete SQL/Redis/browser CI acceptance for this new runtime; previous policy evidence does not certify rotating tasks.
+- [ ] Production migration/cutover, hosted worker, physical Telegram devices and remaining release gates. No production activation or paid provisioning in this implementation.
+
+
 ## Business policy revision — 26 October 2026
 
 - [x] Implement one same-opponent ranked start per Lagos day, rechecked under player locks at offer reservation and final start; premium has no bypass.

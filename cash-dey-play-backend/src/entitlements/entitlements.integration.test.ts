@@ -21,6 +21,7 @@ suite('entitlements, task claims and first-login referrals on PostgreSQL',()=>{
   await pool.query("INSERT INTO premium_subscriptions(user_id,expires_at) VALUES('tg_123',now()+interval '90 days')");
   await pool.query("INSERT INTO task_completions(user_id,completed_on,task_key) VALUES('tg_123','2020-01-01','MANDATORY_VIDEO_LOGIN')");
   await pool.query(readFileSync(join(__dirname,'../../prisma/migrations/2026102502_entitlements/migration.sql'),'utf8'));
+  await pool.query(readFileSync(join(__dirname,'../../prisma/migrations/2026102701_rotating_tasks/migration.sql'),'utf8'));
   tasks=new DailyTasks(pool);
  });
  afterEach(async()=>{await pool.end();await admin.query(`DROP SCHEMA "${schema}" CASCADE`);});afterAll(async()=>{await admin.end();});
@@ -84,6 +85,14 @@ suite('entitlements, task claims and first-login referrals on PostgreSQL',()=>{
  it('preserves recognized historical claims without awarding points again',async()=>{
   const row=(await pool.query("SELECT status,points_awarded FROM daily_task_state WHERE lagos_date='2020-01-01'")).rows[0];
   expect(row).toEqual({status:'CLAIMED',points_awarded:0});expect((await pool.query('SELECT points FROM users')).rows[0].points).toBe(0);
+ });
+ it('qualifies exact required legacy keys rather than four arbitrary claimed rows',async()=>{
+  const keys=['BONUS_ALL_COMPLETE','WIN_MATCH','RANKED_FINISH','RANKED_SUITS'];
+  for(const key of keys)await pool.query("INSERT INTO daily_task_state(user_id,lagos_date,task_key,status,claimed_at) VALUES('tg_123','2021-01-01',$1,'CLAIMED','2021-01-01T12:00:00Z')",[key]);
+  expect((await pool.query("SELECT count(*)::int n FROM qualified_task_days WHERE lagos_date='2021-01-01'")).rows[0].n).toBe(0);
+  for(const key of ['MANDATORY_VIDEO_LOGIN','MANDATORY_VIDEO_UNLOCK'])await pool.query("INSERT INTO daily_task_state(user_id,lagos_date,task_key,status,claimed_at) VALUES('tg_123','2021-01-01',$1,'CLAIMED','2021-01-01T11:00:00Z')",[key]);
+  expect((await pool.query("SELECT count(*)::int n FROM qualified_task_days WHERE lagos_date='2021-01-01'")).rows[0].n).toBe(1);
+  expect((await pool.query('SELECT points FROM users')).rows[0].points).toBe(0);
  });
  it('keeps committed login and retries attribution after resolution failure',async()=>{
   await pool.query("CREATE FUNCTION reject_referral() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'resolution unavailable'; END $$");

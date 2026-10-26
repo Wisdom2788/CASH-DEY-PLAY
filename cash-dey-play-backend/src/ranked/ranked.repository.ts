@@ -234,7 +234,7 @@ export class RankedRepository {
   const result=match?(await c.query<{outcome:string;reason:string;lagos_date:string}>('SELECT outcome,reason,lagos_date::text FROM ranked_results WHERE match_id=$1 AND user_id=$2',[match.id,connection.userId])).rows[0]??null:null;
   const stats=(await c.query<{played:number;wins:number;losses:number;draws:number;taskDays:number;practice:number}>(`WITH bounds AS (SELECT date_trunc('month',$2::date)::date AS start, (date_trunc('month',$2::date)+interval '1 month')::date AS finish)
    SELECT count(*)::int AS played,count(*) FILTER(WHERE outcome='WIN')::int AS wins,count(*) FILTER(WHERE outcome='LOSS')::int AS losses,count(*) FILTER(WHERE outcome='DRAW')::int AS draws,
-   (SELECT count(*)::int FROM (SELECT lagos_date FROM daily_task_state,bounds WHERE user_id=$1 AND lagos_date>=bounds.start AND lagos_date<bounds.finish AND status='CLAIMED' GROUP BY lagos_date HAVING count(*)=4)d) AS "taskDays",
+   (SELECT count(*)::int FROM qualified_task_days,bounds WHERE user_id=$1 AND lagos_date>=bounds.start AND lagos_date<bounds.finish) AS "taskDays",
    (SELECT count(*)::int FROM practice_completions,bounds WHERE user_id=$1 AND (completed_at AT TIME ZONE 'Africa/Lagos')::date>=bounds.start AND (completed_at AT TIME ZONE 'Africa/Lagos')::date<bounds.finish) AS practice
    FROM ranked_results,bounds WHERE user_id=$1 AND lagos_date>=bounds.start AND lagos_date<bounds.finish`,[connection.userId,clock.day])).rows[0]!;
   const publicTicket=ticket?{id:ticket.id,state:ticket.state,joinedAt:ticket.joined_at.getTime(),searchExpiresAt:ticket.search_expires_at.getTime()}:null;

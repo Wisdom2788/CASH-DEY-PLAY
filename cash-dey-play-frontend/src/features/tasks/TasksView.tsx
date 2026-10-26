@@ -37,6 +37,7 @@ export default function TasksView() {
     if (task.isCompleted) return;
     if(task.action==='CLAIM'){claimMutation.mutate(task.type,{onSuccess:()=>showToast('Task claimed.','success'),onError:()=>showToast('Claim unavailable. Refresh and try again.','error')});return;}
     if(task.action==='NONE')return;
+    if(task.action==='PLAY_RANKED'){navigate('/ranked');return;}
 
     if (task.type === 'MANDATORY_VIDEO_LOGIN' || task.type === 'MANDATORY_VIDEO_UNLOCK') {
       openRewardedAd({
@@ -130,20 +131,22 @@ export default function TasksView() {
       )}
 
       {/* Section 1: Daily Tasks List */}
-      <section className="bg-[#1A1B1E] border border-[#303338] rounded-2xl p-3.5 space-y-3">
+      <section aria-label="Daily objectives" className="bg-[#1A1B1E] border border-[#303338] rounded-2xl p-3.5 space-y-3">
         <div className="flex items-center justify-between pb-2 border-b border-[#2A2C31]">
           <span className="text-xs font-bold tracking-wider text-[#F2B705] uppercase">
-            TODAY'S 4 TASKS (MAX 200 PTS)
+            TODAY'S OBJECTIVES & BONUS (MAX {tasksState?.maxPoints??tasks.reduce((n,t)=>n+t.points,0)} PTS)
           </span>
           <span className="text-xs text-[#9A9A9A] font-medium">
-            {tasks.filter((t) => t.isCompleted).length} / 4 Done
+            {tasks.filter((t) => t.isCompleted).length} / {tasks.length} Done
           </span>
         </div>
 
+        {tasksState?.scheduleVersion==='rotating-v2'&&<p className="text-xs text-[#9A9A9A]">{tasksState.lagosDate} · A different selection each Lagos day. Progress and points update automatically after ranked results settle. Forfeiting or timing out does not advance your finish, card or suit objectives.</p>}
         <div className="space-y-2">
           {tasks.map((task) => (
             <div
               key={task.id}
+              role="group" aria-label={task.title}
               className={`p-3 rounded-xl border flex items-center justify-between transition ${
                 task.isCompleted
                   ? 'bg-[#0D2D1E]/40 border-[#00B85F]/40 text-gray-300'
@@ -162,6 +165,7 @@ export default function TasksView() {
                 </div>
                 <div>
                   <h4 className="text-xs font-semibold leading-snug">{task.title}</h4>
+                  <p className="text-[10px] text-[#9A9A9A]">{task.progress} / {task.target}</p>
                   <span className="text-[10px] text-[#00E676] font-bold">+{task.points} Points</span>
                 </div>
               </div>
@@ -175,7 +179,7 @@ export default function TasksView() {
                     : 'bg-[#00B85F] hover:bg-[#009951] text-[#111214]'
                 }`}
               >
-                {task.isCompleted ? 'Claimed' : task.action==='CLAIM' ? 'Claim' : task.action==='NONE' ? 'Pending' : 'Start'}
+                {task.isCompleted ? 'Claimed' : task.action==='CLAIM' ? 'Claim' : task.action==='NONE' ? 'Automatic' : task.action==='PLAY_RANKED' ? 'Play ranked' : 'Start'}
               </button>
             </div>
           ))}

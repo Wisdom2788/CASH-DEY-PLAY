@@ -16,6 +16,11 @@ import { RealtimeConnection,RealtimeSessionRepository } from '../realtime/sessio
 import { runGameWorker,waitForNextPass } from '../workers/game-worker';
 import { RankedSettlement } from './settlement.repository';
 import { DailyTasks } from '../entitlements/daily-tasks';
+import { taskScheduleForDate } from '../entitlements/task-schedules';
+import { referralSummary } from '../entitlements/referrals';
+import { PostgresMonthlyLeaderboardRepository } from '../db/repositories/monthly-leaderboard.repository';
+import { chooseBotCommand } from '../game-engine/bot';
+import * as entropy from '../game-engine/crypto-random';
 import { RankedRepository } from './ranked.repository';
 import { RedisRankedQueue } from './redis-queue';
 import { RankedMatchmaker } from './matchmaker';
@@ -40,6 +45,74 @@ suite('durable ranked admission and Redis matchmaking',()=>{
  async function offer(a=123,b=456){const ta=await ranked.join(c(a),'join-'+randomUUID());const tb=await ranked.join(c(b),'join-'+randomUUID());const fence=(await ranked.acquireFence(randomUUID()))!;try{return {offer:(await ranked.createOffer(fence,ta.id,tb.id))!,ta,tb};}finally{await ranked.releaseFence(fence);}}
  async function start(a=123,b=456){const queued=await offer(a,b);expect(queued.offer).not.toBeNull();await ranked.respond(c(a),queued.offer.id,true);const result=await ranked.respond(c(b),queued.offer.id,true);expect(result.state).toBe('STARTED');return {...queued,matchId:result.matchId!};}
  async function finish(matchId:string){const actor=(await pool.query<{user_id:string}>('SELECT user_id FROM game_players WHERE match_id=$1 AND seat=0',[matchId])).rows[0]!.user_id;return games.actForConnection(c(Number(actor.slice(3))),matchId,{id:'forfeit-'+randomUUID(),expectedVersion:0,command:{type:'FORFEIT'}});}
+ async function activateRotation(){
+  await pool.query("ALTER TABLE daily_task_policy DISABLE TRIGGER daily_task_policy_immutable; UPDATE daily_task_policy SET rotating_from=(clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date-20; ALTER TABLE daily_task_policy ENABLE TRIGGER daily_task_policy_immutable");
+ }
+ async function normalFinish(matchId:string){
+  let view=await games.view(matchId,'tg_123');let at=(await pool.query('SELECT started_at FROM game_matches WHERE id=$1',[matchId])).rows[0].started_at.getTime()+1;
+  while(view.status==='ACTIVE'){
+   const user=view.turn===0?'tg_123':'tg_456';const current=await games.view(matchId,user);
+   view=await games.act(matchId,user,{id:'normal-'+view.version,expectedVersion:view.version,command:chooseBotCommand(current)},at++);
+  }
+  expect(view.reason).toBe('EMPTY_HAND');return view;
+ }
+ it('publishes one shared immutable selection and rejects client/old-writer rotating claims',async()=>{
+  await activateRotation();const tasks=new DailyTasks(pool);
+  const states=await Promise.all([tasks.state('tg_123'),tasks.state('tg_456'),tasks.state('tg_123')]);
+  expect(states[0]!.scheduleVersion).toBe('rotating-v2');expect(states[0]!.tasks).toEqual(states[1]!.tasks);
+  expect((await pool.query('SELECT count(*)::int n FROM daily_task_schedules')).rows[0].n).toBe(1);
+  await expect(pool.query("UPDATE daily_task_schedules SET definition=definition")).rejects.toThrow('immutable');
+  await expect(tasks.claim('tg_123','WIN_MATCH')).rejects.toThrow('server-eligible');
+  await expect(tasks.claim('tg_123','MANDATORY_VIDEO_LOGIN')).rejects.toThrow('verified gameplay');
+  await expect(pool.query("INSERT INTO daily_task_state(user_id,lagos_date,task_key,status) VALUES('tg_123',(clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date,'MANDATORY_VIDEO_LOGIN','AVAILABLE')")).rejects.toThrow('Published rotating');
+  expect((await pool.query('SELECT sum(points)::int n FROM users')).rows[0].n).toBe(0);
+ });
+ it('excludes active, unsettled and own-forfeit actions from rotating progress',async()=>{
+  await activateRotation();const tasks=new DailyTasks(pool);const m=await start();
+  const view=await games.view(m.matchId,'tg_123');await games.act(m.matchId,'tg_123',{id:'play-before-forfeit',expectedVersion:0,command:chooseBotCommand(view)},Date.now());
+  expect((await tasks.state('tg_123')).tasks.every(t=>t.progress===0)).toBe(true);
+  const current=await games.view(m.matchId,'tg_123');await games.act(m.matchId,'tg_123',{id:'own-forfeit',expectedVersion:current.version,command:{type:'FORFEIT'}},Date.now()+1);
+  expect((await tasks.state('tg_456')).tasks.every(t=>t.progress===0)).toBe(true);
+  await new RankedSettlement(pool).settle(m.matchId);
+  expect((await tasks.state('tg_123')).tasks.every(t=>t.progress===0)).toBe(true);
+  const winner=await tasks.state('tg_456');expect(winner.tasks.filter(t=>t.type==='RANKED_PLAY_CARDS'||t.type==='RANKED_SUITS').every(t=>t.progress===0)).toBe(true);
+ });
+ it('settles real plays into a historical rotating schedule once with bonus and shared qualification',async()=>{
+  await activateRotation();const today=(await pool.query("SELECT (clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date::text day")).rows[0].day as string;
+  let day=today;for(let i=1;i<=4;i++){const candidate=new Date(Date.parse(today+'T00:00:00Z')-i*86400000).toISOString().slice(0,10);if(taskScheduleForDate(candidate).map(t=>t.key).sort().join(',')==='RANKED_PLAY_CARDS,RANKED_SUITS,WIN_MATCH'){day=candidate;break;}}
+  const at=new Date(day+'T12:00:00+01:00');const clock=jest.spyOn(ranked as any,'clock').mockResolvedValue({at,day,reset:new Date(Date.parse(day+'T00:00:00+01:00')+86400000)});
+  const fixed=jest.spyOn(entropy,'cryptoRandomInt').mockImplementation(max=>max-1);
+  let m:Awaited<ReturnType<typeof start>>;try{m=await start();}finally{clock.mockRestore();fixed.mockRestore();}
+  const end=await normalFinish(m!.matchId);const winner=end.winner===0?'tg_123':'tg_456';const loser=winner==='tg_123'?'tg_456':'tg_123';
+  await pool.query("INSERT INTO referrals(referrer_id,referred_id,created_at,expires_at,status) VALUES($1,$2,$3::date::timestamp AT TIME ZONE 'Africa/Lagos',($3::date+1)::timestamp AT TIME ZONE 'Africa/Lagos','PENDING')",[loser,winner,day]);
+  const settlement=new RankedSettlement(pool);const results=await Promise.all(Array.from({length:8},()=>settlement.settle(m!.matchId)));expect(results.filter(Boolean)).toHaveLength(1);
+  const rows=(await pool.query("SELECT task_key,progress,status FROM daily_task_state WHERE user_id=$1 AND lagos_date=$2 ORDER BY task_key",[winner,day])).rows;
+  expect(rows).toEqual([{task_key:'BONUS_ALL_COMPLETE',progress:3,status:'CLAIMED'},{task_key:'RANKED_PLAY_CARDS',progress:3,status:'CLAIMED'},{task_key:'RANKED_SUITS',progress:2,status:'CLAIMED'},{task_key:'WIN_MATCH',progress:1,status:'CLAIMED'}]);
+  expect((await pool.query('SELECT points FROM users WHERE id=$1',[winner])).rows[0].points).toBe(200);
+  await Promise.all(Array.from({length:8},()=>new DailyTasks(pool).state(winner)));
+  expect((await pool.query('SELECT points FROM users WHERE id=$1',[winner])).rows[0].points).toBe(200);
+  expect((await pool.query('SELECT count(*)::int n FROM task_claims WHERE user_id=$1',[winner])).rows[0].n).toBe(4);
+  expect((await pool.query('SELECT lagos_date::text day FROM qualified_task_days WHERE user_id=$1',[winner])).rows).toEqual([{day}]);
+  expect((await referralSummary(pool,loser)).referrals[0]!.completeTaskDays).toBe(1);
+  await pool.query('INSERT INTO matches(user_id,winner_id,created_at) VALUES($1,$1,$2)',[winner,at]);
+  const monthly=await new PostgresMonthlyLeaderboardRepository(pool).getUserActivity(winner,day.slice(0,7));expect(monthly).toMatchObject({distinctTaskCompletionDays:1,totalMatchWins:1});
+  expect((await new DailyTasks(pool).state(winner)).tasks.every(t=>t.progress===0)).toBe(true);
+  await expect(pool.query('DELETE FROM task_claims WHERE user_id=$1',[winner])).rejects.toThrow('immutable');
+ });
+ it('rolls back rotating rewards and result receipts when audit fails, then safely retries',async()=>{
+  await activateRotation();const m=await start();await finish(m.matchId);
+  await pool.query("CREATE FUNCTION fail_rotating_award() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'rotating audit unavailable'; END $$; CREATE TRIGGER fail_rotating_award BEFORE INSERT ON reward_audit_events FOR EACH ROW EXECUTE FUNCTION fail_rotating_award()");
+  // Every catalogue has at least one immediately earnable winner objective except the finish-two set.
+  // Supply the published, valid one-finish/win/cards set before any settlement in this isolated fixture.
+  const day=(await pool.query("SELECT (ended_at AT TIME ZONE 'Africa/Lagos')::date::text day FROM game_matches WHERE id=$1",[m.matchId])).rows[0].day;
+  let definitions=taskScheduleForDate(day);if(!definitions.some(t=>t.key==='WIN_MATCH'||(t.key==='RANKED_FINISH'&&t.target===1)))definitions=Array.from({length:4},(_,i)=>taskScheduleForDate(`2026-10-${String(27+i).padStart(2,'0')}`)).find(defs=>defs.some(t=>t.key==='WIN_MATCH'))!;
+  if(!definitions.some(t=>t.key==='WIN_MATCH'||(t.key==='RANKED_FINISH'&&t.target===1)))throw new Error('Invalid rollback fixture');
+  await pool.query("INSERT INTO daily_task_schedules(lagos_date,version,definition) VALUES($1,'rotating-v2',$2)",[day,JSON.stringify(definitions)]);
+  await expect(new RankedSettlement(pool).settle(m.matchId)).rejects.toThrow('rotating audit unavailable');
+  expect((await pool.query('SELECT count(*)::int n FROM ranked_results')).rows[0].n).toBe(0);expect((await pool.query('SELECT count(*)::int n FROM task_claims')).rows[0].n).toBe(0);
+  await pool.query('DROP TRIGGER fail_rotating_award ON reward_audit_events');expect(await new RankedSettlement(pool).settle(m.matchId)).toBe(true);
+  expect((await pool.query("SELECT count(*)::int n FROM task_claims WHERE user_id='tg_456'")).rows[0].n).toBeGreaterThan(0);
+ });
  it('honors the full offer deadline after search expires without extending a failed search',async()=>{
   const o=await offer();await pool.query("UPDATE ranked_tickets SET joined_at=clock_timestamp()-interval '121 seconds',search_expires_at=clock_timestamp()-interval '1 second' WHERE id=ANY($1::uuid[])",[[o.ta.id,o.tb.id]]);
   await ranked.heartbeat(c(123),o.ta.id);await ranked.respond(c(123),o.offer.id,true);expect((await ranked.respond(c(456),o.offer.id,true)).state).toBe('STARTED');
