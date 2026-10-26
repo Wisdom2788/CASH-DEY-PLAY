@@ -86,6 +86,7 @@ jobs:
           cache: npm
           cache-dependency-path: cash-dey-play-frontend/package-lock.json
       - run: npm ci
+      - run: npm audit --audit-level=high
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
