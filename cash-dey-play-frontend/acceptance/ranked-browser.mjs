@@ -42,9 +42,9 @@ try{
    for(let i=0;i<100&&connections===count;i++)await new Promise(resolve=>setTimeout(resolve,25));assert.ok(connections>count,'transport reconnect occurred');await page.waitForFunction(()=>Array.from(document.querySelectorAll('button')).some(b=>b.textContent==='Forfeit'&&!b.disabled),null,{timeout:1500});assert.equal(await page.getByRole('button',{name:'Forfeit',exact:true}).isEnabled(),true,'old pending request cannot disable the new connection');
    latest.disconnect(true);await page.getByRole('button',{name:'Reconnect',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[role="status"]')?.textContent==='Connected');
    await page.getByRole('button',{name:'Forfeit',exact:true}).click();await page.getByRole('button',{name:'Confirm forfeit',exact:true}).click();await page.getByRole('heading',{name:'LOSS',exact:true}).waitFor();
-   await page.getByRole('button',{name:'Request rematch · Opponent',exact:true}).click();await page.getByRole('button',{name:'Accept rematch',exact:true}).click();await page.getByRole('region',{name:'Game board'}).waitFor();
+   assert.equal(await page.getByRole('button',{name:/rematch/i}).count(),0,'ranked invitations removed');await page.getByText('One ranked start per opponent each Lagos day.',{exact:false}).waitFor();
    const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth);assert.equal(overflow,false,'no horizontal overflow');assert.deepEqual(errors,[]);
-   await page.screenshot({path:`/tmp/ranked-${name}.png`,fullPage:true});console.log(JSON.stringify({browser:name,passed:true,flow:'offer/play/wild/transport and explicit reconnect/result/rematch',viewport:page.viewportSize(),horizontalOverflow:overflow}));await context.close();
+   await page.screenshot({path:`/tmp/ranked-${name}.png`,fullPage:true});console.log(JSON.stringify({browser:name,passed:true,flow:'offer/play/wild/transport and explicit reconnect/result/no rematches',viewport:page.viewportSize(),horizontalOverflow:overflow}));await context.close();
   }finally{await browser.close();}
  }
 }finally{await vite.close();await new Promise(resolve=>io.close(resolve));}

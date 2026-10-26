@@ -7,7 +7,7 @@ import { cryptoRandomInt } from '../game-engine/crypto-random';
 import { RealtimeConnection,RealtimeSessionRepository } from '../realtime/session.repository';
 
 export class RankedError extends Error {
- constructor(readonly code:'INVALID_INPUT'|'ALREADY_IN_MATCH'|'ALREADY_IN_QUEUE'|'RANKED_DAILY_LIMIT'|'RANKED_COOLDOWN'|'STALE_TICKET'|'OFFER_EXPIRED'|'INCOMPATIBLE'|'STALE_OWNER'|'RANKED_LOCKED'|'REMATCH_LIMIT'|'REMATCH_EXPIRED'){super(code);}
+ constructor(readonly code:'INVALID_INPUT'|'ALREADY_IN_MATCH'|'ALREADY_IN_QUEUE'|'RANKED_DAILY_LIMIT'|'RANKED_COOLDOWN'|'STALE_TICKET'|'OFFER_EXPIRED'|'INCOMPATIBLE'|'STALE_OWNER'|'RANKED_LOCKED'|'REMATCH_LIMIT'|'REMATCH_EXPIRED'|'REMATCH_DISABLED'){super(code);}
 }
 interface Ticket {id:string;user_id:string;connection_id:string;request_key:string;state:'SEARCHING'|'OFFER'|'STARTED'|'CANCELLED'|'EXPIRED';joined_at:Date;last_seen_at:Date;search_expires_at:Date}
 interface Offer {id:string;a_ticket:string;b_ticket:string;state:'PENDING'|'STARTED'|'CANCELLED'|'EXPIRED';accepted_a:boolean;accepted_b:boolean;created_at:Date;expires_at:Date;match_id:string|null}
@@ -128,7 +128,7 @@ export class RankedRepository {
    await this.lockUsers(c,rows.map(t=>t.user_id));rows=await this.tickets(c,[a,b]);const clock=await this.clock(c);
    if(!(await c.query('SELECT id FROM ranked_matchmaker_lease WHERE id AND token=$1 AND generation=$2 AND expires_at>clock_timestamp()',[fence.token,fence.generation])).rowCount)throw new RankedError('STALE_OWNER');
    for(const t of rows){if(t.state!=='SEARCHING'||!await this.ticketPresent(c,t,clock.at))throw new RankedError('INCOMPATIBLE');await this.eligible(c,t.user_id,clock);}
-   if(await this.pairCount(c,rows[0]!.user_id,rows[1]!.user_id,clock.day)>=2)throw new RankedError('INCOMPATIBLE');
+   if(await this.pairCount(c,rows[0]!.user_id,rows[1]!.user_id,clock.day)>=1)throw new RankedError('INCOMPATIBLE');
    const id=randomUUID();const offer=(await c.query<Offer>(`INSERT INTO ranked_offers(id,a_ticket,b_ticket,state,created_at,expires_at) VALUES($1,$2,$3,'PENDING',$4,$4::timestamptz+interval '10 seconds') RETURNING *`,[id,rows[0]!.id,rows[1]!.id,clock.at])).rows[0]!;
    for(const t of rows){await c.query("UPDATE ranked_tickets SET state='OFFER' WHERE id=$1",[t.id]);await c.query("INSERT INTO ranked_reservations(offer_id,user_id,state,lagos_date,reserved_at) VALUES($1,$2,'RESERVED',$3,$4)",[id,t.user_id,clock.day,clock.at]);await this.epoch(c,t.user_id,true);}
    return offer;
@@ -166,7 +166,7 @@ export class RankedRepository {
    const allowances:Allowance[]=[];let invalidUser:string|undefined;
    try{
     for(const t of rows){invalidUser=t.user_id;if(!await this.ticketPresent(c,t,clock.at))throw new RankedError('INCOMPATIBLE');allowances.push(await this.eligible(c,t.user_id,clock,offer.id));}
-    if(await this.pairCount(c,rows[0]!.user_id,rows[1]!.user_id,clock.day,offer.id)>=2)throw new RankedError('INCOMPATIBLE');
+    if(await this.pairCount(c,rows[0]!.user_id,rows[1]!.user_id,clock.day,offer.id)>=1)throw new RankedError('INCOMPATIBLE');
    }catch(error){if(!(error instanceof RankedError))throw error;await this.releaseOffer(c,offer,rows,clock.at,invalidUser,false);return {matchId:null,state:'CANCELLED'};}
    const matchId=randomUUID();const state=createGame(APPROVED_WHOT_RULES,clock.at.getTime(),cryptoRandomInt);
    await c.query(`INSERT INTO game_matches(id,mode,rule_version,private_initial_state,private_state,status,version,started_at,updated_at) VALUES($1,'RANKED',$2,$3,$3,'ACTIVE',0,$4,$4)`,[matchId,state.rules.version,state,clock.at]);
@@ -189,47 +189,12 @@ export class RankedRepository {
   await c.query(`INSERT INTO ranked_penalties(user_id,misses,last_miss_at,locked_until) VALUES($1,$2,$3,$4)
    ON CONFLICT(user_id) DO UPDATE SET misses=EXCLUDED.misses,last_miss_at=EXCLUDED.last_miss_at,locked_until=EXCLUDED.locked_until`,[userId,misses,at,minutes?new Date(at.getTime()+minutes*60000):null]);
  }
- async requestRematch(connection:RealtimeConnection,targetId:string,key:string):Promise<string>{
-  if(!/^tg_[1-9][0-9]{0,19}$/.test(targetId)||targetId===connection.userId||!/^[A-Za-z0-9._:-]{8,128}$/.test(key))throw new RankedError('INVALID_INPUT');
-  return this.tx(async c=>{
-   await this.lockUsers(c,[connection.userId,targetId]);await this.sessions.lockCurrent(c,connection);const clock=await this.clock(c);
-   const old=(await c.query<{id:string;target_id:string}>('SELECT id,target_id FROM ranked_rematches WHERE requester_id=$1 AND request_key=$2',[connection.userId,key])).rows[0];
-   if(old){if(old.target_id!==targetId)throw new RankedError('INVALID_INPUT');return old.id;}
-   if(Number((await c.query("SELECT count(*) n FROM ranked_rematches WHERE requester_id=$1 AND created_at>$2::timestamptz-interval '1 hour'",[connection.userId,clock.at])).rows[0].n)>=3)throw new RankedError('REMATCH_LIMIT');
-   if(!(await c.query(`SELECT 1 FROM ranked_results WHERE user_id=$1 AND opponent_id=$2 LIMIT 1`,[connection.userId,targetId])).rowCount)throw new RankedError('INCOMPATIBLE');
-   for(const user of [connection.userId,targetId])await this.rematchEligible(c,user,clock);
-   if(await this.pairCount(c,connection.userId,targetId,clock.day)>=2)throw new RankedError('INCOMPATIBLE');
-   const id=randomUUID();await c.query(`INSERT INTO ranked_rematches(id,requester_id,target_id,request_key,state,created_at,expires_at) VALUES($1,$2,$3,$4,'PENDING',$5,$5::timestamptz+interval '15 seconds')`,[id,connection.userId,targetId,key,clock.at]);return id;
-  });
+ /** Retained for old clients: ranked invitations are disabled by business policy. */
+ async requestRematch(_connection:RealtimeConnection,_targetId:string,_key:string):Promise<string>{
+  throw new RankedError('REMATCH_DISABLED');
  }
- private async rematchEligible(c:PoolClient,userId:string,clock:{at:Date;day:string;reset:Date},requestId?:string):Promise<string>{
-  await this.eligible(c,userId,clock);
-  if((await c.query("SELECT 1 FROM ranked_tickets WHERE user_id=$1 AND state IN('SEARCHING','OFFER')",[userId])).rowCount)throw new RankedError('ALREADY_IN_QUEUE');
-  if((await c.query(`SELECT 1 FROM ranked_rematches WHERE state='PENDING' AND expires_at>$2 AND (requester_id=$1 OR target_id=$1) AND ($3::uuid IS NULL OR id<>$3)`,[userId,clock.at,requestId??null])).rowCount)throw new RankedError('ALREADY_IN_QUEUE');
-  const session=(await c.query<{connection_id:string}>(`SELECT s.connection_id FROM realtime_sessions s JOIN users u ON u.id=s.user_id WHERE s.user_id=$1 AND s.expires_at>$2 AND s.token_version=u.token_version FOR SHARE OF s`,[userId,clock.at])).rows[0];
-  if(!session)throw new RankedError('INCOMPATIBLE');return session.connection_id;
- }
- async respondRematch(connection:RealtimeConnection,requestId:string,accept:boolean):Promise<{matchId:string|null;state:string}>{
-  if(!uuid.test(requestId)||typeof accept!=='boolean')throw new RankedError('INVALID_INPUT');
-  const initial=(await this.pool.query<{requester_id:string;target_id:string}>('SELECT requester_id,target_id FROM ranked_rematches WHERE id=$1',[requestId])).rows[0];
-  if(!initial||initial.target_id!==connection.userId)throw new RankedError('INVALID_INPUT');
-  return this.tx(async c=>{
-   await this.lockUsers(c,[initial.requester_id,initial.target_id]);await this.sessions.lockCurrent(c,connection);
-   const r=(await c.query<{state:string;expires_at:Date;match_id:string|null}>('SELECT * FROM ranked_rematches WHERE id=$1 FOR UPDATE',[requestId])).rows[0]!;
-   if(r.state!=='PENDING')return {matchId:r.match_id,state:r.state};
-   const clock=await this.clock(c);
-   if(!accept||r.expires_at<=clock.at){const state=r.expires_at<=clock.at?'EXPIRED':'DECLINED';await c.query('UPDATE ranked_rematches SET state=$2 WHERE id=$1',[requestId,state]);return {matchId:null,state};}
-   const users=[initial.requester_id,initial.target_id].sort();const connectionIds:string[]=[];
-   try{for(const user of users)connectionIds.push(await this.rematchEligible(c,user,clock,requestId));
-    if(await this.pairCount(c,users[0]!,users[1]!,clock.day)>=2)throw new RankedError('INCOMPATIBLE');
-   }catch(error){if(!(error instanceof RankedError))throw error;await c.query("UPDATE ranked_rematches SET state='CANCELLED' WHERE id=$1",[requestId]);return {matchId:null,state:'CANCELLED'};}
-   const ids=[randomUUID(),randomUUID()];
-   for(let i=0;i<2;i++)await c.query(`INSERT INTO ranked_tickets(id,user_id,connection_id,request_key,state,joined_at,last_seen_at,search_expires_at) VALUES($1,$2,$3,$4,'OFFER',$5,$5,$5::timestamptz+interval '120 seconds')`,[ids[i],users[i],connectionIds[i],'rematch:'+requestId,clock.at]);
-   const offerId=randomUUID();const offer=(await c.query<Offer>(`INSERT INTO ranked_offers(id,a_ticket,b_ticket,state,accepted_a,accepted_b,created_at,expires_at) VALUES($1,$2,$3,'PENDING',true,true,$4,$4::timestamptz+interval '10 seconds') RETURNING *`,[offerId,ids[0],ids[1],clock.at])).rows[0]!;
-   for(const user of users)await c.query("INSERT INTO ranked_reservations(offer_id,user_id,state,lagos_date,reserved_at) VALUES($1,$2,'RESERVED',$3,$4)",[offerId,user,clock.day,clock.at]);
-   const result=await this.startAccepted(c,offer,await this.tickets(c,ids),clock);
-   await c.query('UPDATE ranked_rematches SET state=$2,match_id=$3 WHERE id=$1',[requestId,result.matchId?'STARTED':'CANCELLED',result.matchId]);return result;
-  });
+ async respondRematch(_connection:RealtimeConnection,_requestId:string,_accept:boolean):Promise<{matchId:string|null;state:string}>{
+  throw new RankedError('REMATCH_DISABLED');
  }
 
  async recover(limit=100,signal?:AbortSignal):Promise<void>{
@@ -264,7 +229,7 @@ export class RankedRepository {
   const match=game?{id:game.id,mode:game.mode,view:projectGame(restoreGame(game.private_state),game.seat)}:null;
   const phase=match?.view.status==='ACTIVE'?'IN_MATCH':offer?'OFFER':ticket?'SEARCHING':match?'RESULT':'IDLE';
   const penalty=(await c.query<{misses:number;locked_until:Date|null;last_miss_at:Date}>('SELECT misses,locked_until,last_miss_at FROM ranked_penalties WHERE user_id=$1',[connection.userId])).rows[0];
-  const rematches=(await c.query<{id:string;requester_id:string;target_id:string;expires_at:Date}>(`SELECT id,requester_id,target_id,expires_at FROM ranked_rematches WHERE state='PENDING' AND expires_at>$2 AND (requester_id=$1 OR target_id=$1) ORDER BY created_at LIMIT 1`,[connection.userId,clock.at])).rows.map(r=>({id:r.id,opponentId:r.requester_id===connection.userId?r.target_id:r.requester_id,incoming:r.target_id===connection.userId,expiresAt:r.expires_at.getTime()}));
+  const rematches:never[]=[]; // Historical pending invitations must never be actionable.
   const recentOpponents=(await c.query<{opponent_id:string;first_name:string}>(`SELECT r.opponent_id,u.first_name FROM ranked_results r JOIN users u ON u.id=r.opponent_id WHERE r.user_id=$1 GROUP BY r.opponent_id,u.first_name ORDER BY max(r.finished_at) DESC,r.opponent_id LIMIT 10`,[connection.userId])).rows.map(r=>({id:r.opponent_id,name:r.first_name.slice(0,100)}));
   const result=match?(await c.query<{outcome:string;reason:string;lagos_date:string}>('SELECT outcome,reason,lagos_date::text FROM ranked_results WHERE match_id=$1 AND user_id=$2',[match.id,connection.userId])).rows[0]??null:null;
   const stats=(await c.query<{played:number;wins:number;losses:number;draws:number;taskDays:number;practice:number}>(`WITH bounds AS (SELECT date_trunc('month',$2::date)::date AS start, (date_trunc('month',$2::date)+interval '1 month')::date AS finish)

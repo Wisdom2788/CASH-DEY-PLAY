@@ -1,5 +1,8 @@
 # Full ranked acceptance design
 
+> Policy revision — 26 October 2026: one ranked START per opponent per Lagos calendar day, for all tiers. Ranked rematch invitations/acceptance are disabled, including old clients and historical pending invitations. Started forfeits/timeouts count; unstarted offers do not. Three total starts/day and the existing cooldown remain unchanged. This supersedes earlier two-per-opponent and rematch policies below. Daily task rotation is the next separate implementation; current fixed tasks remain until that migration is tested.
+
+
 26 October 2026. Owner approved: ready-check decline or expiry gives warning, then 2/5/15 minute lockouts; reset after 24 hours without a miss. Rematch requests: three per rolling hour, mutual consent within15 seconds, no penalty for refusal/expiry, normal quota/cooldown/pair checks. Existing30-second turn clock continues through disconnect; no automatic void/refund from disconnects. Technical compensation requires recorded operator review; no public compensation writer.
 
 ## Ordered implementation

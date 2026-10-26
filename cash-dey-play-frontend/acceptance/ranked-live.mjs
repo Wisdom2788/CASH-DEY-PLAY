@@ -59,12 +59,13 @@ try{
  await a.getByRole('heading',{name:'WIN',exact:true}).waitFor();await b.getByRole('heading',{name:'LOSS',exact:true}).waitFor();
  assert.deepEqual((await pool.query('SELECT user_id,outcome FROM ranked_results ORDER BY user_id')).rows,[{user_id:'tg_123001',outcome:'WIN'},{user_id:'tg_123002',outcome:'LOSS'}]);
  assert.deepEqual((await pool.query('SELECT id,points FROM users ORDER BY id')).rows,[{id:'tg_123001',points:50},{id:'tg_123002',points:0}]);
- await a.getByRole('button',{name:'Request rematch · Player B',exact:true}).click();await b.getByRole('button',{name:'Accept rematch',exact:true}).click();
- for(const page of pages)await page.getByRole('region',{name:'Game board'}).waitFor();
- assert.equal((await pool.query('SELECT count(*)::int n FROM game_matches')).rows[0].n,2);
- assert.equal((await pool.query("SELECT count(*)::int n FROM ranked_reservations WHERE state='STARTED'")).rows[0].n,4);
+ for(const page of pages){assert.equal(await page.getByRole('button',{name:/rematch/i}).count(),0);await page.getByRole('button',{name:'Find ranked opponent',exact:true}).click();await page.getByRole('region',{name:'Searching'}).waitFor();}
+ await new Promise(resolve=>setTimeout(resolve,1500));
+ assert.equal((await pool.query('SELECT count(*)::int n FROM game_matches')).rows[0].n,1,'same-day pairing cannot start a second match');
+ assert.equal((await pool.query("SELECT count(*)::int n FROM ranked_offers")).rows[0].n,1,'same-day pairing cannot generate a second offer');
+ assert.equal((await pool.query("SELECT count(*)::int n FROM ranked_reservations WHERE state='STARTED'")).rows[0].n,2);
  assert.deepEqual(errors,[]);assert.deepEqual(failures,[]);assert.ok(delivered>=2,'committed move/finish outbox relayed through Redis');
- await a.screenshot({path:'/tmp/ranked-live-browser.png',fullPage:true});console.log(JSON.stringify({rankedLiveBrowser:{passed:true,players:2,flow:'queue/offer/move/network reconnect/SQL settlement/task points/rematch',matches:2,resultReceipts:2,startedCharges:4,pointsAwarded:50,privateProjection:true,relayedCommittedEvents:delivered}}));
+ await a.screenshot({path:'/tmp/ranked-live-browser.png',fullPage:true});console.log(JSON.stringify({rankedLiveBrowser:{passed:true,players:2,flow:'queue/offer/move/network reconnect/SQL settlement/task points/repeat pairing blocked',matches:1,resultReceipts:2,startedCharges:2,pointsAwarded:50,privateProjection:true,relayedCommittedEvents:delivered}}));
 }finally{
  stop.abort();if(browser)await browser.close();await Promise.allSettled(loops);if(gateway)await new Promise(resolve=>gateway.close(resolve));else if(api.listening)await new Promise(resolve=>api.close(resolve));if(vite)await vite.close();notifications?.close();
  const keys=await redis.keys(queue.prefix+'*').catch(()=>[]);if(keys.length)await redis.del(...keys);redis.disconnect();await pool.end();await admin.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);await admin.end();

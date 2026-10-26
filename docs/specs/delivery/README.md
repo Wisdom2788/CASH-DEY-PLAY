@@ -1,6 +1,6 @@
 # Delivery specifications and implementation ledger
 
-Updated 25 October 2026. Base: step-1-loopholes at 275a2e1. Scope: close C1–C7, H1–H11, M1–M13 and frontend hygiene, then deliver a functional v1. This directory supersedes conflicting implementation instructions in the older build-plan, audit and reference draft. Preserve those documents as historical evidence.
+Updated 26 October 2026. Base: step-1-loopholes at 275a2e1. Scope: close C1–C7, H1–H11, M1–M13 and frontend hygiene, then deliver a functional v1. This directory supersedes conflicting implementation instructions in the older build-plan, audit and reference draft. Preserve those documents as historical evidence.
 
 Current checkbox tracker and requirement validation: [DELIVERY-CHECKLIST.md](DELIVERY-CHECKLIST.md).
 
@@ -16,7 +16,7 @@ A spec is not an implementation. “Implemented locally” is not a passing host
 | 04 | [Entitlements, tasks and referrals](04-entitlements.md) | 02–03 | Core implemented in PR5; source integrations and staging verification pending |
 | 05 | [Whot engine and practice bot](05-game-engine.md) | 02 and agreed game rules | Core implemented and CI verified; owner rules approved; practice exposure remains pending |
 | 06 | [Verified ads and practice limits](06-ads-practice.md) | 04–05 and provider contract | Admission/completion core CI verified; provider and public-flow integrations pending |
-| 07 | [Realtime and ranked matchmaking](07-ranked.md) | 04–06 | Specified; not implemented |
+| 07 | [Realtime and ranked matchmaking](07-ranked.md) | 04–06 | Core implemented and CI verified in PR15; current policy revision under validation; hosted/device/load gates remain open |
 | 08 | [Streak milestones and referral qualification](08-rewards.md) | 03–07 | Specified; not implemented |
 | 09 | [Stars premium payments](09-payments.md) | 03–04 and staging bot | Specified; not implemented |
 | 10 | [Airtime payout delivery](10-payouts.md) | 03,08 and provider account | Specified; not implemented |

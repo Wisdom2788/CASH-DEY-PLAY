@@ -1,5 +1,15 @@
 # Cumulative implementation summary
 
+## Business policy revision — 26 October 2026
+
+- [x] Implement one same-opponent ranked start per Lagos day, rechecked under player locks at offer reservation and final start; premium has no bypass.
+- [x] Disable ranked invitations and acceptance at the repository boundary; return REMATCH_DISABLED to old clients, hide pending invitations and remove frontend controls. Historical records remain intact; no destructive migration.
+- [ ] Complete CI acceptance for the revised policy (including real SQL/Redis/browser repeat-pair rejection); previous PR15 evidence does not certify this revision.
+- [ ] Replace fixed daily tasks with versioned rotating daily schedules, trusted-event progress, controlled rewards and schedule-based completion/qualification.
+- [ ] Hosted worker, real-device, provider and release gates below remain open. No paid resources or production changes in this revision.
+
+The previous ranked runtime/evidence below is historical. See 07-ranked-policy-revision.md for the current flow and acceptance scope.
+
 Updated 26 October 2026. Checked items certify their named tested scope. Provider, physical-device, hosted and production acceptance remain separate. No absolute security certification is implied.
 
 ## Build order and status

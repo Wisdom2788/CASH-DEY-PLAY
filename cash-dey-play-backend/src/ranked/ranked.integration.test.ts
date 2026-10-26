@@ -44,9 +44,9 @@ suite('durable ranked admission and Redis matchmaking',()=>{
   const o=await offer();await pool.query("UPDATE ranked_tickets SET joined_at=clock_timestamp()-interval '121 seconds',search_expires_at=clock_timestamp()-interval '1 second' WHERE id=ANY($1::uuid[])",[[o.ta.id,o.tb.id]]);
   await ranked.heartbeat(c(123),o.ta.id);await ranked.respond(c(123),o.offer.id,true);expect((await ranked.respond(c(456),o.offer.id,true)).state).toBe('STARTED');
   await finish((await ranked.resume(c(123))).match!.id);
-  const second=await offer();await ranked.respond(c(123),second.offer.id,true);await pool.query("UPDATE ranked_tickets SET joined_at=clock_timestamp()-interval '121 seconds',search_expires_at=clock_timestamp()-interval '1 second' WHERE id=ANY($1::uuid[])",[[second.ta.id,second.tb.id]]);
+  const second=await offer(123,789);await ranked.respond(c(123),second.offer.id,true);await pool.query("UPDATE ranked_tickets SET joined_at=clock_timestamp()-interval '121 seconds',search_expires_at=clock_timestamp()-interval '1 second' WHERE id=ANY($1::uuid[])",[[second.ta.id,second.tb.id]]);
   await pool.query("UPDATE ranked_offers SET created_at=clock_timestamp()-interval '20 seconds',expires_at=clock_timestamp()-interval '1 second' WHERE id=$1",[second.offer.id]);await ranked.recover();
-  expect((await ranked.resume(c(123))).ranked.ticket).toBeNull();expect((await ranked.resume(c(456))).ranked.ticket).toBeNull();
+  expect((await ranked.resume(c(123))).ranked.ticket).toBeNull();expect((await ranked.resume(c(789))).ranked.ticket).toBeNull();
  });
  it('settles persisted timeout events with both seat projections as a real win/loss',async()=>{
   const m=await start();const view=await games.view(m.matchId,'tg_123');await games.timeout(m.matchId,view.deadlineAt!);
@@ -104,22 +104,14 @@ suite('durable ranked admission and Redis matchmaking',()=>{
   const o=await offer();await ranked.respond(c(456),o.offer.id,false);expect((await ranked.resume(c(456))).ranked.penalty).toEqual({misses:1,lockedUntil:null});
   expect((await pool.query("SELECT count(*)::int n FROM ranked_no_shows WHERE user_id='tg_456'")).rows[0].n).toBe(5);
  });
- it('starts mutually accepted rematch once with no second ready check and rechecks opponent cap',async()=>{
+ it('rejects rematch requests and acceptance without any writes, including legacy invitations',async()=>{
   const first=await start();await finish(first.matchId);await new RankedSettlement(pool).settle(first.matchId);
-  const request=await ranked.requestRematch(c(123),'tg_456','rematch-key');expect(await ranked.requestRematch(c(123),'tg_456','rematch-key')).toBe(request);
-  expect((await ranked.resume(c(456))).ranked.rematches).toMatchObject([{id:request,incoming:true,opponentId:'tg_123'}]);
-  await expect(ranked.respondRematch(c(123),request,true)).rejects.toMatchObject({code:'INVALID_INPUT'});
-  const starts=await Promise.all(Array.from({length:10},()=>ranked.respondRematch(c(456),request,true)));expect(new Set(starts.map(v=>v.matchId)).size).toBe(1);expect(starts[0]!.state).toBe('STARTED');
-  await finish(starts[0]!.matchId!);await premium(123);await premium(456);
-  await expect(ranked.requestRematch(c(123),'tg_456','third-pair')).rejects.toMatchObject({code:'INCOMPATIBLE'});
- });
- it('throttles three rolling-hour rematch requests and declines/expiries do not penalize or charge',async()=>{
-  const first=await start();await finish(first.matchId);await new RankedSettlement(pool).settle(first.matchId);
-  for(let i=0;i<3;i++){const id=await ranked.requestRematch(c(123),'tg_456','request-'+i);await ranked.respondRematch(c(456),id,false);}
-  await expect(ranked.requestRematch(c(123),'tg_456','request-four')).rejects.toMatchObject({code:'REMATCH_LIMIT'});
-  await pool.query("UPDATE ranked_rematches SET created_at=created_at-interval '1 hour',expires_at=expires_at-interval '1 hour'");
-  const id=await ranked.requestRematch(c(123),'tg_456','new-hour');await pool.query("UPDATE ranked_rematches SET created_at=created_at-interval '20 seconds',expires_at=clock_timestamp()-interval '1 second' WHERE id=$1",[id]);
-  expect((await ranked.respondRematch(c(456),id,true)).state).toBe('EXPIRED');expect((await ranked.resume(c(456))).ranked.penalty.misses).toBe(0);expect((await ranked.resume(c(456))).ranked.allowance.used).toBe(1);
+  const id=randomUUID();await pool.query("INSERT INTO ranked_rematches(id,requester_id,target_id,request_key,state,created_at,expires_at) VALUES($1,'tg_123','tg_456','legacy-request','PENDING',clock_timestamp(),clock_timestamp()+interval '15 seconds')",[id]);
+  await expect(ranked.requestRematch(c(123),'tg_456','rematch-key')).rejects.toMatchObject({code:'REMATCH_DISABLED'});
+  await expect(ranked.respondRematch(c(456),id,true)).rejects.toMatchObject({code:'REMATCH_DISABLED'});
+  expect((await ranked.resume(c(456))).ranked.rematches).toEqual([]);
+  expect((await pool.query('SELECT count(*)::int n FROM game_matches')).rows[0].n).toBe(1);
+  expect((await ranked.resume(c(456))).ranked.allowance.used).toBe(1);
  });
  it('serializes duplicate queue joins and shares the admission lock with practice',async()=>{
   const joined=await Promise.all(Array.from({length:10},()=>ranked.join(c(123),'same-join-key')));expect(new Set(joined.map(t=>t.id)).size).toBe(1);
@@ -163,19 +155,19 @@ suite('durable ranked admission and Redis matchmaking',()=>{
   await expect(ranked.join(c(123),'fourth-start-denied')).rejects.toMatchObject({code:'RANKED_DAILY_LIMIT'});expect((await ranked.resume(c(123))).ranked.allowance.used).toBe(3);
  });
  it('starts regular cooldown at the second finish; premium bypass and downgrade are rechecked',async()=>{
-  const first=await start();await finish(first.matchId);const second=await start();await finish(second.matchId);
+  const first=await start();await finish(first.matchId);const second=await start(123,789);await finish(second.matchId);
   const allowance=(await ranked.resume(c(123))).ranked.allowance;const end=(await pool.query('SELECT ended_at FROM game_matches WHERE id=$1',[second.matchId])).rows[0].ended_at as Date;
   expect(allowance.cooldownUntil).toBe(Math.min(allowance.resetAt,end.getTime()+3600000));await expect(ranked.join(c(123),'blocked-cooldown')).rejects.toMatchObject({code:'RANKED_COOLDOWN'});
   const order=await premium(123);expect((await ranked.resume(c(123))).ranked.allowance.cooldownUntil).toBeNull();
-  const ta=await ranked.join(c(123),'premium-third-offer');const tb=await ranked.join(c(789),'new-opponent-offer');const f=(await ranked.acquireFence(randomUUID()))!;
-  const next=await ranked.createOffer(f,ta.id,tb.id);await ranked.releaseFence(f);expect(next).not.toBeNull();await ranked.respond(c(789),next!.id,true);
+  const ta=await ranked.join(c(123),'premium-third-offer');const tb=await ranked.join(c(999),'new-opponent-offer');const f=(await ranked.acquireFence(randomUUID()))!;
+  const next=await ranked.createOffer(f,ta.id,tb.id);await ranked.releaseFence(f);expect(next).not.toBeNull();await ranked.respond(c(999),next!.id,true);
   await pool.query('UPDATE paid_entitlements SET revoked_at=clock_timestamp() WHERE order_id=$1',[order]);
-  expect((await ranked.respond(c(123),next!.id,true)).state).toBe('CANCELLED');expect((await ranked.resume(c(789))).phase).toBe('SEARCHING');expect((await ranked.resume(c(123))).ranked.allowance.used).toBe(2);
+  expect((await ranked.respond(c(123),next!.id,true)).state).toBe('CANCELLED');expect((await ranked.resume(c(999))).phase).toBe('SEARCHING');expect((await ranked.resume(c(123))).ranked.allowance.used).toBe(2);
  });
- it('enforces two starts per opponent per Lagos day using a count, not membership',async()=>{
+ it('blocks the second same-opponent start even for premium after a forfeit',async()=>{
   await premium(123);await premium(456);
-  for(let i=0;i<2;i++){const m=await start();await finish(m.matchId);}
-  const third=await offer();expect(third.offer).toBeNull();expect((await ranked.resume(c(123))).ranked.allowance.used).toBe(2);
+  const m=await start();await finish(m.matchId);
+  const second=await offer();expect(second.offer).toBeNull();expect((await ranked.resume(c(123))).ranked.allowance.used).toBe(1);
  });
  it('moves a reservation to the actual Lagos start day across midnight without charging the old day',async()=>{
   const o=await offer();await pool.query("UPDATE ranked_reservations SET lagos_date=(clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date-1 WHERE state='RESERVED'");
@@ -250,10 +242,9 @@ suite('durable ranked admission and Redis matchmaking',()=>{
    await new RankedSettlement(pool).recover();
    for(let i=0;i<100&&!updates.get(b)!.some(s=>s.ranked.result?.outcome==='WIN');i++)await new Promise(resolve=>setTimeout(resolve,20));
    expect(updates.get(b)!.some(s=>s.ranked.result?.outcome==='WIN')).toBe(true);
-   const requested=await call(a,'rematch:request',{opponentId:'tg_456',requestKey:'socket-rematch-key'});expect(requested.ok).toBe(true);
-   for(let i=0;i<100&&!updates.get(b)!.some(s=>s.ranked.rematches.length);i++)await new Promise(resolve=>setTimeout(resolve,20));
-   const request=updates.get(b)!.find(s=>s.ranked.rematches.length).ranked.rematches[0];expect((await call(b,'rematch:respond',{requestId:request.id,accept:true})).data.phase).toBe('IN_MATCH');
-   expect((await pool.query('SELECT count(*)::int n FROM game_matches')).rows[0].n).toBe(2);
+   expect(await call(a,'rematch:request',{opponentId:'tg_456',requestKey:'socket-rematch-key'})).toEqual({ok:false,error:{code:'REMATCH_DISABLED'}});
+   expect(await call(b,'rematch:respond',{requestId:randomUUID(),accept:true})).toEqual({ok:false,error:{code:'REMATCH_DISABLED'}});
+   expect((await pool.query('SELECT count(*)::int n FROM game_matches')).rows[0].n).toBe(1);
 
   }finally{for(const client of clients)client.disconnect();await Promise.all(gateways.map(g=>new Promise<void>(resolve=>g.close(()=>resolve()))));const keys=await redis.keys(queue.prefix+'*').catch(()=>[]);if(keys.length)await redis.del(...keys);redis.disconnect();}
  },20000);

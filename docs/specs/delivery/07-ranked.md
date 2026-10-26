@@ -1,5 +1,8 @@
 # Realtime session, ranked queue and rematches
 
+> Policy revision — 26 October 2026: one ranked START per opponent per Lagos calendar day, for all tiers. Ranked rematch invitations/acceptance are disabled, including old clients and historical pending invitations. Started forfeits/timeouts count; unstarted offers do not. Three total starts/day and the existing cooldown remain unchanged. This supersedes earlier two-per-opponent and rematch policies below. Daily task rotation is the next separate implementation; current fixed tasks remain until that migration is tested.
+
+
 Status: **Durable worker, authenticated read/reconnect and atomic move core implemented; public realtime/ranked flow incomplete**. Covers: C7/later C8, H3/H4/H11, hidden-card and anti-cheat boundaries. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
 
 ### Model and protocol
