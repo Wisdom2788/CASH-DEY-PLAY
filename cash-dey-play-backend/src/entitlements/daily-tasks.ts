@@ -32,7 +32,7 @@ export class DailyTasks {
   if(day.schedule){
    const definitions=[...day.schedule,{key:'BONUS_ALL_COMPLETE' as const,title:'Complete today’s three objectives',target:day.schedule.length,points:50}];
    const tasks=definitions.map(def=>{const row=day.rows.find(r=>r.task_key===def.key)!;return {id:`${day.date}:${def.key}`,title:def.title,type:def.key,points:def.points,isCompleted:row.status==='CLAIMED',status:row.status,action:row.status==='CLAIMED'||def.key==='BONUS_ALL_COMPLETE'?'NONE' as const:'PLAY_RANKED' as const,progress:row.progress,target:def.target};});
-   return {tasks,lagosDate:day.date,scheduleVersion:'rotating-v2',maxPoints:200,allBonusClaimed:tasks.every(t=>t.isCompleted),timeRemainingSeconds:secondsUntilNextLagosMidnight(day.at),optionalVideosWatchedToday:0,practiceMatchesUnlocked:0,freeMatchesRemaining:0,cooldownActive:false,cooldownSecondsLeft:0,gameplayAvailable:false};
+   return {tasks,lagosDate:day.date,scheduleVersion:'rotating-v2',maxPoints:200,pointsBalance:(await c.query<{points:number}>('SELECT points FROM users WHERE id=$1',[userId])).rows[0]!.points,allBonusClaimed:tasks.every(t=>t.isCompleted),timeRemainingSeconds:secondsUntilNextLagosMidnight(day.at),optionalVideosWatchedToday:0,practiceMatchesUnlocked:0,freeMatchesRemaining:0,cooldownActive:false,cooldownSecondsLeft:0,gameplayAvailable:false};
   }
   const ids=['task_login_video','task_unlock_video','task_win_match','task_all_complete'];
   const titles=['Watch Daily Login Video','Watch Match Unlock Video','Win 1 Ranked Match','Complete All Daily Tasks'];

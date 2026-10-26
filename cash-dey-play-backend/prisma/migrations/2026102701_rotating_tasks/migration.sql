@@ -21,7 +21,7 @@ BEGIN
    OR jsonb_typeof(item->'target') IS DISTINCT FROM 'number' OR (item->>'target')!~'^[1-9][0-9]?$'
    OR jsonb_typeof(item->'points') IS DISTINCT FROM 'number' OR item->>'points'<>'50'
    OR jsonb_typeof(item->'title') IS DISTINCT FROM 'string' THEN RETURN false; END IF;
-  IF (item->>'target')::int>CASE k WHEN 'WIN_MATCH' THEN 3 WHEN 'RANKED_FINISH' THEN 3 WHEN 'RANKED_SUITS' THEN 5 ELSE 50 END THEN RETURN false; END IF;
+  IF (item->>'target')::int>(CASE k WHEN 'WIN_MATCH' THEN 3 WHEN 'RANKED_FINISH' THEN 3 WHEN 'RANKED_SUITS' THEN 5 ELSE 50 END) THEN RETURN false; END IF;
   keys=array_append(keys,k);
  END LOOP;
  RETURN true;

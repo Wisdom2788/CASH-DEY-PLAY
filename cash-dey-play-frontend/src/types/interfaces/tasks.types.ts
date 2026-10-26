@@ -14,6 +14,7 @@ export interface TasksState {
   lagosDate?: string;
   scheduleVersion?: 'legacy-v1' | 'rotating-v2';
   maxPoints?: number;
+  pointsBalance?: number;
   tasks: DailyTask[];
   optionalVideosWatchedToday: number;
   practiceMatchesUnlocked: number;

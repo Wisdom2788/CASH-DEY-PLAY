@@ -10,7 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import routes from '../../config/routes.config';
 
 export default function TasksView() {
-  const { data: tasksState, isLoading } = useGetTasksState();
+  const { data: tasksState, isLoading, isError, refetch } = useGetTasksState();
   const completeTaskMutation = useCompleteTask();
   const claimMutation=useClaimExemptTask();
   const watchOptionalVideoMutation = useWatchOptionalVideo();
@@ -83,7 +83,7 @@ export default function TasksView() {
     showToast('Streak rewards are not available yet.', 'info');
   };
 
-  if (isLoading || !loginStreak || !user) {
+  if (isLoading || !user) {
     return (
       <div className="flex-1 px-4 pt-2 pb-6 space-y-4">
         <div className="flex justify-between items-center">
@@ -97,6 +97,8 @@ export default function TasksView() {
     );
   }
 
+  if(isError||!tasksState)return <div role="alert" className="p-4 text-white"><p>Daily tasks could not be loaded.</p><button type="button" onClick={()=>void refetch()}>Retry</button></div>;
+
   return (
     <div className="flex-1 overflow-y-auto no-scrollbar px-4 pt-2 pb-6 space-y-4 text-[#F5F5F0]">
       {/* Title */}
@@ -107,7 +109,7 @@ export default function TasksView() {
         </div>
         <div className="text-right">
           <span className="text-[10px] text-[#9A9A9A] uppercase tracking-wider block">Points Balance</span>
-          <span className="font-bebas text-xl text-[#00E676]">{user.points} PTS</span>
+          <span className="font-bebas text-xl text-[#00E676]">{tasksState.pointsBalance??user.points} PTS</span>
         </div>
       </div>
 
@@ -132,7 +134,7 @@ export default function TasksView() {
 
       {/* Section 1: Daily Tasks List */}
       <section aria-label="Daily objectives" className="bg-[#1A1B1E] border border-[#303338] rounded-2xl p-3.5 space-y-3">
-        <div className="flex items-center justify-between pb-2 border-b border-[#2A2C31]">
+        <div className="flex flex-wrap gap-2 items-center justify-between pb-2 border-b border-[#2A2C31]">
           <span className="text-xs font-bold tracking-wider text-[#F2B705] uppercase">
             TODAY'S OBJECTIVES & BONUS (MAX {tasksState?.maxPoints??tasks.reduce((n,t)=>n+t.points,0)} PTS)
           </span>
@@ -147,13 +149,13 @@ export default function TasksView() {
             <div
               key={task.id}
               role="group" aria-label={task.title}
-              className={`p-3 rounded-xl border flex items-center justify-between transition ${
+              className={`p-3 rounded-xl border flex gap-3 items-center justify-between transition ${
                 task.isCompleted
                   ? 'bg-[#0D2D1E]/40 border-[#00B85F]/40 text-gray-300'
                   : 'bg-[#111214] border-[#2A2C31] text-white hover:border-[#3a3e47]'
               }`}
             >
-              <div className="flex items-center space-x-3">
+              <div className="flex min-w-0 flex-1 items-center space-x-3">
                 <div
                   className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
                     task.isCompleted
@@ -187,7 +189,7 @@ export default function TasksView() {
       </section>
 
       {/* Section 2: Rewarded Video Practice Match Slots (Daily Earn) */}
-      <section className="bg-[#151824] border border-[#2b3044] rounded-2xl p-3.5 space-y-3">
+      {tasksState.scheduleVersion!=='rotating-v2'&&<section className="bg-[#151824] border border-[#2b3044] rounded-2xl p-3.5 space-y-3">
         <div className="flex items-center justify-between pb-1 border-b border-[#2b3044]">
           <div>
             <h3 className="font-bebas text-lg text-white">REWARDED VIDEO (DAILY EARN)</h3>
@@ -217,10 +219,10 @@ export default function TasksView() {
             <span>▶ {watchOptionalVideoMutation.isPending ? 'Loading...' : 'Play match'}</span>
           </button>
         </div>
-      </section>
+      </section>}
 
-      {/* Section 3: 20-Active-Day Rolling Window & Stepping Stones */}
-      <section className="bg-[#1A1B1E] border border-[#00B85F]/30 rounded-2xl p-3.5 space-y-3">
+      {/* Section 3: Login streak is independent of daily objective availability. */}
+      {loginStreak&&<section className="bg-[#1A1B1E] border border-[#00B85F]/30 rounded-2xl p-3.5 space-y-3">
         <div className="flex items-center justify-between pb-2 border-b border-[#2A2C31]">
           <div>
             <span className="text-xs font-bold tracking-wider text-[#00E676] uppercase block">
@@ -313,7 +315,7 @@ export default function TasksView() {
             );
           })}
         </div>
-      </section>
+      </section>}
     </div>
   );
 };
