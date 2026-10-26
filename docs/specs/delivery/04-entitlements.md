@@ -1,5 +1,7 @@
 # Entitlements, daily tasks and durable referrals
 
+> Rotating-task revision, 27 October 2026: PR17 implements shared published daily schedules, verified ranked-event progress, once-only objectives/bonus and exact schedule-based qualification. See [design and acceptance](04-rotating-tasks-design.md). Fixed video/win tasks below apply only to dates before the migration's recorded cutover; historical claims remain. Stage08 referral rewards, providers and production acceptance remain open.
+
 Status: **Core integrated into development through merged PR5; staging and external source integrations pending**. Covers: H6/H7/H10, H11, M9/M12/M13. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
 
 ### Tables and rule authority

@@ -6,7 +6,7 @@
 - [x] Implement immutable schedule/policy storage, guarded task materialization, transactional once-only objectives/bonus and historical recovery.
 - [x] Replace fixed-count day qualification in ranked, referral and monthly readers; monthly wins use authoritative ranked results.
 - [x] Render server-driven objectives/targets, scoped task queries and midnight/foreground refresh.
-- [ ] Complete SQL/Redis/browser CI acceptance for this new runtime; previous policy evidence does not certify rotating tasks.
+- [x] Complete rotating-task SQL/Redis/browser acceptance on 26d3b05c4fa4ddf45582f24a616e120b1c989b6b: 351 backend/37 frontend tests, Verify 40420751951.
 - [ ] Production migration/cutover, hosted worker, physical Telegram devices and remaining release gates. No production activation or paid provisioning in this implementation.
 
 
@@ -16,7 +16,7 @@
 - [x] Remove legacy lobby rematch handler/control; patch Vite to 8.3.5 and require frontend dependency audit (zero known vulnerabilities in final CI).
 - [x] Disable ranked invitations and acceptance at the repository boundary; return REMATCH_DISABLED to old clients, hide pending invitations and remove frontend controls. Historical records remain intact; no destructive migration.
 - [x] Complete revised-policy CI acceptance: 335 backend/36 frontend tests and actual SQL/Redis/browser repeat-pair rejection on runtime 6c2b4a6baff3dbd1c463fa88fdb9e402f18a6848; Verify 40414492210.
-- [ ] Replace fixed daily tasks with versioned rotating daily schedules, trusted-event progress, controlled rewards and schedule-based completion/qualification.
+- [x] Replace fixed daily tasks with versioned rotating daily schedules, trusted-event progress, controlled rewards and schedule-based completion/qualification (PR17 tested scope; production cutover pending).
 - [ ] Hosted worker, real-device, provider and release gates below remain open. No paid resources or production changes in this revision.
 
 The previous ranked runtime/evidence below is historical. See 07-ranked-policy-revision.md for the current flow and acceptance scope.
@@ -77,3 +77,23 @@ The 100-socket/50-offer test recorded zero duplicate assignments, p95 1812ms/max
 Frontend Vite was updated from 8.3.2 to 8.3.5 after npm audit identified advisories affecting the installed version; the declared lower bound and lockfile were updated. CI now audits frontend dependencies. Browser waits are bounded and acceptance progress is logged. The backend CI browser dependency install uses Ubuntu's primary archive after the hosted Azure mirror exhausted a job's time budget; required tests were retained.
 
 No database migration, paid resource provisioning, production configuration or main promotion was performed for this revision. Rotating daily tasks remain next; the current fixed-task implementation has not been relabelled complete for that new requirement.
+
+## Rotating task acceptance — 27 October 2026
+
+Runtime `26d3b05c4fa4ddf45582f24a616e120b1c989b6b` passed [Verify 40420751951](https://github.com/Wisdom2788/CASH-DEY-PLAY/actions/runs/40420751951): **351 backend tests / 40 suites**, **37 frontend tests**, no PostgreSQL/Redis test skips, ten migrations deployed twice, zero ledger/opening reconciliation mismatches, backend production and full frontend dependency audits reporting zero known vulnerabilities, typechecks/lint/builds, both Vercel previews and CodeRabbit checks.
+
+Covered: deterministic shared daily sets across 800 calendar dates and leap-year/Lagos midnight boundaries; concurrent publication and claims; immutable schedules/policy/receipts; rejected old writers and client claims; active/unsettled/opponent/practice/own-forfeit exclusions; real multi-suit/card progress; historical recovery; out-of-order two-match settlement; atomic audit-failure rollback/retry; once-only 200-point full completion; exact required-key day qualification; referral windows; monthly wins from ranked_results rather than legacy matches. Existing historical claims are preserved without re-awarding points.
+
+The actual browser journey uses three independently authenticated browser contexts, the production task router/auth middleware and real PostgreSQL/Redis/gateway/worker loops in an isolated disposable fixture. It first proves the original pair cannot be offered a second game, then finishes against a different opponent. Evidence: two games, four result receipts, four charged starts, four committed relay events and **50 automatically awarded points** for the published finish-two objective. The task screen shows 2/2 and Earned, bonus 1/3 and the authoritative 50-point balance. Signed progress spoof, unsigned claim and old video claim are rejected. The normal-play database scenario independently proves the 200-point complete-day maximum and bonus exactly once.
+
+Chromium 412×839 and WebKit 390×664 component journeys passed. The actual mobile Chromium journey also asserts no horizontal overflow; its final task/progress/balance screenshot was visually inspected. The combined browser fixture is not physical Telegram-device or production acceptance. No fixture token is a production credential.
+
+The 100-socket/50-offer run had zero duplicate assignments, p95 2772ms/max 2776ms on CI localhost. Hosted capacity, the proposed two-second SLO, physical devices, remaining providers and launch acceptance remain open. No paid resource, production migration/cutover or main promotion was performed.
+
+### Deployment boundary
+
+Migration 2026102701_rotating_tasks records the next Lagos midnight as immutable rotating_from. Inspect that date and coordinate backend/frontend/worker versions before allowing the cutover. Ambiguous existing future task rows abort the migration for reconciliation. Old fixed-task writers fail closed on/after cutover. Do not downgrade to old task code after cutover or edit published schedules/receipts. Existing release/backup/restore gates still apply. Daily publication itself is lazy and durable; no additional cron/service purchase is required. Ranked live result processing still depends on the separately pending hosted worker.
+
+### Next in build order
+
+Stage08: streak milestones/ad-free grants and referral qualification/reward consumption. Telegram Stars payments/refunds, verified ads, airtime delivery/reconciliation, full prize/leaderboard operations and end-to-end release gates remain separate unfinished stages. This task updates qualification progress readers; it does not award referral cash/points or pay prizes.

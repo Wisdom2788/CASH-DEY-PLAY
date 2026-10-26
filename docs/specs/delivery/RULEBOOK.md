@@ -1,5 +1,7 @@
 # Product rulebook v1 — recorded requirements and open decisions
 
+> Daily task revision, 27 October 2026: on/after the recorded rotating-task cutover, the daily set rotates by Lagos date and is shared by all users. Three scheduled objectives pay 50 points each plus a once-only 50-point all-complete bonus (200 maximum). Only verified settled ranked play advances the initial catalogue; premium follows the same objectives. Qualified task days require all scheduled objectives and bonus, not an arbitrary row count. See 04-rotating-tasks-design.md for exact catalogue, source exclusions and historical handling. This supersedes older fixed-task instructions for those dates.
+
 > Policy revision — 26 October 2026: one ranked START per opponent per Lagos calendar day, for all tiers. Ranked rematch invitations/acceptance are disabled, including old clients and historical pending invitations. Started forfeits/timeouts count; unstarted offers do not. Three total starts/day and the existing cooldown remain unchanged. This supersedes earlier two-per-opponent and rematch policies below. Daily task rotation is the next separate implementation; current fixed tasks remain until that migration is tested.
 
 
