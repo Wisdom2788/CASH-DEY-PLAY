@@ -181,7 +181,7 @@ export default function TasksView() {
                     : 'bg-[#00B85F] hover:bg-[#009951] text-[#111214]'
                 }`}
               >
-                {task.isCompleted ? 'Claimed' : task.action==='CLAIM' ? 'Claim' : task.action==='NONE' ? 'Automatic' : task.action==='PLAY_RANKED' ? 'Play ranked' : 'Start'}
+                {task.isCompleted ? (tasksState.scheduleVersion==='rotating-v2'?'Earned':'Claimed') : task.action==='CLAIM' ? 'Claim' : task.action==='NONE' ? 'Automatic' : task.action==='PLAY_RANKED' ? 'Play ranked' : 'Start'}
               </button>
             </div>
           ))}
