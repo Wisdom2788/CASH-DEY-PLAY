@@ -39,26 +39,6 @@ export default function MatchmakingLobby() {
     );
   };
 
-  const handleRematch = (opponentId: string) => {
-    soundEffects.playButtonClick();
-    setSearching(true);
-
-    startMatchMutation.mutate(
-      { mode: MatchMode.QUICK, opponentId },
-      {
-        onSuccess: (matchState) => {
-          syncMatchState(matchState);
-          setSearching(false);
-          navigate(routes.game);
-        },
-        onError: () => {
-          setSearching(false);
-          showToast('Failed to start rematch.', 'error');
-        }
-      }
-    );
-  };
-
   const handleInviteFriends = async () => {
     soundEffects.playButtonClick();
     if(isCopyingInvite)return;
@@ -251,14 +231,7 @@ export default function MatchmakingLobby() {
                 <span className="text-[13px] font-semibold text-white truncate max-w-[85px]">
                   {opp.username}
                 </span>
-                <button
-                  onClick={() => handleRematch(opp.id)}
-                  disabled={isSearching}
-                  className="text-[12px] font-semibold text-[#00E676] hover:underline mt-0.5 active:opacity-80 cursor-pointer disabled:text-gray-500"
-                  type="button"
-                >
-                  Rematch
-                </button>
+
               </div>
             ))
           )}

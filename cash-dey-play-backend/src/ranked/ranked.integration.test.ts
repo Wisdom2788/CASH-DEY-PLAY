@@ -52,6 +52,7 @@ suite('durable ranked admission and Redis matchmaking',()=>{
   const m=await start();const view=await games.view(m.matchId,'tg_123');await games.timeout(m.matchId,view.deadlineAt!);
   expect(await new RankedSettlement(pool).settle(m.matchId)).toBe(true);
   expect((await pool.query('SELECT user_id,outcome,reason FROM ranked_results ORDER BY user_id')).rows).toEqual([{user_id:'tg_123',outcome:'LOSS',reason:'TIMEOUT'},{user_id:'tg_456',outcome:'WIN',reason:'TIMEOUT'}]);
+  expect((await offer()).offer).toBeNull();expect((await ranked.resume(c(123))).ranked.allowance.used).toBe(1);
  });
  it('records unawarded draws as played without inventing a win or task award',async()=>{
   const m=await start();let view=await games.view(m.matchId,'tg_123');let at=Date.now();
@@ -112,6 +113,7 @@ suite('durable ranked admission and Redis matchmaking',()=>{
   expect((await ranked.resume(c(456))).ranked.rematches).toEqual([]);
   expect((await pool.query('SELECT count(*)::int n FROM game_matches')).rows[0].n).toBe(1);
   expect((await ranked.resume(c(456))).ranked.allowance.used).toBe(1);
+  const tickets=await Promise.all([ranked.join(c(123),'legacy-queue-a'),ranked.join(c(456),'legacy-queue-b')]);expect(tickets).toHaveLength(2);
  });
  it('serializes duplicate queue joins and shares the admission lock with practice',async()=>{
   const joined=await Promise.all(Array.from({length:10},()=>ranked.join(c(123),'same-join-key')));expect(new Set(joined.map(t=>t.id)).size).toBe(1);
