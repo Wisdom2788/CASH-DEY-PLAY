@@ -50,7 +50,7 @@
 | D14 | No cash per referral. Referrals earn points, and Community Builder prizes come from the monthly prize pool. | Decided |
 | D15 | (Closed by D7.) Premium has no extra ranked matches. | Closed |
 | D16 | **Ranked queue empty policy.** Recommended: never fill a ranked match with a bot. If no opponent is found, offer to keep waiting, play Practice, or try later. | **Recommended, needs confirmation** |
-| D17 | **Rematch and same-opponent limits.** Recommended: a rematch needs both players' consent, uses up both players' daily ranked allowance, and is limited per opponent per day (numbers in Section 6). | **Recommended, needs confirmation** |
+| D17 | **Rematch and same-opponent limits.** Mutual consent; normal allowance/cooldown; two starts per opponent per Lagos day; three requests per rolling hour. | **Owner approved25–26 October2026; RULEBOOK is authoritative** |
 | Other | The airtime float is funded manually by the business. Wallet stays under the Profile tab. Minimum redemption ₦50, maximum ₦100,000. The Mini App short name and web address are recorded in Appendix A. | Decided |
 
 **Note for the lawyer review (D3, D7).** The business describes premium's only difference as the 25-match requirement. The complete list of differences is in Section 3.1 and also includes: no ad before practice and unlimited practice; no cooldown after the 2nd ranked match; and larger streak airtime rewards (₦350 against ₦150 per 30 days). Counsel should review the complete list, because the PRD (Section 8) and the Profile screen currently say premium never changes who qualifies for a prize. This is not legal advice.
@@ -587,20 +587,20 @@ These times are proposals to tune in the closed beta. **Expect thin queues at la
     '-- declined or no reply: the requester sees 'Chidi declined' or 'No response'; no penalty to anyone
 ```
 
-**Rules (D17, proposed numbers):** both players must be online, not in a match, and have ranked allowance and no cooldown. A rematch counts as a normal ranked match for both players and uses up their daily allowance. At most **2 ranked matches against the same opponent per day** (so one rematch), and at most **3 rematch requests per hour** per player. A rematch cannot be used to skip a cooldown. Pairs who keep meeting and trading wins are reported to the admin (PRD Section 9: same-opponent rate limiting and win-trading detection).
+**Rules (D17, owner approved25–26 October2026):** both players must be online, not in a match, and have ranked allowance and no cooldown. A rematch counts as a normal ranked match for both players and uses up their daily allowance. At most **2 ranked matches against the same opponent per day** (so one rematch), and at most **3 rematch requests per hour** per player. A rematch cannot be used to skip a cooldown. Pairs who keep meeting and trading wins are reported to the admin (PRD Section 9: same-opponent rate limiting and win-trading detection).
 
-### 6.11 Disconnects, timeouts and penalties (proposed defaults, tune in beta)
+### 6.11 Disconnects, timeouts and penalties (owner decisions25–26 October2026)
 
 | Situation | Rule |
 | --- | --- |
 | Cancel while searching | Free |
 | Decline or ignore the ready check | First time in 24 hours: a warning. Then Ranked is paused for 2 minutes, then 5, then 15. The count resets after 24 hours without a miss. The other player is put back in the queue with their original join time. |
-| Connection drops during a match | The match waits up to 30 seconds for the player (at most 60 seconds in total per match). If they return, play continues. If not, they forfeit. |
-| Turn timer runs out | The server plays a safe default move (draw). After 3 timeouts in a row the player forfeits. |
+| Connection drops during a match | The persisted turn clock continues. Reconnection resumes the current authoritative state without resetting the deadline. No disconnect pause was approved. |
+| Turn timer runs out | Approved whot-v1:30-second timeout forfeits the match. |
 | Player closes the app | The same as a dropped connection. |
 | Forfeit | A loss. It counts as played and uses up the daily allowance. |
-| Both players disconnect, or a server fault | The match is **VOID**: no result, no points, and no allowance used. |
-| Server restarts | Live matches are restored from Redis; if a match cannot be restored it is VOID. |
+| Both players disconnect, or a server fault | Disconnects never automatically VOID/refund a match. A verified technical incident requires audited operator review; compensation tooling remains a separate gate. |
+| Server restarts | Resume from durable PostgreSQL match snapshots/events; reconstruct Redis hints/queue state. An unrecoverable technical incident requires operator review, not an automatic refund inferred from missing Redis data. |
 | Same account on two devices | The newest connection wins; the old one is told (session:replaced). |
 
 ### 6.12 Fairness and abuse
@@ -637,7 +637,7 @@ Launch with one backend instance; it can hold thousands of live connections. Whe
 
 ### 6.16 Finish line for the ranked feature
 
-Two real players on two phones can search, see the ready check, accept, play a full match, see the result, and rematch. Cancelling is free and instant. Closing and reopening the app at any step returns the player to the same state. A dropped player has 30 seconds to return. No match uses a bot. Nobody is paired twice at once. The daily allowance, cooldown and lockout are enforced by the server and shown correctly. The Recent Opponents card shows the right empty state, then real opponents, with correct Rematch reasons.
+Two real players on two phones can search, see the ready check, accept, play a full match, see the result, and rematch. Cancelling is free and instant. Closing and reopening the app at any step returns the player to the same state. A dropped player returns to the persisted turn deadline; the clock is not paused or reset. No match uses a bot. Nobody is paired twice at once. The daily allowance, cooldown and lockout are enforced by the server and shown correctly. The Recent Opponents card shows the right empty state, then real opponents, with correct Rematch reasons.
 
 ## 7. Build order, step by step
 

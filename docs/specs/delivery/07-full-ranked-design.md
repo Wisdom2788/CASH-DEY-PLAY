@@ -14,3 +14,11 @@
 ## Acceptance evidence required
 
 No-show attribution/idempotency/24-hour reset, concurrent settlements and rollback, finish-day recovery, malicious result input rejected, no cross-player projection leakage, dropped ACK/reconnect, rematch rate/cap/cooldown races; frontend contract/action tests and build; actual devices; measured socket/load targets and hosted restart/health checks. A checked core is not full-stage acceptance. Proposed5000 connections and1million pair attempts must be measured before certification.
+
+## Validation record (26 October2026)
+
+Runtimef2e70c652f5ef0a56bb48ec15962830a3ba7317a passed [Verify40288734922](https://github.com/Wisdom2788/CASH-DEY-PLAY/actions/runs/40288734922):333 backend tests/39 suites, all nine migrations twice, frontend31 tests and typecheck/lint/build, actual Chromium Pixel-style412×839 and WebKit iPhone-style390×664 component flows with no horizontal overflow. Browser fixture data is isolated to acceptance sources; backend tests separately use real PostgreSQL18 and Redis7 with two actual authenticated gateways.
+
+The original100-client batch test withheld matching until all joins completed and measured p95=3267ms. The continuous500ms matchmaker test measures p95=1835ms/max1846ms for100 real sockets/50 offers, zero duplicate assignments. These are CI localhost measurements, not5000-client or hosted capacity evidence. Automatic snapshots currently use bounded periodic SQL reads; target-scale cost/latency must be measured before broad enablement.
+
+The browser run caught a plain-browser/SDK-wrapper method availability crash; Telegram lifecycle bindings now use the actual optional browser API with version-and-method guards and dedicated cleanup tests. Final follow-up runtime and evidence are tracked in the cumulative summary.

@@ -10,7 +10,7 @@ import { runGamePass,runGameWorker,waitForNextPass } from './game-worker';
 /** One supervised service, three independent bounded loops. No public listener or self-ping. */
 async function main():Promise<void>{
  const {DATABASE_URL,REDIS_URL,RANKED_QUEUE_NAMESPACE,GAME_RELAY_CHANNEL}=process.env;
- if(!DATABASE_URL||!REDIS_URL||!RANKED_QUEUE_NAMESPACE||!GAME_RELAY_CHANNEL||!/^[A-Za-z0-9:_-]{1,100}$/.test(GAME_RELAY_CHANNEL))throw new Error('Worker configuration required');
+ if(!DATABASE_URL||!REDIS_URL||!RANKED_QUEUE_NAMESPACE||!/^[A-Za-z0-9_-]{1,80}$/.test(RANKED_QUEUE_NAMESPACE)||!GAME_RELAY_CHANNEL||!/^[A-Za-z0-9:_-]{1,100}$/.test(GAME_RELAY_CHANNEL))throw new Error('Worker configuration required');
  const stop=new AbortController();const shutdown=()=>stop.abort();process.once('SIGTERM',shutdown);process.once('SIGINT',shutdown);
  const pool=new Pool({connectionString:DATABASE_URL,max:5,connectionTimeoutMillis:10000,statement_timeout:10000});
  const redis=new Redis(REDIS_URL,{maxRetriesPerRequest:1,enableOfflineQueue:false,commandTimeout:5000});redis.on('error',()=>undefined);

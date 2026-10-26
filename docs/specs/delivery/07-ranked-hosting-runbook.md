@@ -6,7 +6,7 @@ Prepared26 October2026; **not deployed**. Uses Render Background Workers and Blu
 
 One paid0.5c-512mb worker, explicitly manual deployment, runs `npm run worker:ranked-all`: three independent bounded loops for game deadlines/practice and ranked settlement, ranked matching, and committed game delivery. This reduces service count; it does not certify512MB capacity. No HTTP listener, idle-prevention traffic or extra database/Redis is provisioned. Each loop writes per-instance operational health. SIGTERM stops new work, awaits bounded transactions, releases lease ownership and closes connections. Shutdown allowance120 seconds.
 
-The Render free tier does not offer dedicated background workers. The manifest creates a billed resource if applied. Confirm the Dashboard's displayed charge and budget before applying it. Neither a new paid service nor a main/API production migration has been created by preparing this file.
+The Render free tier does not offer dedicated background workers. The manifest creates a billed resource if applied. Render currently lists this worker size at$7/month (compute only); confirm the Dashboard's displayed charge and budget before applying it. This is an additional service charge, not an all-in hosting bundle. Neither a new paid service nor a main/API production migration has been created by preparing this file.
 
 ## Gates before deployment
 

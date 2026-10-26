@@ -1,6 +1,6 @@
 import { useEffect,useRef,useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import WebApp from '@twa-dev/sdk';
+import { telegramApp,bindTelegramActivation,bindTelegramGameplay } from './telegram-lifecycle';
 import { io,Socket } from 'socket.io-client';
 import { z } from 'zod';
 import { useAuthStore } from '../../store/auth.store';
@@ -8,7 +8,6 @@ import { rankedSnapshotSchema,RankedSnapshot,RankedCommand } from './contracts';
 const pushSchema=z.strictObject({deliveryId:z.string().uuid(),snapshot:rankedSnapshotSchema});
 const errorSchema=z.object({ok:z.literal(false),error:z.object({code:z.string().max(64)})});
 const responseSchema=z.object({ok:z.literal(true),data:rankedSnapshotSchema});
-const supports=(version:string)=>typeof WebApp?.isVersionAtLeast==='function'&&WebApp.isVersionAtLeast(version);
 export function useRankedSession(enabled:boolean){
  const queryClient=useQueryClient();const settled=useRef<string|null>(null);
  const token=useAuthStore(s=>s.token);const socket=useRef<Socket|null>(null);const busy=useRef(false);const current=useRef<RankedSnapshot|null>(null);
@@ -26,17 +25,14 @@ export function useRankedSession(enabled:boolean){
   client.on('session:update',(value:unknown,ack:unknown)=>{if(!active)return;const parsed=pushSchema.safeParse(value);if(parsed.success&&accept(parsed.data.snapshot)&&typeof ack==='function')ack({deliveryId:parsed.data.deliveryId});});
   const heartbeat=setInterval(()=>{const ticket=current.current?.ranked.ticket;if(client.connected&&ticket&&!busy.current)client.timeout(5000).emit('queue:heartbeat',{ticketId:ticket.id},(err:Error|null,value:unknown)=>{if(!active||err)return;const parsed=responseSchema.safeParse(value);if(parsed.success)accept(parsed.data.data);});},15000);
   const ticker=setInterval(()=>{if(active)setNow(Date.now());},1000);
-  const foreground=()=>{if(document.visibilityState==='visible'&&client.connected)resume();};document.addEventListener('visibilitychange',foreground);if(supports('8.0')&&typeof WebApp.onEvent==='function'&&typeof WebApp.offEvent==='function')WebApp.onEvent('activated',foreground);client.connect();
-  return ()=>{active=false;clearInterval(heartbeat);clearInterval(ticker);document.removeEventListener('visibilitychange',foreground);if(supports('8.0')&&typeof WebApp.onEvent==='function'&&typeof WebApp.offEvent==='function')WebApp.offEvent('activated',foreground);client.removeAllListeners();client.disconnect();if(socket.current===client)socket.current=null;current.current=null;};
+  const foreground=()=>{if(document.visibilityState==='visible'&&client.connected)resume();};document.addEventListener('visibilitychange',foreground);const unbindActivation=bindTelegramActivation(telegramApp(),foreground);client.connect();
+  return ()=>{active=false;clearInterval(heartbeat);clearInterval(ticker);document.removeEventListener('visibilitychange',foreground);unbindActivation();client.removeAllListeners();client.disconnect();if(socket.current===client)socket.current=null;current.current=null;};
  },[enabled,token,queryClient]);
  const live=!!snapshot&&['SEARCHING','OFFER','IN_MATCH'].includes(snapshot.phase);
  const inMatch=snapshot?.phase==='IN_MATCH';
  useEffect(()=>{
   if(!enabled)return;
-  const closing=live&&supports('6.2')&&typeof WebApp.enableClosingConfirmation==='function'&&typeof WebApp.disableClosingConfirmation==='function'&&!WebApp.isClosingConfirmationEnabled;
-  const swipes=inMatch&&supports('7.7')&&typeof WebApp.disableVerticalSwipes==='function'&&typeof WebApp.enableVerticalSwipes==='function'&&WebApp.isVerticalSwipesEnabled;
-  if(closing)WebApp.enableClosingConfirmation();if(swipes)WebApp.disableVerticalSwipes();
-  return ()=>{if(closing)WebApp.disableClosingConfirmation();if(swipes)WebApp.enableVerticalSwipes();};
+  return bindTelegramGameplay(telegramApp(),live,inMatch);
  },[enabled,live,inMatch]);
  async function send(event:string,payload:unknown){
   const client=socket.current;if(!client?.connected||busy.current)return;busy.current=true;setPending(true);setError(null);
