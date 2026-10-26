@@ -71,3 +71,19 @@ Owner sign-off for whot-v1 is recorded in05-rule-decisions.md and RULEBOOK.md. N
 Cumulative implementation details: [IMPLEMENTATION-SUMMARY.md](IMPLEMENTATION-SUMMARY.md).
 
 Latest stage06 core evidence: runtime35bf29b7940b575630b9fb0c94c8e3393ea96df9, https://github.com/Wisdom2788/CASH-DEY-PLAY/actions/runs/40204197673 . Six migrations deployed twice,213 backend tests and all frontend checks passed; ledger reconciliation reported zero mismatches.
+
+
+## Ranked flow acceptance — 26 October2026
+
+- [x] SQL-authorized automatic offer/result/rematch snapshots with ACK/retry and token recheck before disclosure.
+- [x] Owner-approved no-show ladder, rolling-hour rematch throttle and mutually accepted atomic starts; no automatic disconnect refund/void.
+- [x] Immutable authoritative WIN/LOSS/DRAW settlement, timeout event-shape validation, finish-day task/bonus awards, atomic recovery and monthly ranked progress.
+- [x] Full10-second offer window independent of the original search deadline; failed offers cannot revive expired searches.
+- [x] Gated frontend and Chromium/WebKit mobile-emulation journey;336 backend tests/39 suites and36 frontend tests; nine migrations twice on PostgreSQL18, real Redis7; zero reconciliation mismatches.
+- [x]100-client/50-offer regression measurement, zero duplicate assignments; final p95=2806ms/max2812ms. This does not certify the proposed2-second SLO or5000-client scale.
+- [x] Combined worker supervisor/health and schema-validated deployment manifest prepared.
+- [ ] Physical Telegram/device/accessibility acceptance; hosted worker deployment/restart/monitoring; target-scale load; verified-ad skip; audited technical compensation tooling and production release gates.
+
+Evidence: runtimecc3cb8b2f3013f9d758c720c0bac68e62bf9c34a, [Verify40292856760](https://github.com/Wisdom2788/CASH-DEY-PLAY/actions/runs/40292856760). CI browser screenshots are artifacts of that run. No main update, paid purchase, production migration or hosted worker deployment occurred. Full stage07 remains unchecked. Current next action is the hosted/device/integration release gates in07-ranked-hosting-runbook.md; older Next action paragraphs above are historical.
+
+Real browser acceptance on that runtime additionally verifies the actual gateway→PostgreSQL/Redis→browser path, including committed game-update ACKs, unchanged reconnect deadline, once-only50-point task award and rematch. This supplements the isolated component fixtures and socket tests; physical Telegram devices remain open.
