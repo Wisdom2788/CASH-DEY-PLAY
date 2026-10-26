@@ -36,7 +36,8 @@ export class RankedSettlement {
   if(signal?.aborted)return 0;
   const rows=(await this.pool.query<{id:string}>(`SELECT m.id FROM game_matches m WHERE m.mode='RANKED' AND m.status='FINISHED'
    AND EXISTS(SELECT 1 FROM ranked_reservations r WHERE r.match_id=m.id AND r.state='STARTED')
-   AND NOT EXISTS(SELECT 1 FROM ranked_results r WHERE r.match_id=m.id) ORDER BY m.ended_at,m.id LIMIT $1`,[limit])).rows;
-  let count=0;for(const row of rows){if(signal?.aborted)break;if(await this.settle(row.id))count++;}return count;
+   AND (SELECT count(*) FROM ranked_results r WHERE r.match_id=m.id)<2 ORDER BY m.ended_at,m.id LIMIT $1`,[limit])).rows;
+  let count=0,failed=0;for(const row of rows){if(signal?.aborted)break;try{if(await this.settle(row.id))count++;}catch{failed++;}}
+  if(failed)throw new Error('RANKED_SETTLEMENT_RECOVERY_FAILURE');return count;
  }
 }

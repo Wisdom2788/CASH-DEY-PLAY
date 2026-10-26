@@ -13,6 +13,7 @@ import { APPROVED_WHOT_RULES } from '../game-engine/approved-rules';
 import { GameRepository } from '../game-engine/repository';
 import { PracticeRepository } from '../practice/practice.repository';
 import { RealtimeConnection,RealtimeSessionRepository } from '../realtime/session.repository';
+import { runGameWorker,waitForNextPass } from '../workers/game-worker';
 import { RankedSettlement } from './settlement.repository';
 import { DailyTasks } from '../entitlements/daily-tasks';
 import { RankedRepository } from './ranked.repository';
@@ -240,19 +241,20 @@ suite('durable ranked admission and Redis matchmaking',()=>{
   const redis=new Redis(redisUrl!,{lazyConnect:true,maxRetriesPerRequest:1,commandTimeout:2000});redis.on('error',()=>undefined);const queue=new RedisRankedQueue(redis,'test-'+randomUUID());
   const server=createServer();const secret='l'.repeat(40),origin='https://load.example';const clients:Socket[]=[];const offered=new Map<number,number>();const startTimes=new Map<number,number>();
   const gateway=attachRealtimeGateway(server,{jwtSecret:secret,origin,rateLimits:new MemoryRateLimitCounterStore(),sessions,actions:{games,rateLimits:new MemoryRateLimitCounterStore()},ranked:{repository:ranked,queue,rateLimits:new MemoryRateLimitCounterStore(),pushMs:250,ackMs:500}});
+  const stop=new AbortController();let worker:Promise<void>|undefined;let pairs=0;const failures:unknown[]=[];
   try{await redis.connect();await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+   const matcher=new RankedMatchmaker(ranked,queue);worker=runGameWorker(stop.signal,async()=>{pairs+=await matcher.pass(stop.signal);},()=>failures.push('matchmaker-pass-failed'),signal=>waitForNextPass(signal,500));
    await Promise.all(ids.map(async id=>{const token=jwt.sign({userId:`tg_${id}`,telegramId:id,tokenVersion:0},secret,{issuer:'cash-dey-play',audience:'cash-dey-play-mini-app',expiresIn:120});
     const client=io(`http://127.0.0.1:${(server.address() as AddressInfo).port}`,{auth:{token},extraHeaders:{Origin:origin},transports:['websocket'],autoConnect:false,reconnection:false});clients.push(client);
     client.on('session:update',(update,ack)=>{if(update.snapshot.phase==='OFFER'&&!offered.has(id))offered.set(id,Date.now());expect(update.snapshot.match).toBeNull();ack({deliveryId:update.deliveryId});});
     await new Promise<void>((resolve,reject)=>{client.once('connect',resolve);client.once('connect_error',reject);client.connect();});
     startTimes.set(id,Date.now());const response=await client.timeout(10000).emitWithAck('queue:join',{requestKey:'load-'+id});expect(response.ok).toBe(true);
    }));
-   const matcher=new RankedMatchmaker(ranked,queue);let pairs=0;for(let i=0;i<5&&pairs<50;i++)pairs+=await matcher.pass();expect(pairs).toBe(50);
-   for(let i=0;i<200&&offered.size<100;i++)await new Promise(resolve=>setTimeout(resolve,25));expect(offered.size).toBe(100);
+   for(let i=0;i<200&&offered.size<100;i++)await new Promise(resolve=>setTimeout(resolve,25));expect(offered.size).toBe(100);stop.abort();await worker;expect(pairs).toBe(50);expect(failures).toEqual([]);
    const latencies=ids.map(id=>offered.get(id)!-startTimes.get(id)!).sort((a,b)=>a-b);const p95=latencies[94]!;
    const reservations=(await pool.query("SELECT user_id FROM ranked_reservations WHERE state='RESERVED'")).rows;expect(reservations).toHaveLength(100);expect(new Set(reservations.map(r=>r.user_id)).size).toBe(100);
-   expect(p95).toBeLessThan(10000);console.log(JSON.stringify({rankedLoad:{clients:100,offers:50,p95OfferMs:p95,maxOfferMs:latencies[99],duplicateAssignments:0,environment:'CI-localhost;not-hosted-capacity'}}));
-  }finally{for(const client of clients)client.disconnect();await new Promise<void>(resolve=>gateway.close(()=>resolve()));const keys=await redis.keys(queue.prefix+'*').catch(()=>[]);if(keys.length)await redis.del(...keys);redis.disconnect();}
+   expect(p95).toBeLessThan(10000);console.log(JSON.stringify({rankedLoad:{clients:100,offers:50,p95OfferMs:p95,maxOfferMs:latencies[99],duplicateAssignments:0,environment:'CI-localhost;500ms-continuous-matcher;not-hosted-capacity'}}));
+  }finally{stop.abort();await worker;for(const client of clients)client.disconnect();await new Promise<void>(resolve=>gateway.close(()=>resolve()));const keys=await redis.keys(queue.prefix+'*').catch(()=>[]);if(keys.length)await redis.del(...keys);redis.disconnect();}
  },60000);
 
  async function withQueue(work:(queue:RedisRankedQueue,redis:Redis)=>Promise<void>){
