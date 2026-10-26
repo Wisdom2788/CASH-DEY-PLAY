@@ -1,4 +1,5 @@
 import { useEffect,useRef,useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import WebApp from '@twa-dev/sdk';
 import { io,Socket } from 'socket.io-client';
 import { z } from 'zod';
@@ -8,6 +9,7 @@ const pushSchema=z.strictObject({deliveryId:z.string().uuid(),snapshot:rankedSna
 const errorSchema=z.object({ok:z.literal(false),error:z.object({code:z.string().max(64)})});
 const responseSchema=z.object({ok:z.literal(true),data:rankedSnapshotSchema});
 export function useRankedSession(enabled:boolean){
+ const queryClient=useQueryClient();const settled=useRef<string|null>(null);
  const token=useAuthStore(s=>s.token);const socket=useRef<Socket|null>(null);const busy=useRef(false);const current=useRef<RankedSnapshot|null>(null);
  const [snapshotToken,setSnapshotToken]=useState<string|null>(null);const [snapshot,setSnapshot]=useState<RankedSnapshot|null>(null);const [connected,setConnected]=useState(false);const [pending,setPending]=useState(false);const [error,setError]=useState<string|null>(null);const [clock,setClock]=useState({server:0,local:0});const [now,setNow]=useState(Date.now);
  useEffect(()=>{
@@ -15,7 +17,7 @@ export function useRankedSession(enabled:boolean){
   let active=true;current.current=null;busy.current=false;
   const base=import.meta.env.VITE_API_URL||'http://localhost:3000/api';const url=new URL(base,window.location.href);url.pathname='/';url.search='';url.hash='';
   const client=io(url.origin,{auth:{token},transports:['websocket'],autoConnect:false,reconnection:true,reconnectionDelay:1000,reconnectionDelayMax:10000,randomizationFactor:0.5});socket.current=client;
-  const accept=(value:unknown)=>{const parsed=rankedSnapshotSchema.safeParse(value);if(!parsed.success){setError('INVALID_SERVER_RESPONSE');return false;}if(!active)return false;current.current=parsed.data;setSnapshotToken(token);setSnapshot(parsed.data);setClock({server:parsed.data.serverTime,local:Date.now()});return true;};
+  const accept=(value:unknown)=>{const parsed=rankedSnapshotSchema.safeParse(value);if(!parsed.success){setError('INVALID_SERVER_RESPONSE');return false;}if(!active)return false;const receipt=parsed.data.ranked.result?`${parsed.data.match?.id}:${parsed.data.ranked.result.outcome}`:null;if(receipt&&settled.current!==receipt){settled.current=receipt;void queryClient.invalidateQueries({queryKey:['tasks-state']});void queryClient.invalidateQueries({queryKey:['currentUser']});}current.current=parsed.data;setSnapshotToken(token);setSnapshot(parsed.data);setClock({server:parsed.data.serverTime,local:Date.now()});return true;};
   const resume=()=>{client.timeout(5000).emit('session:resume',{},(err:Error|null,value:unknown)=>{if(!active||err)return;const parsed=responseSchema.safeParse(value);if(parsed.success)accept(parsed.data.data);});};
   client.on('connect',()=>{if(active){setConnected(true);setError(null);resume();}});
   client.on('disconnect',()=>{if(active)setConnected(false);});client.on('connect_error',()=>{if(active){setConnected(false);setError('CONNECTION_UNAVAILABLE');}});
@@ -25,7 +27,7 @@ export function useRankedSession(enabled:boolean){
   const ticker=setInterval(()=>{if(active)setNow(Date.now());},1000);
   const foreground=()=>{if(document.visibilityState==='visible'&&client.connected)resume();};document.addEventListener('visibilitychange',foreground);if(WebApp.isVersionAtLeast('8.0'))WebApp.onEvent('activated',foreground);client.connect();
   return ()=>{active=false;clearInterval(heartbeat);clearInterval(ticker);document.removeEventListener('visibilitychange',foreground);if(WebApp.isVersionAtLeast('8.0'))WebApp.offEvent('activated',foreground);client.removeAllListeners();client.disconnect();if(socket.current===client)socket.current=null;current.current=null;};
- },[enabled,token]);
+ },[enabled,token,queryClient]);
  const live=!!snapshot&&['SEARCHING','OFFER','IN_MATCH'].includes(snapshot.phase);
  const inMatch=snapshot?.phase==='IN_MATCH';
  useEffect(()=>{

@@ -14,7 +14,7 @@ const vite=await createViteServer({server:{host:'127.0.0.1',port:0}});await vite
 const address=`http://127.0.0.1:${vite.httpServer.address().port}/acceptance/ranked-harness.html`;
 const commands=[];let state;let latest;let connections=0;
 const card={id:'CIRCLE-3',suit:'CIRCLE',number:3};
-function reset(){const now=Date.now();state={protocolVersion:1,serverTime:now,phase:'IDLE',match:null,ranked:{ticket:null,offer:null,allowance:{day:'2026-10-26',used:0,reserved:0,remaining:3,cooldownUntil:null,resetAt:now+3600000,isPremium:false},penalty:{misses:0,lockedUntil:null},rematches:[],recentOpponents:[],result:null}};}
+function reset(){const now=Date.now();state={protocolVersion:1,serverTime:now,phase:'IDLE',match:null,ranked:{stats:{played:0,wins:0,losses:0,draws:0,taskDays:0,practice:0,month:'2026-10',eligible:false},ticket:null,offer:null,allowance:{day:'2026-10-26',used:0,reserved:0,remaining:3,cooldownUntil:null,resetAt:now+3600000,isPremium:false},penalty:{misses:0,lockedUntil:null},rematches:[],recentOpponents:[],result:null}};}
 function push(socket){state.serverTime=Date.now();socket.emit('session:update',{deliveryId:randomUUID(),snapshot:state},()=>{});}
 function start(){state.phase='IN_MATCH';state.ranked.ticket=null;state.ranked.offer=null;state.ranked.rematches=[];state.ranked.allowance.used++;state.ranked.allowance.remaining--;state.ranked.allowance.reserved=0;state.match={id:randomUUID(),mode:'RANKED',view:{version:0,ruleVersion:'whot-v1',status:'ACTIVE',winner:null,reason:null,seat:0,turn:0,hand:[card,{id:'WHOT-0',suit:'WHOT',number:20}],opponentCount:6,top:card,marketCount:41,nominated:null,pendingCount:0,deadlineAt:Date.now()+30000,plays:[card.id,'WHOT-0'],canDraw:true,canPass:false}};}
 io.on('connection',socket=>{latest=socket;connections++;push(socket);socket.onAny((event,payload,ack)=>{
@@ -34,7 +34,7 @@ io.on('connection',socket=>{latest=socket;connections++;push(socket);socket.onAn
  });});
 try{
  for(const [name,engine,device] of [['chromium-mobile',chromium,devices['Pixel 7']],['webkit-mobile',webkit,devices['iPhone 13']]]){
-  reset();const browser=await engine.launch({headless:true,...(engine===chromium?{channel:"chromium"}:{})});try{const context=await browser.newContext({...device,timezoneId:'Africa/Lagos'});const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(address);
+  reset();const browser=await engine.launch({headless:true,...(engine===chromium?{channel:"chromium"}:{})});try{const context=await browser.newContext({...device,timezoneId:'Africa/Lagos'});const page=await context.newPage();const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('Ranked fixture page error:',e.message);});page.on('console',m=>{if(m.type()==='error')console.error('Ranked fixture console:',m.text());});await page.goto(address);console.log('Ranked fixture initial body:',(await page.locator('body').innerText()).slice(0,1000));
    await page.getByRole('button',{name:'Find ranked opponent'}).click();await page.getByRole('button',{name:'Accept match',exact:true}).click();
    await page.getByRole('button',{name:'WHOT 20',exact:true}).click();await page.getByRole('button',{name:'CIRCLE',exact:true}).click();assert.equal(commands.at(-1).command.chosenSuit,'CIRCLE');
    const count=connections;latest.conn.close();await page.waitForFunction(()=>document.querySelector('[role="status"]')?.textContent==='Connected');

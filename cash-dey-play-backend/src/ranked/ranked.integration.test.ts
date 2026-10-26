@@ -56,6 +56,8 @@ suite('durable ranked admission and Redis matchmaking',()=>{
   expect((await pool.query('SELECT user_id,outcome FROM ranked_results ORDER BY user_id')).rows).toEqual([{user_id:'tg_123',outcome:'LOSS'},{user_id:'tg_456',outcome:'WIN'}]);
   expect((await pool.query("SELECT points FROM users WHERE id='tg_456'")).rows[0].points).toBe(200);
   expect((await tasks.state('tg_456')).allBonusClaimed).toBe(true);
+  expect((await ranked.resume(c(456))).ranked.stats).toMatchObject({wins:1,played:1,losses:0,taskDays:1,eligible:false});
+  expect((await ranked.resume(c(123))).ranked.stats).toMatchObject({wins:0,played:1,losses:1,taskDays:0,eligible:false});
   expect((await pool.query("SELECT count(*)::int n FROM outbox_events WHERE type='RANKED_SETTLED'")).rows[0].n).toBe(1);
   await expect(pool.query("UPDATE ranked_results SET outcome='WIN' WHERE user_id='tg_123'")).rejects.toThrow('immutable');
  });

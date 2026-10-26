@@ -25,7 +25,7 @@ export class RankedSettlement {
     const outcome=state.winner===null?'DRAW':state.winner===p.seat?'WIN':'LOSS';
     await c.query(`INSERT INTO ranked_results(match_id,user_id,opponent_id,outcome,reason,finished_at,lagos_date,terminal_event_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
      [matchId,p.user_id,players.find(other=>other.user_id!==p.user_id)!.user_id,outcome,state.reason,row.ended_at,row.day,event.id]);
-    if(outcome==='WIN')await new DailyTasks(this.pool).awardRankedWin(c,p.user_id,row.day,row.ended_at);
+    if(outcome==='WIN')await new DailyTasks(this.pool).awardRankedWin(c,p.user_id,row.day,row.ended_at,matchId);
    }
    await c.query("INSERT INTO outbox_events(id,type,payload) VALUES($1,'RANKED_SETTLED',$2)",[randomUUID(),{matchId}]);
    await c.query('COMMIT');return true;

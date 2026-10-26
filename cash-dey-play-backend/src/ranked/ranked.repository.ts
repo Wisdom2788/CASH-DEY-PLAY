@@ -256,7 +256,7 @@ export class RankedRepository {
   return this.cacheEntries('',2,rows.map(r=>r.user_id));
  }
  async resume(connection:RealtimeConnection){return this.tx(async c=>{
-  await this.lockUsers(c,[connection.userId]);await this.sessions.lockCurrent(c,connection);const clock=await this.clock(c);const allowance=await this.allowance(c,connection.userId,clock);
+  await this.sessions.lockCurrent(c,connection);const clock=await this.clock(c);const allowance=await this.allowance(c,connection.userId,clock);
   const ticket=(await c.query<Ticket>("SELECT * FROM ranked_tickets WHERE user_id=$1 AND state IN('SEARCHING','OFFER')",[connection.userId])).rows[0]??null;
   const offer=ticket?(await c.query<Offer>("SELECT * FROM ranked_offers WHERE state='PENDING' AND (a_ticket=$1 OR b_ticket=$1)",[ticket.id])).rows[0]??null:null;
   const game=(await c.query<{id:string;mode:'PRACTICE'|'RANKED';private_state:unknown;seat:0|1}>(`SELECT m.id,m.mode,m.private_state,p.seat FROM game_players p JOIN game_matches m ON m.id=p.match_id WHERE p.user_id=$1
@@ -267,8 +267,13 @@ export class RankedRepository {
   const rematches=(await c.query<{id:string;requester_id:string;target_id:string;expires_at:Date}>(`SELECT id,requester_id,target_id,expires_at FROM ranked_rematches WHERE state='PENDING' AND expires_at>$2 AND (requester_id=$1 OR target_id=$1) ORDER BY created_at LIMIT 1`,[connection.userId,clock.at])).rows.map(r=>({id:r.id,opponentId:r.requester_id===connection.userId?r.target_id:r.requester_id,incoming:r.target_id===connection.userId,expiresAt:r.expires_at.getTime()}));
   const recentOpponents=(await c.query<{opponent_id:string;first_name:string}>(`SELECT r.opponent_id,u.first_name FROM ranked_results r JOIN users u ON u.id=r.opponent_id WHERE r.user_id=$1 GROUP BY r.opponent_id,u.first_name ORDER BY max(r.finished_at) DESC,r.opponent_id LIMIT 10`,[connection.userId])).rows.map(r=>({id:r.opponent_id,name:r.first_name.slice(0,100)}));
   const result=match?(await c.query<{outcome:string;reason:string;lagos_date:string}>('SELECT outcome,reason,lagos_date::text FROM ranked_results WHERE match_id=$1 AND user_id=$2',[match.id,connection.userId])).rows[0]??null:null;
+  const stats=(await c.query<{played:number;wins:number;losses:number;draws:number;taskDays:number;practice:number}>(`WITH bounds AS (SELECT date_trunc('month',$2::date)::date AS start, (date_trunc('month',$2::date)+interval '1 month')::date AS finish)
+   SELECT count(*)::int AS played,count(*) FILTER(WHERE outcome='WIN')::int AS wins,count(*) FILTER(WHERE outcome='LOSS')::int AS losses,count(*) FILTER(WHERE outcome='DRAW')::int AS draws,
+   (SELECT count(*)::int FROM (SELECT lagos_date FROM daily_task_state,bounds WHERE user_id=$1 AND lagos_date>=bounds.start AND lagos_date<bounds.finish AND status='CLAIMED' GROUP BY lagos_date HAVING count(*)=4)d) AS "taskDays",
+   (SELECT count(*)::int FROM practice_completions,bounds WHERE user_id=$1 AND (completed_at AT TIME ZONE 'Africa/Lagos')::date>=bounds.start AND (completed_at AT TIME ZONE 'Africa/Lagos')::date<bounds.finish) AS practice
+   FROM ranked_results,bounds WHERE user_id=$1 AND lagos_date>=bounds.start AND lagos_date<bounds.finish`,[connection.userId,clock.day])).rows[0]!;
   const publicTicket=ticket?{id:ticket.id,state:ticket.state,joinedAt:ticket.joined_at.getTime(),searchExpiresAt:ticket.search_expires_at.getTime()}:null;
   const publicOffer=offer?{id:offer.id,state:offer.state,expiresAt:offer.expires_at.getTime(),acceptedYou:ticket!.id===offer.a_ticket?offer.accepted_a:offer.accepted_b,acceptedOpponent:ticket!.id===offer.a_ticket?offer.accepted_b:offer.accepted_a}:null;
-  return {protocolVersion:1 as const,serverTime:clock.at.getTime(),phase,match,ranked:{ticket:publicTicket,offer:publicOffer,allowance,penalty:{misses:penalty&&clock.at.getTime()-penalty.last_miss_at.getTime()<86400000?penalty.misses:0,lockedUntil:penalty?.locked_until&&penalty.locked_until>clock.at?penalty.locked_until.getTime():null},rematches,recentOpponents,result}};
+  return {protocolVersion:1 as const,serverTime:clock.at.getTime(),phase,match,ranked:{ticket:publicTicket,offer:publicOffer,allowance,penalty:{misses:penalty&&clock.at.getTime()-penalty.last_miss_at.getTime()<86400000?penalty.misses:0,lockedUntil:penalty?.locked_until&&penalty.locked_until>clock.at?penalty.locked_until.getTime():null},rematches,recentOpponents,result,stats:{...stats,month:clock.day.slice(0,7),eligible:stats.taskDays>=20&&stats.wins>=15&&(allowance.isPremium||stats.practice>=25)}}};
  });}
 }
