@@ -11,3 +11,5 @@ export const rankedSnapshotSchema=z.strictObject({protocolVersion:z.literal(1),s
 export type RankedSnapshot=z.infer<typeof rankedSnapshotSchema>;
 export type RankedCommand={type:'PLAY';cardId:string;chosenSuit?:z.infer<typeof suitSchema>}|{type:'DRAW'|'PASS'|'FORFEIT'};
 export const secondsLeft=(deadline:number|null,serverNow:number)=>deadline===null?0:Math.max(0,Math.ceil((deadline-serverNow)/1000));
+
+export const rankedActionReplySchema=z.strictObject({ok:z.literal(true),data:z.strictObject({matchId:z.string().uuid(),view:viewSchema})});

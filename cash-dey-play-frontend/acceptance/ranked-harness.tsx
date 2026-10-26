@@ -5,5 +5,5 @@ import { QueryClient,QueryClientProvider } from '@tanstack/react-query';
 import RankedPlay from '../src/features/ranked/RankedPlay';
 import { useAuthStore } from '../src/store/auth.store';
 import '../src/index.css';
-useAuthStore.setState({token:'local-browser-fixture',isAuthenticated:true});
+useAuthStore.setState({token:(window as unknown as {__RANKED_TEST_TOKEN?:string}).__RANKED_TEST_TOKEN??'local-browser-fixture',isAuthenticated:true});
 createRoot(document.getElementById('root')!).render(<React.StrictMode><QueryClientProvider client={new QueryClient()}><RankedPlay /></QueryClientProvider></React.StrictMode>);

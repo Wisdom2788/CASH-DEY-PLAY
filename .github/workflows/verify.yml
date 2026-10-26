@@ -52,6 +52,19 @@ jobs:
       - run: npm test -- --runInBand
       - run: npm run db:ledger:reconcile
       - run: npm run build
+      - name: Real ranked browser acceptance with PostgreSQL and Redis
+        run: |
+          npm ci --prefix ../cash-dey-play-frontend
+          cd ../cash-dey-play-frontend
+          npx playwright install --with-deps chromium
+          npm run test:ranked:live
+      - name: Save live ranked browser screenshot
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ranked-live-browser-screenshot
+          path: /tmp/ranked-live-browser.png
+          if-no-files-found: error
+          retention-days: 7
   frontend:
     timeout-minutes: 10
     runs-on: ubuntu-latest

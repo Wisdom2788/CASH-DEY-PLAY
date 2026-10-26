@@ -1,5 +1,5 @@
 import { describe,it,expect } from 'vitest';
-import { rankedSnapshotSchema,viewSchema,secondsLeft } from './contracts';
+import { rankedSnapshotSchema,rankedActionReplySchema,viewSchema,secondsLeft } from './contracts';
 const card={id:'CIRCLE-3',suit:'CIRCLE',number:3};
 const view={version:0,ruleVersion:'whot-v1',status:'ACTIVE',winner:null,reason:null,seat:0,turn:0,hand:[card],opponentCount:6,top:card,marketCount:41,nominated:null,pendingCount:0,deadlineAt:10000,plays:[card.id],canDraw:true,canPass:false};
 describe('ranked wire boundary',()=>{
@@ -8,6 +8,12 @@ describe('ranked wire boundary',()=>{
   expect(viewSchema.safeParse({...view,opponentHand:[card]}).success).toBe(false);
   expect(viewSchema.safeParse({...view,market:[card]}).success).toBe(false);
   expect(viewSchema.safeParse({...view,private_state:{}}).success).toBe(false);
+ });
+ it('accepts the gateway move reply without pretending it is a full session snapshot',()=>{
+  const reply={ok:true,data:{matchId:'11111111-1111-4111-8111-111111111111',view}};
+  expect(rankedActionReplySchema.safeParse(reply).success).toBe(true);
+  expect(rankedSnapshotSchema.safeParse(reply.data).success).toBe(false);
+  expect(rankedActionReplySchema.safeParse({...reply,data:{...reply.data,winner:'you',reward:500}}).success).toBe(false);
  });
  it('rejects legacy or client-authoritative snapshots',()=>{
   for(const input of [{winner:'you',reward:500},{protocolVersion:2},{phase:'IN_MATCH',match:{view}}])expect(rankedSnapshotSchema.safeParse(input).success).toBe(false);

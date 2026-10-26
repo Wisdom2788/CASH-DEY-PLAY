@@ -31,13 +31,13 @@ io.on('connection',socket=>{latest=socket;connections++;push(socket);socket.onAn
  }
  if(event==='rematch:request')state.ranked.rematches=[{id:randomUUID(),opponentId:'tg_456',incoming:true,expiresAt:Date.now()+15000}];
  if(event==='rematch:respond')start();
- state.serverTime=Date.now();ack({ok:true,data:state});push(socket);
+ state.serverTime=Date.now();if(event==='match:action'){ack({ok:true,data:{matchId:state.match.id,view:state.match.view}});push(socket);return;}ack({ok:true,data:state});push(socket);
  });});
 try{
  for(const [name,engine,device] of [['chromium-mobile',chromium,devices['Pixel 7']],['webkit-mobile',webkit,devices['iPhone 13']]]){
   reset();const browser=await engine.launch({headless:true,...(engine===chromium?{channel:"chromium"}:{})});try{const context=await browser.newContext({...device,timezoneId:'Africa/Lagos'});const page=await context.newPage();const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('Ranked fixture page error:',e.message);});page.on('console',m=>{if(m.type()==='error')console.error('Ranked fixture console:',m.text());});await page.goto(address);console.log('Ranked fixture initial body:',(await page.locator('body').innerText()).slice(0,1000));
    await page.getByRole('button',{name:'Find ranked opponent'}).click();await page.getByRole('button',{name:'Accept match',exact:true}).click();
-   await page.getByRole('button',{name:'WHOT 20',exact:true}).click();await page.getByRole('button',{name:'CIRCLE',exact:true}).click();assert.equal(commands.at(-1).command.chosenSuit,'CIRCLE');
+   await page.getByRole('button',{name:'WHOT 20',exact:true}).click();await page.getByRole('button',{name:'CIRCLE',exact:true}).click();assert.equal(commands.at(-1).command.chosenSuit,'CIRCLE');await page.getByText('Top: CIRCLE 3 · CIRCLE',{exact:true}).waitFor();assert.equal(await page.getByRole('alert').count(),0,'successful move uses the action reply contract');
    const count=connections;dropDraw=true;await page.getByRole('button',{name:'Draw',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[role="status"]')?.textContent==='Connected');
    for(let i=0;i<100&&connections===count;i++)await new Promise(resolve=>setTimeout(resolve,25));assert.ok(connections>count,'transport reconnect occurred');await page.waitForFunction(()=>Array.from(document.querySelectorAll('button')).some(b=>b.textContent==='Forfeit'&&!b.disabled),null,{timeout:1500});assert.equal(await page.getByRole('button',{name:'Forfeit',exact:true}).isEnabled(),true,'old pending request cannot disable the new connection');
    latest.disconnect(true);await page.getByRole('button',{name:'Reconnect',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[role="status"]')?.textContent==='Connected');
