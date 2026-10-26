@@ -87,3 +87,15 @@ Latest stage06 core evidence: runtime35bf29b7940b575630b9fb0c94c8e3393ea96df9, h
 Evidence: runtimecc3cb8b2f3013f9d758c720c0bac68e62bf9c34a, [Verify40292856760](https://github.com/Wisdom2788/CASH-DEY-PLAY/actions/runs/40292856760). CI browser screenshots are artifacts of that run. No main update, paid purchase, production migration or hosted worker deployment occurred. Full stage07 remains unchecked. Current next action is the hosted/device/integration release gates in07-ranked-hosting-runbook.md; older Next action paragraphs above are historical.
 
 Real browser acceptance on that runtime additionally verifies the actual gateway→PostgreSQL/Redis→browser path, including committed game-update ACKs, unchanged reconnect deadline, once-only50-point task award and rematch. This supplements the isolated component fixtures and socket tests; physical Telegram devices remain open.
+
+## Revised policy acceptance — 26 October 2026
+
+Tested runtime `6c2b4a6baff3dbd1c463fa88fdb9e402f18a6848` passed [Verify 40414492210](https://github.com/Wisdom2788/CASH-DEY-PLAY/actions/runs/40414492210): 335 backend tests in 39 suites (no database/Redis skips), 36 frontend tests, typechecks/lint/builds, all nine migrations applied twice and zero ledger/opening reconciliation mismatches. Backend production dependency audit and the new full frontend dependency audit reported zero known vulnerabilities. Both Vercel previews and CodeRabbit checks passed.
+
+Actual two-browser → authenticated gateway → PostgreSQL/Redis acceptance verified queue/offer/play/network reconnect with unchanged deadline, SQL result/task settlement and both players requeueing without a second offer/match/charge: one match, two result receipts, two started admissions, 50 task points and two committed events relayed. Chromium 412×839 and WebKit 390×664 fixture flows passed with no invitation controls or horizontal overflow; updated WebKit result screenshot was visually reviewed. No physical Telegram-device acceptance is implied.
+
+The 100-socket/50-offer test recorded zero duplicate assignments, p95 1812ms/max 1821ms in this run. Earlier runs varied above two seconds; this does not certify a hosted two-second SLO or production capacity.
+
+Frontend Vite was updated from 8.3.2 to 8.3.5 after npm audit identified advisories affecting the installed version; the declared lower bound and lockfile were updated. CI now audits frontend dependencies. Browser waits are bounded and acceptance progress is logged. The backend CI browser dependency install uses Ubuntu's primary archive after the hosted Azure mirror exhausted a job's time budget; required tests were retained.
+
+No database migration, paid resource provisioning, production configuration or main promotion was performed for this revision. Rotating daily tasks remain next; the current fixed-task implementation has not been relabelled complete for that new requirement.

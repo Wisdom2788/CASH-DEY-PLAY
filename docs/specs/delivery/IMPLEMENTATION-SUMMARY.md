@@ -3,8 +3,9 @@
 ## Business policy revision — 26 October 2026
 
 - [x] Implement one same-opponent ranked start per Lagos day, rechecked under player locks at offer reservation and final start; premium has no bypass.
+- [x] Remove legacy lobby rematch handler/control; patch Vite to 8.3.5 and require frontend dependency audit (zero known vulnerabilities in final CI).
 - [x] Disable ranked invitations and acceptance at the repository boundary; return REMATCH_DISABLED to old clients, hide pending invitations and remove frontend controls. Historical records remain intact; no destructive migration.
-- [ ] Complete CI acceptance for the revised policy (including real SQL/Redis/browser repeat-pair rejection); previous PR15 evidence does not certify this revision.
+- [x] Complete revised-policy CI acceptance: 335 backend/36 frontend tests and actual SQL/Redis/browser repeat-pair rejection on runtime 6c2b4a6baff3dbd1c463fa88fdb9e402f18a6848; Verify 40414492210.
 - [ ] Replace fixed daily tasks with versioned rotating daily schedules, trusted-event progress, controlled rewards and schedule-based completion/qualification.
 - [ ] Hosted worker, real-device, provider and release gates below remain open. No paid resources or production changes in this revision.
 
@@ -54,3 +55,15 @@ Runtime **cc3cb8b2f3013f9d758c720c0bac68e62bf9c34a** passed [Verify 40292856760]
 Implementation retains default-off release gates. No main update, production database migration, paid service purchase or hosted worker enablement occurred. The prepared combined worker is a separate$7/month compute resource at current listed pricing, subject to budget approval and environment/restore gates; API/database/Redis costs are separate. Configure shared Redis noeviction before ranked mutation/rate-limit enablement.
 
 Design and evidence: [07-full-ranked-design.md](07-full-ranked-design.md). Hosting/rollback checks: [07-ranked-hosting-runbook.md](07-ranked-hosting-runbook.md). Earlier core evidence remains in owning specs and merged PRs5–14.
+
+## Revised policy acceptance — 26 October 2026
+
+Tested runtime `6c2b4a6baff3dbd1c463fa88fdb9e402f18a6848` passed [Verify 40414492210](https://github.com/Wisdom2788/CASH-DEY-PLAY/actions/runs/40414492210): 335 backend tests in 39 suites (no database/Redis skips), 36 frontend tests, typechecks/lint/builds, all nine migrations applied twice and zero ledger/opening reconciliation mismatches. Backend production dependency audit and the new full frontend dependency audit reported zero known vulnerabilities. Both Vercel previews and CodeRabbit checks passed.
+
+Actual two-browser → authenticated gateway → PostgreSQL/Redis acceptance verified queue/offer/play/network reconnect with unchanged deadline, SQL result/task settlement and both players requeueing without a second offer/match/charge: one match, two result receipts, two started admissions, 50 task points and two committed events relayed. Chromium 412×839 and WebKit 390×664 fixture flows passed with no invitation controls or horizontal overflow; updated WebKit result screenshot was visually reviewed. No physical Telegram-device acceptance is implied.
+
+The 100-socket/50-offer test recorded zero duplicate assignments, p95 1812ms/max 1821ms in this run. Earlier runs varied above two seconds; this does not certify a hosted two-second SLO or production capacity.
+
+Frontend Vite was updated from 8.3.2 to 8.3.5 after npm audit identified advisories affecting the installed version; the declared lower bound and lockfile were updated. CI now audits frontend dependencies. Browser waits are bounded and acceptance progress is logged. The backend CI browser dependency install uses Ubuntu's primary archive after the hosted Azure mirror exhausted a job's time budget; required tests were retained.
+
+No database migration, paid resource provisioning, production configuration or main promotion was performed for this revision. Rotating daily tasks remain next; the current fixed-task implementation has not been relabelled complete for that new requirement.
