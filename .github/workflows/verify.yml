@@ -52,6 +52,11 @@ jobs:
       - run: npm test -- --runInBand
       - run: npm run db:ledger:reconcile
       - run: npm run build
+      - name: Use primary Ubuntu archive for browser dependencies
+        run: |
+          # The hosted runner's Azure mirror stalled on font/library archives.
+          # Keep dependency installation required, using the primary Ubuntu archive.
+          sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
       - name: Real ranked browser acceptance with PostgreSQL and Redis
         run: |
           npm ci --prefix ../cash-dey-play-frontend
