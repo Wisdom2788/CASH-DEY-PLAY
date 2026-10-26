@@ -4,7 +4,7 @@ import { telegramApp,bindTelegramActivation,bindTelegramGameplay } from './teleg
 import { io,Socket } from 'socket.io-client';
 import { z } from 'zod';
 import { useAuthStore } from '../../store/auth.store';
-import { rankedSnapshotSchema,rankedActionReplySchema,RankedSnapshot,RankedCommand } from './contracts';
+import { rankedSnapshotSchema,rankedActionReplySchema,rankedGameUpdateSchema,mergeRankedView,RankedSnapshot,RankedCommand } from './contracts';
 const pushSchema=z.strictObject({deliveryId:z.string().uuid(),snapshot:rankedSnapshotSchema});
 const errorSchema=z.object({ok:z.literal(false),error:z.object({code:z.string().max(64)})});
 const responseSchema=z.object({ok:z.literal(true),data:rankedSnapshotSchema});
@@ -23,6 +23,12 @@ export function useRankedSession(enabled:boolean){
   client.on('disconnect',()=>{if(active)setConnected(false);});client.on('connect_error',()=>{if(active){setConnected(false);setError('CONNECTION_UNAVAILABLE');}});
   client.on('session:error',(value:unknown)=>{if(!active)return;const parsed=z.object({code:z.string().max(64)}).safeParse(value);setError(parsed.success?parsed.data.code:'UNAVAILABLE');if(parsed.success&&['UNAUTHORIZED','SESSION_REPLACED'].includes(parsed.data.code))client.disconnect();});
   client.on('session:update',(value:unknown,ack:unknown)=>{if(!active)return;const parsed=pushSchema.safeParse(value);if(parsed.success&&accept(parsed.data.snapshot)&&typeof ack==='function')ack({deliveryId:parsed.data.deliveryId});});
+  client.on('match:update',(value:unknown,ack:unknown)=>{
+   if(!active)return;const parsed=rankedGameUpdateSchema.safeParse(value);if(!parsed.success)return;
+   const previous=current.current;if(!previous?.match||previous.match.id!==parsed.data.matchId){resume();return;}
+   const updated=mergeRankedView(previous,parsed.data);current.current=updated;setSnapshotToken(token);setSnapshot(updated);
+   if(typeof ack==='function')ack({matchId:parsed.data.matchId,eventId:parsed.data.eventId,version:parsed.data.view.version});
+  });
   const heartbeat=setInterval(()=>{const ticket=current.current?.ranked.ticket;if(client.connected&&ticket&&!busy.current)client.timeout(5000).emit('queue:heartbeat',{ticketId:ticket.id},(err:Error|null,value:unknown)=>{if(!active||err)return;const parsed=responseSchema.safeParse(value);if(parsed.success)accept(parsed.data.data);});},15000);
   const ticker=setInterval(()=>{if(active)setNow(Date.now());},1000);
   const foreground=()=>{if(document.visibilityState==='visible'&&client.connected)resume();};document.addEventListener('visibilitychange',foreground);const unbindActivation=bindTelegramActivation(telegramApp(),foreground);client.connect();
@@ -36,7 +42,7 @@ export function useRankedSession(enabled:boolean){
  },[enabled,live,inMatch]);
  async function send(event:string,payload:unknown){
   const client=socket.current;if(!client?.connected||busy.current)return;const requestEpoch=epoch.current;busy.current=true;setPending(true);setError(null);
-  try{const value:unknown=await client.timeout(5000).emitWithAck(event,payload);if(socket.current!==client||epoch.current!==requestEpoch)return;const failed=errorSchema.safeParse(value);if(failed.success){setError(failed.data.error.code);return;}if(event==='match:action'){const move=rankedActionReplySchema.parse(value);const previous=current.current;if(previous?.match?.id===move.data.matchId&&previous.match.view.version<=move.data.view.version){const updated={...previous,phase:move.data.view.status==='FINISHED'?'RESULT' as const:'IN_MATCH' as const,match:{...previous.match,view:move.data.view}};current.current=updated;setSnapshotToken(token);setSnapshot(updated);}return;}const parsed=responseSchema.safeParse(value);if(!parsed.success)throw new Error('INVALID_SERVER_RESPONSE');current.current=parsed.data.data;setSnapshotToken(token);setSnapshot(parsed.data.data);setClock({server:parsed.data.data.serverTime,local:Date.now()});}
+  try{const value:unknown=await client.timeout(5000).emitWithAck(event,payload);if(socket.current!==client||epoch.current!==requestEpoch)return;const failed=errorSchema.safeParse(value);if(failed.success){setError(failed.data.error.code);return;}if(event==='match:action'){const move=rankedActionReplySchema.parse(value);const previous=current.current;if(previous?.match?.id===move.data.matchId&&previous.match.view.version<=move.data.view.version){const updated=mergeRankedView(previous,move.data);current.current=updated;setSnapshotToken(token);setSnapshot(updated);}return;}const parsed=responseSchema.safeParse(value);if(!parsed.success)throw new Error('INVALID_SERVER_RESPONSE');current.current=parsed.data.data;setSnapshotToken(token);setSnapshot(parsed.data.data);setClock({server:parsed.data.data.serverTime,local:Date.now()});}
   catch{if(socket.current!==client||epoch.current!==requestEpoch)return;setError('RESPONSE_UNCERTAIN');if(client.connected)client.emit('session:resume',{},(value:unknown)=>{if(socket.current!==client||epoch.current!==requestEpoch)return;const parsed=responseSchema.safeParse(value);if(parsed.success){current.current=parsed.data.data;setSnapshotToken(token);setSnapshot(parsed.data.data);}});}
   finally{if(socket.current===client&&epoch.current===requestEpoch){busy.current=false;setPending(false);}}
  }

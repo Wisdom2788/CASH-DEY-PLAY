@@ -12,6 +12,8 @@ const {Pool}=require('pg');const Redis=require('ioredis');const jwt=require('jso
 const {attachRealtimeGateway}=require('./dist/realtime/gateway');
 const {RealtimeSessionRepository}=require('./dist/realtime/session.repository');
 const {GameRepository}=require('./dist/game-engine/repository');
+const {RedisGameNotifications}=require('./dist/realtime/game-notifications');
+const {runGameDeliveryPass}=require('./dist/realtime/game-delivery.repository');
 const {RankedRepository}=require('./dist/ranked/ranked.repository');
 const {RedisRankedQueue}=require('./dist/ranked/redis-queue');
 const {RankedMatchmaker}=require('./dist/ranked/matchmaker');
@@ -21,7 +23,7 @@ const db=process.env.TEST_DATABASE_URL,redisUrl=process.env.TEST_REDIS_URL;
 if(!db||!/(?:^|_)test(?:_|$)/i.test(new URL(db).pathname.slice(1))||!redisUrl||new URL(redisUrl).pathname!=='/15')throw new Error('Dedicated disposable test database and Redis/15 required');
 const schema='cdp_browser_'+randomUUID().replaceAll('-','');const admin=new Pool({connectionString:db});
 const pool=new Pool({connectionString:db,options:`-c search_path=${schema}`,max:12});const redis=new Redis(redisUrl,{lazyConnect:true,maxRetriesPerRequest:1,commandTimeout:2000});redis.on('error',()=>{});
-const queue=new RedisRankedQueue(redis,'test-browser-'+randomUUID());const api=createServer();const stop=new AbortController();const failures=[];let gateway,vite,browser;let loops=[];
+const queue=new RedisRankedQueue(redis,'test-browser-'+randomUUID());const api=createServer();const stop=new AbortController();const failures=[];let gateway,vite,browser,notifications;let loops=[];let delivered=0;
 try{
  await admin.query(`CREATE SCHEMA "${schema}"`);
  const migrations=fileURLToPath(new URL('../../cash-dey-play-backend/prisma/migrations/',import.meta.url));
@@ -30,9 +32,10 @@ try{
  await redis.connect();await new Promise(resolve=>api.listen(0,'127.0.0.1',resolve));
  process.env.VITE_ENABLE_RANKED='true';process.env.VITE_API_URL=`http://127.0.0.1:${api.address().port}/api`;
  vite=await createViteServer({server:{host:'127.0.0.1',port:0}});await vite.listen();const origin=`http://127.0.0.1:${vite.httpServer.address().port}`;
+ const subscriber=new Redis(redisUrl,{maxRetriesPerRequest:1,commandTimeout:2000});subscriber.on('error',()=>{});const relay='test-browser-relay:'+randomUUID();notifications=new RedisGameNotifications(subscriber,relay);await notifications.start();
  const secret='real-browser-fixture-secret-'.repeat(2);const ranked=new RankedRepository(pool),games=new GameRepository(pool);
- gateway=attachRealtimeGateway(api,{jwtSecret:secret,origin,sessions:new RealtimeSessionRepository(pool),rateLimits:new MemoryRateLimitCounterStore(),actions:{games,rateLimits:new MemoryRateLimitCounterStore()},ranked:{repository:ranked,queue,rateLimits:new MemoryRateLimitCounterStore()}});
- const matcher=new RankedMatchmaker(ranked,queue);loops=[runGameWorker(stop.signal,()=>matcher.pass(stop.signal),()=>failures.push('matcher'),s=>waitForNextPass(s,500)),runGameWorker(stop.signal,()=>runGamePass(pool,100,stop.signal),()=>failures.push('games'),s=>waitForNextPass(s,500))];
+ const sessions=new RealtimeSessionRepository(pool);gateway=attachRealtimeGateway(api,{jwtSecret:secret,origin,sessions,delivery:{source:notifications,snapshots:sessions},rateLimits:new MemoryRateLimitCounterStore(),actions:{games,rateLimits:new MemoryRateLimitCounterStore()},ranked:{repository:ranked,queue,rateLimits:new MemoryRateLimitCounterStore()}});
+ const matcher=new RankedMatchmaker(ranked,queue);loops=[runGameWorker(stop.signal,()=>matcher.pass(stop.signal),()=>failures.push('matcher'),s=>waitForNextPass(s,500)),runGameWorker(stop.signal,()=>runGamePass(pool,100,stop.signal),()=>failures.push('games'),s=>waitForNextPass(s,500)),runGameWorker(stop.signal,async()=>{delivered+=await runGameDeliveryPass(pool,notice=>redis.publish(relay,JSON.stringify(notice)),100,stop.signal);},()=>failures.push('delivery'),s=>waitForNextPass(s,250))];
  browser=await chromium.launch({headless:true,channel:'chromium'});const contexts=[],pages=[],errors=[];
  for(const id of [123001,123002]){
   const context=await browser.newContext({...devices['Pixel 7'],timezoneId:'Africa/Lagos'});contexts.push(context);
@@ -60,9 +63,9 @@ try{
  for(const page of pages)await page.getByRole('region',{name:'Game board'}).waitFor();
  assert.equal((await pool.query('SELECT count(*)::int n FROM game_matches')).rows[0].n,2);
  assert.equal((await pool.query("SELECT count(*)::int n FROM ranked_reservations WHERE state='STARTED'")).rows[0].n,4);
- assert.deepEqual(errors,[]);assert.deepEqual(failures,[]);
- await a.screenshot({path:'/tmp/ranked-live-browser.png',fullPage:true});console.log(JSON.stringify({rankedLiveBrowser:{passed:true,players:2,flow:'queue/offer/move/network reconnect/SQL settlement/task points/rematch',matches:2,resultReceipts:2,startedCharges:4,pointsAwarded:50,privateProjection:true}}));
+ assert.deepEqual(errors,[]);assert.deepEqual(failures,[]);assert.ok(delivered>=2,'committed move/finish outbox relayed through Redis');
+ await a.screenshot({path:'/tmp/ranked-live-browser.png',fullPage:true});console.log(JSON.stringify({rankedLiveBrowser:{passed:true,players:2,flow:'queue/offer/move/network reconnect/SQL settlement/task points/rematch',matches:2,resultReceipts:2,startedCharges:4,pointsAwarded:50,privateProjection:true,relayedCommittedEvents:delivered}}));
 }finally{
- stop.abort();if(browser)await browser.close();await Promise.allSettled(loops);if(gateway)await new Promise(resolve=>gateway.close(resolve));else if(api.listening)await new Promise(resolve=>api.close(resolve));if(vite)await vite.close();
+ stop.abort();if(browser)await browser.close();await Promise.allSettled(loops);if(gateway)await new Promise(resolve=>gateway.close(resolve));else if(api.listening)await new Promise(resolve=>api.close(resolve));if(vite)await vite.close();notifications?.close();
  const keys=await redis.keys(queue.prefix+'*').catch(()=>[]);if(keys.length)await redis.del(...keys);redis.disconnect();await pool.end();await admin.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);await admin.end();
 }

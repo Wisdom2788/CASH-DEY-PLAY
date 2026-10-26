@@ -13,3 +13,9 @@ export type RankedCommand={type:'PLAY';cardId:string;chosenSuit?:z.infer<typeof 
 export const secondsLeft=(deadline:number|null,serverNow:number)=>deadline===null?0:Math.max(0,Math.ceil((deadline-serverNow)/1000));
 
 export const rankedActionReplySchema=z.strictObject({ok:z.literal(true),data:z.strictObject({matchId:z.string().uuid(),view:viewSchema})});
+export const rankedGameUpdateSchema=z.strictObject({matchId:z.string().uuid(),eventId:z.string().uuid().nullable(),view:viewSchema});
+export function mergeRankedView(current:RankedSnapshot,update:{matchId:string;view:z.infer<typeof viewSchema>}):RankedSnapshot{
+ if(current.match?.id!==update.matchId||current.match.view.version>update.view.version)return current;
+ const phase=update.view.status==='ACTIVE'?'IN_MATCH':current.phase==='IN_MATCH'?'RESULT':current.phase;
+ return {...current,phase,match:{...current.match,view:update.view}};
+}
