@@ -59,7 +59,7 @@ export function attachRealtimeGateway(server:HttpServer,options:GatewayOptions):
    send:async update=>socket.timeout(options.delivery?.ackMs??2000).emitWithAck('match:update',update),
    onError:error=>disconnect(code(error))});
   const unregisterRanked=rankedDelivery?.register({load:async()=>{verifyToken();return options.ranked!.repository.resume(connection);},
-   send:update=>socket.timeout(options.ranked?.ackMs??2000).emitWithAck('session:update',update),onError:error=>disconnect(code(error))});
+   send:update=>{verifyToken();return socket.timeout(options.ranked?.ackMs??2000).emitWithAck('session:update',update);},onError:error=>disconnect(code(error))});
   socket.on('disconnect',()=>{unregisterRanked?.();unregister?.();clearTimeout(expiry);clearInterval(monitor);void options.sessions.release(connection).catch(()=>undefined);});
   socket.onAny((event:string,...args:unknown[])=>{
    const now=Date.now();if(now-frameWindow>=1000){frameWindow=now;frameCount=0;}
@@ -92,11 +92,11 @@ export function attachRealtimeGateway(server:HttpServer,options:GatewayOptions):
      }
      for(const entry of await ranked.repository.cacheEntries('',1,[connection.userId]))await ranked.queue.sync(entry);
      rankedDelivery?.wake();
-     const snapshot=await ranked.repository.resume(connection);if(socket.connected)ack({ok:true,data:snapshot});return;
+     const snapshot=await ranked.repository.resume(connection);verifyToken();if(socket.connected)ack({ok:true,data:snapshot});return;
     }
     if(event==='session:resume'&&options.ranked){
      if(!empty.safeParse(args[0]).success)throw new RealtimeError('INVALID_INPUT');
-     const snapshot=await options.ranked.repository.resume(connection);if(socket.connected)ack({ok:true,data:snapshot});return;
+     const snapshot=await options.ranked.repository.resume(connection);verifyToken();if(socket.connected)ack({ok:true,data:snapshot});return;
     }
     if(event==='match:action'&&options.actions){
      const parsed=moveRequest.safeParse(args[0]);if(!parsed.success)throw new RealtimeError('INVALID_INPUT');
