@@ -49,9 +49,10 @@ suite('durable ranked admission and Redis matchmaking',()=>{
   await pool.query("ALTER TABLE daily_task_policy DISABLE TRIGGER daily_task_policy_immutable; UPDATE daily_task_policy SET rotating_from=(clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date-20; ALTER TABLE daily_task_policy ENABLE TRIGGER daily_task_policy_immutable");
  }
  async function normalFinish(matchId:string){
+  const players=(await pool.query<{user_id:string}>('SELECT user_id FROM game_players WHERE match_id=$1 ORDER BY seat',[matchId])).rows;
   let view=await games.view(matchId,'tg_123');let at=(await pool.query('SELECT started_at FROM game_matches WHERE id=$1',[matchId])).rows[0].started_at.getTime()+1;
   while(view.status==='ACTIVE'){
-   const user=view.turn===0?'tg_123':'tg_456';const current=await games.view(matchId,user);
+   const user=players[view.turn]!.user_id;const current=await games.view(matchId,user);
    view=await games.act(matchId,user,{id:'normal-'+view.version,expectedVersion:view.version,command:chooseBotCommand(current)},at++);
   }
   expect(view.reason).toBe('EMPTY_HAND');return view;
@@ -68,20 +69,24 @@ suite('durable ranked admission and Redis matchmaking',()=>{
   expect((await pool.query('SELECT sum(points)::int n FROM users')).rows[0].n).toBe(0);
  });
  it('excludes active, unsettled and own-forfeit actions from rotating progress',async()=>{
-  await activateRotation();const tasks=new DailyTasks(pool);const m=await start();
+  await activateRotation();const tasks=new DailyTasks(pool);const fixed=jest.spyOn(entropy,'cryptoRandomInt').mockImplementation(max=>max-1);
+  let m:Awaited<ReturnType<typeof start>>;try{m=await start();}finally{fixed.mockRestore();}
   const view=await games.view(m.matchId,'tg_123');await games.act(m.matchId,'tg_123',{id:'play-before-forfeit',expectedVersion:0,command:chooseBotCommand(view)},Date.now());
   expect((await tasks.state('tg_123')).tasks.every(t=>t.progress===0)).toBe(true);
-  const current=await games.view(m.matchId,'tg_123');await games.act(m.matchId,'tg_123',{id:'own-forfeit',expectedVersion:current.version,command:{type:'FORFEIT'}},Date.now()+1);
+  let current=await games.view(m.matchId,'tg_123');if(current.turn!==0){await games.act(m.matchId,'tg_456',{id:'opponent-draw',expectedVersion:current.version,command:{type:'DRAW'}},Date.now()+1);current=await games.view(m.matchId,'tg_123');}
+  expect((await pool.query("SELECT count(*)::int n FROM game_events WHERE match_id=$1 AND actor_user_id='tg_123' AND command_type='PLAY'",[m.matchId])).rows[0].n).toBe(1);
+  await games.act(m.matchId,'tg_123',{id:'own-forfeit',expectedVersion:current.version,command:{type:'FORFEIT'}},Date.now()+2);
   expect((await tasks.state('tg_456')).tasks.every(t=>t.progress===0)).toBe(true);
   await new RankedSettlement(pool).settle(m.matchId);
   expect((await tasks.state('tg_123')).tasks.every(t=>t.progress===0)).toBe(true);
   const winner=await tasks.state('tg_456');expect(winner.tasks.filter(t=>t.type==='RANKED_PLAY_CARDS'||t.type==='RANKED_SUITS').every(t=>t.progress===0)).toBe(true);
  });
  it('settles real plays into a historical rotating schedule once with bonus and shared qualification',async()=>{
-  await activateRotation();const today=(await pool.query("SELECT (clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date::text day")).rows[0].day as string;
+  await activateRotation();const today=(await pool.query("SELECT (clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date::text AS day")).rows[0].day as string;
   let day=today;for(let i=1;i<=4;i++){const candidate=new Date(Date.parse(today+'T00:00:00Z')-i*86400000).toISOString().slice(0,10);if(taskScheduleForDate(candidate).map(t=>t.key).sort().join(',')==='RANKED_PLAY_CARDS,RANKED_SUITS,WIN_MATCH'){day=candidate;break;}}
   const at=new Date(day+'T12:00:00+01:00');const clock=jest.spyOn(ranked as any,'clock').mockResolvedValue({at,day,reset:new Date(Date.parse(day+'T00:00:00+01:00')+86400000)});
-  const fixed=jest.spyOn(entropy,'cryptoRandomInt').mockImplementation(max=>max-1);
+  let word=1;const seeded=(max:number)=>{word=(Math.imul(word,1664525)+1013904223)>>>0;return Math.floor(word/4294967296*max);};
+  const fixed=jest.spyOn(entropy,'cryptoRandomInt').mockImplementation(seeded);games=new GameRepository(pool,seeded);
   let m:Awaited<ReturnType<typeof start>>;try{m=await start();}finally{clock.mockRestore();fixed.mockRestore();}
   const end=await normalFinish(m!.matchId);const winner=end.winner===0?'tg_123':'tg_456';const loser=winner==='tg_123'?'tg_456':'tg_123';
   await pool.query("INSERT INTO referrals(referrer_id,referred_id,created_at,expires_at,status) VALUES($1,$2,$3::date::timestamp AT TIME ZONE 'Africa/Lagos',($3::date+1)::timestamp AT TIME ZONE 'Africa/Lagos','PENDING')",[loser,winner,day]);
@@ -92,19 +97,34 @@ suite('durable ranked admission and Redis matchmaking',()=>{
   await Promise.all(Array.from({length:8},()=>new DailyTasks(pool).state(winner)));
   expect((await pool.query('SELECT points FROM users WHERE id=$1',[winner])).rows[0].points).toBe(200);
   expect((await pool.query('SELECT count(*)::int n FROM task_claims WHERE user_id=$1',[winner])).rows[0].n).toBe(4);
-  expect((await pool.query('SELECT lagos_date::text day FROM qualified_task_days WHERE user_id=$1',[winner])).rows).toEqual([{day}]);
+  expect((await pool.query('SELECT lagos_date::text AS day FROM qualified_task_days WHERE user_id=$1',[winner])).rows).toEqual([{day}]);
   expect((await referralSummary(pool,loser)).referrals[0]!.completeTaskDays).toBe(1);
   await pool.query('INSERT INTO matches(user_id,winner_id,created_at) VALUES($1,$1,$2)',[winner,at]);
   const monthly=await new PostgresMonthlyLeaderboardRepository(pool).getUserActivity(winner,day.slice(0,7));expect(monthly).toMatchObject({distinctTaskCompletionDays:1,totalMatchWins:1});
   expect((await new DailyTasks(pool).state(winner)).tasks.every(t=>t.progress===0)).toBe(true);
   await expect(pool.query('DELETE FROM task_claims WHERE user_id=$1',[winner])).rejects.toThrow('immutable');
  });
+ it('reconciles out-of-order settled matches without losing or duplicating the all-complete bonus',async()=>{
+  await activateRotation();const today=(await pool.query("SELECT (clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date::text AS day")).rows[0].day as string;
+  const day=Array.from({length:4},(_,i)=>new Date(Date.parse(today+'T00:00:00Z')-(i+1)*86400000).toISOString().slice(0,10)).find(d=>!taskScheduleForDate(d).some(t=>t.key==='WIN_MATCH'))!;
+  let word=1;const seeded=(max:number)=>{word=(Math.imul(word,1664525)+1013904223)>>>0;return Math.floor(word/4294967296*max);};
+  games=new GameRepository(pool,seeded);const fixed=jest.spyOn(entropy,'cryptoRandomInt').mockImplementation(seeded);const at=new Date(day+'T12:00:00+01:00');
+  const clock=jest.spyOn(ranked as any,'clock').mockResolvedValue({at,day,reset:new Date(Date.parse(day+'T00:00:00+01:00')+86400000)});
+  let first:Awaited<ReturnType<typeof start>>,second:Awaited<ReturnType<typeof start>>;
+  try{first=await start();await normalFinish(first.matchId);clock.mockResolvedValue({at:new Date(at.getTime()+60000),day,reset:new Date(Date.parse(day+'T00:00:00+01:00')+86400000)});second=await start(123,789);await normalFinish(second.matchId);}finally{clock.mockRestore();fixed.mockRestore();}
+  const settlement=new RankedSettlement(pool);await settlement.settle(second!.matchId);
+  expect((await pool.query("SELECT progress,status FROM daily_task_state WHERE user_id='tg_123' AND lagos_date=$1 AND task_key='RANKED_FINISH'",[day])).rows[0]).toEqual({progress:1,status:'AVAILABLE'});
+  await settlement.settle(first!.matchId);await settlement.settle(second!.matchId);
+  expect((await pool.query("SELECT points FROM users WHERE id='tg_123'")).rows[0].points).toBe(200);
+  expect((await pool.query("SELECT count(*)::int n FROM task_claims WHERE user_id='tg_123' AND lagos_date=$1",[day])).rows[0].n).toBe(4);
+  expect((await pool.query("SELECT count(*)::int n FROM qualified_task_days WHERE user_id='tg_123' AND lagos_date=$1",[day])).rows[0].n).toBe(1);
+ });
  it('rolls back rotating rewards and result receipts when audit fails, then safely retries',async()=>{
   await activateRotation();const m=await start();await finish(m.matchId);
   await pool.query("CREATE FUNCTION fail_rotating_award() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'rotating audit unavailable'; END $$; CREATE TRIGGER fail_rotating_award BEFORE INSERT ON reward_audit_events FOR EACH ROW EXECUTE FUNCTION fail_rotating_award()");
   // Every catalogue has at least one immediately earnable winner objective except the finish-two set.
   // Supply the published, valid one-finish/win/cards set before any settlement in this isolated fixture.
-  const day=(await pool.query("SELECT (ended_at AT TIME ZONE 'Africa/Lagos')::date::text day FROM game_matches WHERE id=$1",[m.matchId])).rows[0].day;
+  const day=(await pool.query("SELECT (ended_at AT TIME ZONE 'Africa/Lagos')::date::text AS day FROM game_matches WHERE id=$1",[m.matchId])).rows[0].day;
   let definitions=taskScheduleForDate(day);if(!definitions.some(t=>t.key==='WIN_MATCH'||(t.key==='RANKED_FINISH'&&t.target===1)))definitions=Array.from({length:4},(_,i)=>taskScheduleForDate(`2026-10-${String(27+i).padStart(2,'0')}`)).find(defs=>defs.some(t=>t.key==='WIN_MATCH'))!;
   if(!definitions.some(t=>t.key==='WIN_MATCH'||(t.key==='RANKED_FINISH'&&t.target===1)))throw new Error('Invalid rollback fixture');
   await pool.query("INSERT INTO daily_task_schedules(lagos_date,version,definition) VALUES($1,'rotating-v2',$2)",[day,JSON.stringify(definitions)]);

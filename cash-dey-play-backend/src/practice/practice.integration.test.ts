@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync,readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { Pool } from 'pg';
+import { DailyTasks } from '../entitlements/daily-tasks';
 import { PracticeRepository,PracticeStart } from './practice.repository';
 import { GameRepository } from '../game-engine/repository';
 import { chooseBotCommand } from '../game-engine/bot';
@@ -78,7 +79,8 @@ suite('practice admission PostgreSQL boundary',()=>{
   await expect(repo.start('tg_123','rollback-01')).rejects.toThrow('injected start failure');
   for(const tableName of ['practice_starts','game_matches','game_players','outbox_events'])expect((await pool.query(`SELECT count(*)::int n FROM ${tableName}`)).rows[0].n).toBe(0);
  });
- it('records a real normal server finish once, with duplicate deliveries safe',async()=>{
+ it('records a real normal server finish once, without advancing rotating ranked objectives',async()=>{
+  await pool.query("ALTER TABLE daily_task_policy DISABLE TRIGGER daily_task_policy_immutable; UPDATE daily_task_policy SET rotating_from=(clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date; ALTER TABLE daily_task_policy ENABLE TRIGGER daily_task_policy_immutable");
   const s=await repo.start('tg_123','completion-01');expect(await repo.recordCompletion(s.matchId)).toBe(false);
   let human=await games.view(s.matchId,'tg_123');let at=s.view.deadlineAt!-29999;
   while(human.status==='ACTIVE'){
@@ -97,6 +99,7 @@ suite('practice admission PostgreSQL boundary',()=>{
   expect(await repo.recoverCompletions()).toEqual({scanned:0,recorded:0});
   expect((await pool.query('SELECT count(*)::int n FROM practice_completions')).rows[0].n).toBe(1);
   expect((await pool.query("SELECT count(*)::int n FROM outbox_events WHERE type='PRACTICE_COMPLETED'")).rows[0].n).toBe(1);
+  expect((await new DailyTasks(pool).state('tg_123')).tasks.every(t=>t.progress===0)).toBe(true);
  });
  it('does not charge yesterday’s Lagos starts against today’s allowance',async()=>{
   const old=(await pool.query<{at:Date}>("SELECT ((((clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date)-1)::timestamp AT TIME ZONE 'Africa/Lagos') AS at")).rows[0]!.at;
