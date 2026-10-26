@@ -26,4 +26,11 @@ CREATE TABLE ranked_rematches (
 );
 CREATE INDEX ranked_rematch_pending ON ranked_rematches(expires_at) WHERE state='PENDING';
 CREATE INDEX ranked_rematch_rate ON ranked_rematches(requester_id,created_at);
+
+-- Operational heartbeats contain no user payload or connection credentials.
+CREATE TABLE ranked_worker_health (
+ instance_id uuid NOT NULL,role text NOT NULL CHECK(role IN('games','matchmaker','delivery')),
+ last_success_at timestamptz,last_failure_at timestamptz,failures bigint NOT NULL DEFAULT 0 CHECK(failures>=0),
+ PRIMARY KEY(instance_id,role)
+);
 COMMIT;

@@ -28,6 +28,7 @@ suite('Whot game persistence on PostgreSQL',()=>{
     await pool.query("INSERT INTO users(id,telegram_id,first_name) VALUES('tg_123',123,'One'),('tg_456',456,'Two')");
     await pool.query(migration('2026102401_foundations'));await pool.query(migration('2026102501_ledger'));
     await pool.query(migration('2026102502_entitlements'));await pool.query(migration('2026102503_game_engine'));await pool.query(migration('2026102504_practice'));
+    await pool.query(migration('2026102505_realtime_sessions'));await pool.query(migration('2026102506_ranked'));await pool.query(migration('2026102601_ranked_acceptance'));
     repo=new GameRepository(pool,fixedRandom);
   });
   afterEach(async()=>{if(pool)await pool.end();if(admin&&schema)await admin.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);});

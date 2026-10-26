@@ -72,3 +72,9 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+
+      - name: Install ranked browser acceptance dependencies
+        run: |
+          npm ci --prefix ../cash-dey-play-backend
+          npx playwright install --with-deps chromium webkit
+      - run: npm run test:ranked:browser

@@ -16,9 +16,9 @@ export class RankedSettlement {
     FROM game_matches WHERE id=$1 AND mode='RANKED' AND status='FINISHED' AND ended_at IS NOT NULL FOR SHARE`,[matchId])).rows[0];
    if(!row){await c.query('COMMIT');return false;}
    const state=restoreGame(row.private_state);
-   const event=(await c.query<{id:string}>(`SELECT event_id AS id FROM game_events WHERE match_id=$1 AND sequence=$2`,[matchId,row.version])).rows[0];
+   const event=(await c.query<{id:string;occurred_at:Date;projected_response:{status:string;winner:number|null;reason:string|null}}>(`SELECT event_id AS id,occurred_at,projected_response FROM game_events WHERE match_id=$1 AND sequence=$2`,[matchId,row.version])).rows[0];
    const reservations=await c.query(`SELECT user_id FROM ranked_reservations WHERE match_id=$1 AND state='STARTED' ORDER BY user_id`,[matchId]);
-   if(state.status!=='FINISHED'||!state.reason||state.version!==row.version||!event||reservations.rows.length!==2||reservations.rows.some((r,i)=>r.user_id!==players[i]!.user_id))throw new Error('INVALID_RANKED_SOURCE');
+   if(state.status!=='FINISHED'||!state.reason||state.version!==row.version||!event||event.occurred_at.getTime()!==row.ended_at.getTime()||state.lastAt!==row.ended_at.getTime()||event.projected_response.status!=='FINISHED'||event.projected_response.winner!==state.winner||event.projected_response.reason!==state.reason||reservations.rows.length!==2||reservations.rows.some((r,i)=>r.user_id!==players[i]!.user_id))throw new Error('INVALID_RANKED_SOURCE');
    const existing=await c.query('SELECT user_id FROM ranked_results WHERE match_id=$1',[matchId]);
    if(existing.rowCount){if(existing.rowCount!==2)throw new Error('INCOMPLETE_RANKED_RESULT');await c.query('COMMIT');return false;}
    for(const p of players){

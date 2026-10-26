@@ -1,0 +1,27 @@
+# REVIEW BEFORE APPLY: creates one paid worker; does not provision a database or Redis.
+# Fill secrets using the same isolated environment as the intended API deployment.
+services:
+  - type: worker
+    name: cash-dey-play-ranked-workers
+    runtime: node
+    region: oregon
+    plan: 0.5c-512mb
+    branch: development
+    rootDir: cash-dey-play-backend
+    autoDeployTrigger: "off"
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm run worker:ranked-all
+    maxShutdownDelaySeconds: 120
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 24
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: RANKED_QUEUE_NAMESPACE
+        sync: false
+      - key: GAME_RELAY_CHANNEL
+        sync: false

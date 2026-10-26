@@ -1,0 +1,13 @@
+import { z } from 'zod';
+const instant=z.number().int().nonnegative().safe();const seat=z.union([z.literal(0),z.literal(1)]);
+export const suitSchema=z.enum(['CIRCLE','TRIANGLE','CROSS','SQUARE','STAR']);
+const card=z.strictObject({id:z.string().max(128),suit:z.enum(['CIRCLE','TRIANGLE','CROSS','SQUARE','STAR','WHOT']),number:z.number().int().min(1).max(20)});
+export const viewSchema=z.strictObject({version:z.number().int().min(0).max(2000),ruleVersion:z.string(),status:z.enum(['ACTIVE','FINISHED']),winner:seat.nullable(),reason:z.enum(['EMPTY_HAND','FORFEIT','TIMEOUT','EXHAUSTED','ACTION_LIMIT']).nullable(),seat,turn:seat,
+ hand:z.array(card).max(54),opponentCount:z.number().int().min(0).max(54),top:card,marketCount:z.number().int().min(0).max(54),nominated:suitSchema.nullable(),pendingCount:z.number().int().min(0),deadlineAt:instant.nullable(),plays:z.array(z.string()).max(54),canDraw:z.boolean(),canPass:z.boolean()});
+export const rankedSnapshotSchema=z.strictObject({protocolVersion:z.literal(1),serverTime:instant,phase:z.enum(['IDLE','SEARCHING','OFFER','IN_MATCH','RESULT']),match:z.strictObject({id:z.string().uuid(),mode:z.enum(['RANKED','PRACTICE']),view:viewSchema}).nullable(),
+ ranked:z.strictObject({ticket:z.strictObject({id:z.string().uuid(),state:z.enum(['SEARCHING','OFFER']),joinedAt:instant,searchExpiresAt:instant}).nullable(),offer:z.strictObject({id:z.string().uuid(),state:z.literal('PENDING'),expiresAt:instant,acceptedYou:z.boolean(),acceptedOpponent:z.boolean()}).nullable(),
+ allowance:z.strictObject({day:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),used:z.number().int().min(0).max(3),reserved:z.number().int().min(0).max(1),remaining:z.number().int().min(0).max(3),cooldownUntil:instant.nullable(),resetAt:instant,isPremium:z.boolean()}),
+ penalty:z.strictObject({misses:z.number().int().min(0),lockedUntil:instant.nullable()}),rematches:z.array(z.strictObject({id:z.string().uuid(),opponentId:z.string().regex(/^tg_[1-9][0-9]*$/),incoming:z.boolean(),expiresAt:instant})).max(1),recentOpponents:z.array(z.strictObject({id:z.string().regex(/^tg_[1-9][0-9]*$/),name:z.string().max(100)})).max(10),result:z.strictObject({outcome:z.enum(['WIN','LOSS','DRAW']),reason:z.enum(['EMPTY_HAND','FORFEIT','TIMEOUT','EXHAUSTED','ACTION_LIMIT']),lagos_date:z.string()}).nullable()})});
+export type RankedSnapshot=z.infer<typeof rankedSnapshotSchema>;
+export type RankedCommand={type:'PLAY';cardId:string;chosenSuit?:z.infer<typeof suitSchema>}|{type:'DRAW'|'PASS'|'FORFEIT'};
+export const secondsLeft=(deadline:number|null,serverNow:number)=>deadline===null?0:Math.max(0,Math.ceil((deadline-serverNow)/1000));

@@ -82,6 +82,7 @@ export default function MatchmakingLobby() {
         </h2>
       </div>
 
+      {import.meta.env.VITE_ENABLE_RANKED==='true'&&<button type="button" className="rounded-xl border border-white/30 p-4" onClick={()=>navigate('/ranked')}>Play ranked Whot</button>}
       {/* BEGIN: MatchModeCards */}
       {/* Mode 1: Quick Match */}
       <button

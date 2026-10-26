@@ -74,7 +74,7 @@ export default function App() {
 
   // Initialize Socket when authenticated — only if the backend has Socket.io set up
   useEffect(() => {
-    if (token && realtimeAvailable) {
+    if (token && realtimeAvailable && import.meta.env.VITE_ENABLE_RANKED!=='true') {
       const backendUrl = (import.meta.env.VITE_API_URL || 'http://localhost:3000/api').replace(/\/api$/, '');
       try {
         initSocket(token, backendUrl);

@@ -3,6 +3,7 @@ import { Route, Routes } from 'react-router-dom';
 import routes from '../config/routes.config';
 import AppLayout from './AppLayout';
 
+const RankedPlay = React.lazy(() => import('../features/ranked/RankedPlay'));
 const HomeDashboard = React.lazy(() => import('../features/home/HomeDashboard'));
 const MatchmakingLobby = React.lazy(() => import('../features/lobby/MatchmakingLobby'));
 const WhotGameBoard = React.lazy(() => import('../features/game/WhotGameBoard'));
@@ -17,6 +18,7 @@ export default function AppRoute() {
     <Routes>
       <Route element={<AppLayout />}>
         <Route path={routes.home} element={<HomeDashboard />} />
+        <Route path="/ranked" element={<RankedPlay />} />
         <Route path={routes.lobby} element={<MatchmakingLobby />} />
         <Route path={routes.game} element={<WhotGameBoard />} />
         <Route path={routes.result} element={<MatchResultView />} />

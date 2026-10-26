@@ -20,7 +20,8 @@
     "db:practice:recover": "ts-node src/practice/recover-completions.ts",
     "worker:games": "node dist/workers/run-game-worker.js",
     "worker:game-delivery": "node dist/workers/run-game-delivery.js",
-    "worker:ranked": "node dist/workers/run-ranked-matchmaker.js"
+    "worker:ranked": "node dist/workers/run-ranked-matchmaker.js",
+    "worker:ranked-all": "node dist/workers/run-ranked-workers.js"
   },
   "keywords": [],
   "author": "",

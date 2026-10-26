@@ -39,6 +39,16 @@ suite('durable ranked admission and Redis matchmaking',()=>{
  async function offer(a=123,b=456){const ta=await ranked.join(c(a),'join-'+randomUUID());const tb=await ranked.join(c(b),'join-'+randomUUID());const fence=(await ranked.acquireFence(randomUUID()))!;try{return {offer:(await ranked.createOffer(fence,ta.id,tb.id))!,ta,tb};}finally{await ranked.releaseFence(fence);}}
  async function start(a=123,b=456){const queued=await offer(a,b);expect(queued.offer).not.toBeNull();await ranked.respond(c(a),queued.offer.id,true);const result=await ranked.respond(c(b),queued.offer.id,true);expect(result.state).toBe('STARTED');return {...queued,matchId:result.matchId!};}
  async function finish(matchId:string){const actor=(await pool.query<{user_id:string}>('SELECT user_id FROM game_players WHERE match_id=$1 AND seat=0',[matchId])).rows[0]!.user_id;return games.actForConnection(c(Number(actor.slice(3))),matchId,{id:'forfeit-'+randomUUID(),expectedVersion:0,command:{type:'FORFEIT'}});}
+ it('settles delayed recovery into the authoritative Lagos finish day, not today',async()=>{
+  const day=(await pool.query("SELECT ((clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date-1)::text AS day")).rows[0].day as string;
+  const at=new Date(day+'T23:59:00+01:00');const clock=jest.spyOn(ranked as any,'clock').mockResolvedValue({at,day,reset:new Date(at.getTime()+60000)});
+  let matchId:string;try{matchId=(await start()).matchId;}finally{clock.mockRestore();}
+  await games.act(matchId!,'tg_123',{id:'past-forfeit',expectedVersion:0,command:{type:'FORFEIT'}},at.getTime()+1000);
+  await new RankedSettlement(pool).recover();
+  expect((await pool.query("SELECT lagos_date::text AS day FROM ranked_results WHERE user_id='tg_456'")).rows[0].day).toBe(day);
+  expect((await pool.query("SELECT lagos_date::text AS day FROM task_claims WHERE user_id='tg_456' AND task_key='WIN_MATCH'")).rows[0].day).toBe(day);
+  expect((await new DailyTasks(pool).state('tg_456')).tasks.find(t=>t.type==='WIN_MATCH')!.isCompleted).toBe(false);
+ });
  it('settles server forfeits once, feeds ranked-win task and all-complete bonus atomically',async()=>{
   await premium(456);const tasks=new DailyTasks(pool);await tasks.claim('tg_456','MANDATORY_VIDEO_LOGIN');await tasks.claim('tg_456','MANDATORY_VIDEO_UNLOCK');
   const m=await start();await finish(m.matchId);const settlement=new RankedSettlement(pool);
@@ -189,16 +199,18 @@ suite('durable ranked admission and Redis matchmaking',()=>{
  },20000);
  (redisUrl?it:it.skip)('lets two actual clients queue, accept one offer, resume the same game and spend allowance once',async()=>{
   const redis=new Redis(redisUrl!,{lazyConnect:true,maxRetriesPerRequest:1,commandTimeout:1000});redis.on('error',()=>undefined);const queue=new RedisRankedQueue(redis,'test-'+randomUUID());
-  const servers=[createServer(),createServer()];const secret='r'.repeat(40);const origin='https://mini.example';const clients:Socket[]=[];
+  const servers=[createServer(),createServer()];const secret='r'.repeat(40);const origin='https://mini.example';const clients:Socket[]=[];const updates=new Map<Socket,any[]>();
   const gateways=servers.map(server=>attachRealtimeGateway(server,{jwtSecret:secret,origin,rateLimits:new MemoryRateLimitCounterStore(),sessions,
-   actions:{games,rateLimits:new MemoryRateLimitCounterStore()},ranked:{repository:ranked,queue,rateLimits:new MemoryRateLimitCounterStore()}}));
+   actions:{games,rateLimits:new MemoryRateLimitCounterStore()},ranked:{repository:ranked,queue,rateLimits:new MemoryRateLimitCounterStore(),pushMs:50,ackMs:200}}));
   try{await redis.connect();await Promise.all(servers.map(s=>new Promise<void>(resolve=>s.listen(0,'127.0.0.1',resolve))));
    const connect=async(index:number,id:number)=>{const token=jwt.sign({userId:`tg_${id}`,telegramId:id,tokenVersion:0},secret,{issuer:'cash-dey-play',audience:'cash-dey-play-mini-app',expiresIn:60});
-    const client=io(`http://127.0.0.1:${(servers[index]!.address() as AddressInfo).port}`,{auth:{token},extraHeaders:{Origin:origin},transports:['websocket'],autoConnect:false,reconnection:false});clients.push(client);
+    const client=io(`http://127.0.0.1:${(servers[index]!.address() as AddressInfo).port}`,{auth:{token},extraHeaders:{Origin:origin},transports:['websocket'],autoConnect:false,reconnection:false});clients.push(client);updates.set(client,[]);client.on('session:update',(update,ack)=>{updates.get(client)!.push(update.snapshot);ack({deliveryId:update.deliveryId});});
     await new Promise<void>((resolve,reject)=>{client.once('connect',resolve);client.once('connect_error',reject);client.connect();});return client;};
    const a=await connect(0,123),b=await connect(1,456);const call=(s:Socket,event:string,payload:unknown={})=>s.timeout(2000).emitWithAck(event,payload);
    const joined=await Promise.all([call(a,'queue:join',{requestKey:'socket-ranked-a'}),call(b,'queue:join',{requestKey:'socket-ranked-b'})]);for(const r of joined)expect(r).toMatchObject({ok:true,data:{phase:'SEARCHING'}});
    expect(await new RankedMatchmaker(ranked,queue).pass()).toBe(1);
+   for(let i=0;i<100&&!clients.slice(0,2).every(client=>updates.get(client)!.some(s=>s.phase==='OFFER'));i++)await new Promise(resolve=>setTimeout(resolve,20));
+   for(const client of [a,b])expect(updates.get(client)!.some(s=>s.phase==='OFFER')).toBe(true);
    const offers=await Promise.all([call(a,'session:resume'),call(b,'session:resume')]);for(const r of offers)expect(r.data.phase).toBe('OFFER');const offerId=offers[0].data.ranked.offer.id;
    expect(offers[1].data.ranked.offer.id).toBe(offerId);expect(JSON.stringify(offers)).not.toContain('connection_id');
    const accepted=await Promise.all([call(a,'offer:respond',{offerId,accept:true}),call(b,'offer:respond',{offerId,accept:true})]);for(const r of accepted)expect(r.ok).toBe(true);
@@ -210,8 +222,36 @@ suite('durable ranked admission and Redis matchmaking',()=>{
    expect((await pool.query('SELECT count(*)::int n FROM game_matches')).rows[0].n).toBe(1);
    expect((await call(a,'match:action',{matchId:states[0].data.match.id,actionId:'socket-ranked-forfeit',expectedVersion:0,command:{type:'FORFEIT'}})).ok).toBe(true);
    expect((await call(b,'session:resume')).data.phase).toBe('RESULT');
+   await new RankedSettlement(pool).recover();
+   for(let i=0;i<100&&!updates.get(b)!.some(s=>s.ranked.result?.outcome==='WIN');i++)await new Promise(resolve=>setTimeout(resolve,20));
+   expect(updates.get(b)!.some(s=>s.ranked.result?.outcome==='WIN')).toBe(true);
+   const requested=await call(a,'rematch:request',{opponentId:'tg_456',requestKey:'socket-rematch-key'});expect(requested.ok).toBe(true);
+   for(let i=0;i<100&&!updates.get(b)!.some(s=>s.ranked.rematches.length);i++)await new Promise(resolve=>setTimeout(resolve,20));
+   const request=updates.get(b)!.find(s=>s.ranked.rematches.length).ranked.rematches[0];expect((await call(b,'rematch:respond',{requestId:request.id,accept:true})).data.phase).toBe('IN_MATCH');
+   expect((await pool.query('SELECT count(*)::int n FROM game_matches')).rows[0].n).toBe(2);
+
   }finally{for(const client of clients)client.disconnect();await Promise.all(gateways.map(g=>new Promise<void>(resolve=>g.close(()=>resolve()))));const keys=await redis.keys(queue.prefix+'*').catch(()=>[]);if(keys.length)await redis.del(...keys);redis.disconnect();}
  },20000);
+
+ (redisUrl?it:it.skip)('measures100 authenticated sockets receiving50 private offers without duplicate assignment',async()=>{
+  const ids=Array.from({length:100},(_,i)=>10000+i);await pool.query("INSERT INTO users(id,telegram_id,first_name) SELECT 'tg_'||n,n,'Load test' FROM unnest($1::bigint[]) n",[ids]);
+  const redis=new Redis(redisUrl!,{lazyConnect:true,maxRetriesPerRequest:1,commandTimeout:2000});redis.on('error',()=>undefined);const queue=new RedisRankedQueue(redis,'test-'+randomUUID());
+  const server=createServer();const secret='l'.repeat(40),origin='https://load.example';const clients:Socket[]=[];const offered=new Map<number,number>();const startTimes=new Map<number,number>();
+  const gateway=attachRealtimeGateway(server,{jwtSecret:secret,origin,rateLimits:new MemoryRateLimitCounterStore(),sessions,actions:{games,rateLimits:new MemoryRateLimitCounterStore()},ranked:{repository:ranked,queue,rateLimits:new MemoryRateLimitCounterStore(),pushMs:250,ackMs:500}});
+  try{await redis.connect();await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+   await Promise.all(ids.map(async id=>{const token=jwt.sign({userId:`tg_${id}`,telegramId:id,tokenVersion:0},secret,{issuer:'cash-dey-play',audience:'cash-dey-play-mini-app',expiresIn:120});
+    const client=io(`http://127.0.0.1:${(server.address() as AddressInfo).port}`,{auth:{token},extraHeaders:{Origin:origin},transports:['websocket'],autoConnect:false,reconnection:false});clients.push(client);
+    client.on('session:update',(update,ack)=>{if(update.snapshot.phase==='OFFER'&&!offered.has(id))offered.set(id,Date.now());expect(update.snapshot.match).toBeNull();ack({deliveryId:update.deliveryId});});
+    await new Promise<void>((resolve,reject)=>{client.once('connect',resolve);client.once('connect_error',reject);client.connect();});
+    startTimes.set(id,Date.now());const response=await client.timeout(10000).emitWithAck('queue:join',{requestKey:'load-'+id});expect(response.ok).toBe(true);
+   }));
+   const matcher=new RankedMatchmaker(ranked,queue);let pairs=0;for(let i=0;i<5&&pairs<50;i++)pairs+=await matcher.pass();expect(pairs).toBe(50);
+   for(let i=0;i<200&&offered.size<100;i++)await new Promise(resolve=>setTimeout(resolve,25));expect(offered.size).toBe(100);
+   const latencies=ids.map(id=>offered.get(id)!-startTimes.get(id)!).sort((a,b)=>a-b);const p95=latencies[94]!;
+   const reservations=(await pool.query("SELECT user_id FROM ranked_reservations WHERE state='RESERVED'")).rows;expect(reservations).toHaveLength(100);expect(new Set(reservations.map(r=>r.user_id)).size).toBe(100);
+   expect(p95).toBeLessThan(10000);console.log(JSON.stringify({rankedLoad:{clients:100,offers:50,p95OfferMs:p95,maxOfferMs:latencies[99],duplicateAssignments:0,environment:'CI-localhost;not-hosted-capacity'}}));
+  }finally{for(const client of clients)client.disconnect();await new Promise<void>(resolve=>gateway.close(()=>resolve()));const keys=await redis.keys(queue.prefix+'*').catch(()=>[]);if(keys.length)await redis.del(...keys);redis.disconnect();}
+ },60000);
 
  async function withQueue(work:(queue:RedisRankedQueue,redis:Redis)=>Promise<void>){
   if(!redisUrl||new URL(redisUrl).pathname!=='/15')throw new Error('Dedicated Redis test database required');
