@@ -12,7 +12,7 @@ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 process.env.VITE_ENABLE_RANKED='true';process.env.VITE_API_URL=`http://127.0.0.1:${server.address().port}/api`;
 const vite=await createViteServer({server:{host:'127.0.0.1',port:0}});await vite.listen();
 const address=`http://127.0.0.1:${vite.httpServer.address().port}/acceptance/ranked-harness.html`;
-const commands=[];let state;let latest;let connections=0;
+const commands=[];let state;let latest;let connections=0;let dropDraw=false;
 const card={id:'CIRCLE-3',suit:'CIRCLE',number:3};
 function reset(){const now=Date.now();state={protocolVersion:1,serverTime:now,phase:'IDLE',match:null,ranked:{stats:{played:0,wins:0,losses:0,draws:0,taskDays:0,practice:0,month:'2026-10',eligible:false},ticket:null,offer:null,allowance:{day:'2026-10-26',used:0,reserved:0,remaining:3,cooldownUntil:null,resetAt:now+3600000,isPremium:false},penalty:{misses:0,lockedUntil:null},rematches:[],recentOpponents:[],result:null}};}
 function push(socket){state.serverTime=Date.now();socket.emit('session:update',{deliveryId:randomUUID(),snapshot:state},()=>{});}
@@ -26,6 +26,7 @@ io.on('connection',socket=>{latest=socket;connections++;push(socket);socket.onAn
   commands.push(payload);assert.equal(payload.expectedVersion,state.match.view.version);assert.equal(typeof payload.actionId,'string');assert.equal('winner' in payload,false);
   const view=state.match.view;view.version++;
   if(payload.command.type==='PLAY'){view.hand=view.hand.filter(c=>c.id!==payload.command.cardId);view.plays=view.hand.map(c=>c.id);view.nominated=payload.command.chosenSuit??null;}
+  if(payload.command.type==='DRAW'&&dropDraw){dropDraw=false;socket.conn.close();return;}
   if(payload.command.type==='FORFEIT'){state.phase='RESULT';view.status='FINISHED';view.winner=1;view.reason='FORFEIT';view.deadlineAt=null;view.plays=[];view.canDraw=false;state.ranked.result={outcome:'LOSS',reason:'FORFEIT',lagos_date:'2026-10-26'};state.ranked.recentOpponents=[{id:'tg_456',name:'Opponent'}];}
  }
  if(event==='rematch:request')state.ranked.rematches=[{id:randomUUID(),opponentId:'tg_456',incoming:true,expiresAt:Date.now()+15000}];
@@ -37,12 +38,13 @@ try{
   reset();const browser=await engine.launch({headless:true,...(engine===chromium?{channel:"chromium"}:{})});try{const context=await browser.newContext({...device,timezoneId:'Africa/Lagos'});const page=await context.newPage();const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('Ranked fixture page error:',e.message);});page.on('console',m=>{if(m.type()==='error')console.error('Ranked fixture console:',m.text());});await page.goto(address);console.log('Ranked fixture initial body:',(await page.locator('body').innerText()).slice(0,1000));
    await page.getByRole('button',{name:'Find ranked opponent'}).click();await page.getByRole('button',{name:'Accept match',exact:true}).click();
    await page.getByRole('button',{name:'WHOT 20',exact:true}).click();await page.getByRole('button',{name:'CIRCLE',exact:true}).click();assert.equal(commands.at(-1).command.chosenSuit,'CIRCLE');
-   const count=connections;latest.conn.close();await page.waitForFunction(()=>document.querySelector('[role="status"]')?.textContent==='Connected');
-   for(let i=0;i<100&&connections===count;i++)await new Promise(resolve=>setTimeout(resolve,25));assert.ok(connections>count,'transport reconnect occurred');
+   const count=connections;dropDraw=true;await page.getByRole('button',{name:'Draw',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[role="status"]')?.textContent==='Connected');
+   for(let i=0;i<100&&connections===count;i++)await new Promise(resolve=>setTimeout(resolve,25));assert.ok(connections>count,'transport reconnect occurred');await page.waitForFunction(()=>Array.from(document.querySelectorAll('button')).some(b=>b.textContent==='Forfeit'&&!b.disabled),null,{timeout:1500});assert.equal(await page.getByRole('button',{name:'Forfeit',exact:true}).isEnabled(),true,'old pending request cannot disable the new connection');
+   latest.disconnect(true);await page.getByRole('button',{name:'Reconnect',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[role="status"]')?.textContent==='Connected');
    await page.getByRole('button',{name:'Forfeit',exact:true}).click();await page.getByRole('button',{name:'Confirm forfeit',exact:true}).click();await page.getByRole('heading',{name:'LOSS',exact:true}).waitFor();
    await page.getByRole('button',{name:'Request rematch · Opponent',exact:true}).click();await page.getByRole('button',{name:'Accept rematch',exact:true}).click();await page.getByRole('region',{name:'Game board'}).waitFor();
    const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth);assert.equal(overflow,false,'no horizontal overflow');assert.deepEqual(errors,[]);
-   await page.screenshot({path:`/tmp/ranked-${name}.png`,fullPage:true});console.log(JSON.stringify({browser:name,passed:true,flow:'offer/play/wild/transport reconnect/result/rematch',viewport:page.viewportSize(),horizontalOverflow:overflow}));await context.close();
+   await page.screenshot({path:`/tmp/ranked-${name}.png`,fullPage:true});console.log(JSON.stringify({browser:name,passed:true,flow:'offer/play/wild/transport and explicit reconnect/result/rematch',viewport:page.viewportSize(),horizontalOverflow:overflow}));await context.close();
   }finally{await browser.close();}
  }
 }finally{await vite.close();await new Promise(resolve=>io.close(resolve));}

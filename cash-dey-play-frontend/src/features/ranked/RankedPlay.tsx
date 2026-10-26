@@ -3,14 +3,15 @@ import { secondsLeft,suitSchema } from './contracts';
 import { useRankedSession } from './useRankedSession';
 const messages:Record<string,string>={RANKED_LOCKED:'Ranked is paused after a missed ready check.',RANKED_COOLDOWN:'Your ranked cooldown is active.',RANKED_DAILY_LIMIT:'You have used today’s three ranked starts.',INCOMPATIBLE:'Your opponent is unavailable or the daily pair limit was reached.',ALREADY_IN_QUEUE:'A queue or rematch is already active.',REMATCH_LIMIT:'You can send three rematch requests per rolling hour.',SESSION_REPLACED:'This account connected on another device.',UNAUTHORIZED:'Your session expired. Reopen the app to sign in.',RESPONSE_UNCERTAIN:'The reply was lost. Checking the server before you retry.',CONNECTION_UNAVAILABLE:'Cannot connect. Your game clock continues; reconnecting…'};
 export default function RankedPlay(){
- const enabled=import.meta.env.VITE_ENABLE_RANKED==='true';const {snapshot:s,connected,pending,error,send,action,serverNow}=useRankedSession(enabled);
+ const enabled=import.meta.env.VITE_ENABLE_RANKED==='true';const {snapshot:s,connected,pending,error,send,action,reconnect,canReconnect,serverNow}=useRankedSession(enabled);
  const [wild,setWild]=useState<string|null>(null);const [confirmForfeit,setConfirmForfeit]=useState(false);
  const button='rounded-lg border border-white/30 px-4 py-3 disabled:opacity-40 min-h-12 max-w-full break-all';
  if(!enabled)return <main className="p-5 text-white"><h1>Ranked play</h1><p>Ranked play is awaiting release checks.</p></main>;
  const ranked=s?.ranked;const view=s?.match?.view;const active=s?.phase==='IN_MATCH';const lock=ranked?.penalty.lockedUntil??ranked?.allowance.cooldownUntil??null;
  const blocked=!connected||pending||!s;const canQueue=!blocked&&!active&&!ranked?.ticket&&!ranked?.rematches.length&&!!ranked?.allowance.remaining&&!lock;
  return <main className="p-4 pb-24 text-white space-y-4 max-w-xl mx-auto w-full">
-  <h1 className="text-2xl">Ranked Whot</h1><p role="status">{connected?'Connected':'Reconnecting — the server clock continues'}</p>
+  <h1 className="text-2xl">Ranked Whot</h1><p role="status">{connected?'Connected':'Disconnected — the server clock continues'}</p>
+  {canReconnect&&<button className={button} type="button" onClick={reconnect}>Reconnect</button>}
   {error&&<p role="alert">{messages[error]??'The action could not be completed. Check the current state and try again.'}</p>}
   {ranked&&<p>{ranked.allowance.used}/3 starts used · {ranked.allowance.reserved} reserved · resets at Lagos midnight.</p>}
   {lock&&<p>Ranked available in {secondsLeft(lock,serverNow)} seconds.</p>}
