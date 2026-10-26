@@ -1,6 +1,7 @@
+import { isDeepStrictEqual } from 'node:util';
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
-import { restoreGame } from '../game-engine/engine';
+import { restoreGame,projectGame } from '../game-engine/engine';
 import { DailyTasks } from '../entitlements/daily-tasks';
 /** Internal recovery consumer: no client-supplied winner, time, participant or reward. */
 export class RankedSettlement {
@@ -16,9 +17,10 @@ export class RankedSettlement {
     FROM game_matches WHERE id=$1 AND mode='RANKED' AND status='FINISHED' AND ended_at IS NOT NULL FOR SHARE`,[matchId])).rows[0];
    if(!row){await c.query('COMMIT');return false;}
    const state=restoreGame(row.private_state);
-   const event=(await c.query<{id:string;occurred_at:Date;projected_response:{status:string;winner:number|null;reason:string|null}}>(`SELECT event_id AS id,occurred_at,projected_response FROM game_events WHERE match_id=$1 AND sequence=$2`,[matchId,row.version])).rows[0];
+   const event=(await c.query<{id:string;occurred_at:Date;projected_response:unknown;command_type:string;actor_seat:0|1|null}>(`SELECT event_id AS id,occurred_at,projected_response,command_type,actor_seat FROM game_events WHERE match_id=$1 AND sequence=$2`,[matchId,row.version])).rows[0];
+   const expected=event?.command_type==='TIMEOUT'?{seat0:projectGame(state,0),seat1:projectGame(state,1)}:event&&event.actor_seat!==null?projectGame(state,event.actor_seat):null;
    const reservations=await c.query(`SELECT user_id FROM ranked_reservations WHERE match_id=$1 AND state='STARTED' ORDER BY user_id`,[matchId]);
-   if(state.status!=='FINISHED'||!state.reason||state.version!==row.version||!event||event.occurred_at.getTime()!==row.ended_at.getTime()||state.lastAt!==row.ended_at.getTime()||event.projected_response.status!=='FINISHED'||event.projected_response.winner!==state.winner||event.projected_response.reason!==state.reason||reservations.rows.length!==2||reservations.rows.some((r,i)=>r.user_id!==players[i]!.user_id))throw new Error('INVALID_RANKED_SOURCE');
+   if(state.status!=='FINISHED'||!state.reason||state.version!==row.version||!event||event.occurred_at.getTime()!==row.ended_at.getTime()||state.lastAt!==row.ended_at.getTime()||!expected||!isDeepStrictEqual(event.projected_response,expected)||reservations.rows.length!==2||reservations.rows.some((r,i)=>r.user_id!==players[i]!.user_id))throw new Error('INVALID_RANKED_SOURCE');
    const existing=await c.query('SELECT user_id FROM ranked_results WHERE match_id=$1',[matchId]);
    if(existing.rowCount){if(existing.rowCount!==2)throw new Error('INCOMPLETE_RANKED_RESULT');await c.query('COMMIT');return false;}
    for(const p of players){

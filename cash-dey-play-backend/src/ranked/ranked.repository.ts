@@ -72,7 +72,7 @@ export class RankedRepository {
   if(!uuid.test(ticketId))throw new RankedError('INVALID_INPUT');return this.tx(async c=>{
    await this.lockUsers(c,[connection.userId]);await this.sessions.lockCurrent(c,connection);const clock=await this.clock(c);
    const row=(await c.query<Ticket>("SELECT * FROM ranked_tickets WHERE id=$1 AND user_id=$2 AND state IN('SEARCHING','OFFER') FOR UPDATE",[ticketId,connection.userId])).rows[0];
-   if(!row||row.search_expires_at<=clock.at)throw new RankedError('STALE_TICKET');
+   if(!row||(row.state==='SEARCHING'&&row.search_expires_at<=clock.at)||(row.state==='OFFER'&&!(await c.query("SELECT 1 FROM ranked_offers WHERE state='PENDING' AND expires_at>$2 AND (a_ticket=$1 OR b_ticket=$1)",[ticketId,clock.at])).rowCount))throw new RankedError('STALE_TICKET');
    const result=await c.query<Ticket>('UPDATE ranked_tickets SET connection_id=$2,last_seen_at=$3 WHERE id=$1 RETURNING *',[ticketId,connection.connectionId,clock.at]);
    await this.epoch(c,connection.userId,true);return result.rows[0]!;
   });
@@ -104,7 +104,7 @@ export class RankedRepository {
  private async tickets(c:Pick<PoolClient,'query'>,ids:string[]):Promise<Ticket[]>{return (await c.query<Ticket>('SELECT * FROM ranked_tickets WHERE id=ANY($1::uuid[]) ORDER BY user_id',[ids])).rows;}
  private async pairCount(c:PoolClient,a:string,b:string,day:string,exclude?:string):Promise<number>{return Number((await c.query<{n:number}>(`SELECT count(*)::int n FROM ranked_reservations a JOIN ranked_reservations b USING(offer_id)
   WHERE a.user_id=$1 AND b.user_id=$2 AND a.lagos_date=$3 AND b.lagos_date=$3 AND a.state IN('RESERVED','STARTED') AND b.state IN('RESERVED','STARTED') AND ($4::uuid IS NULL OR a.offer_id<>$4)`,[a,b,day,exclude??null])).rows[0]!.n);}
- private async ticketPresent(c:PoolClient,t:Ticket,at:Date):Promise<boolean>{return t.last_seen_at.getTime()>at.getTime()-45000&&t.search_expires_at>at&&Boolean((await c.query(`SELECT 1 FROM realtime_sessions s JOIN users u ON u.id=s.user_id
+ private async ticketPresent(c:PoolClient,t:Ticket,at:Date):Promise<boolean>{return t.last_seen_at.getTime()>at.getTime()-45000&&(t.state==='OFFER'||t.search_expires_at>at)&&Boolean((await c.query(`SELECT 1 FROM realtime_sessions s JOIN users u ON u.id=s.user_id
   WHERE s.user_id=$1 AND s.connection_id=$2 AND s.expires_at>$3 AND s.token_version=u.token_version FOR SHARE OF s`,[t.user_id,t.connection_id,at])).rowCount);}
  /** Advisory pruning only; the reservation transaction repeats every eligibility/ownership check. */
  async candidateIds(ids?:string[]):Promise<string[]>{
@@ -139,7 +139,7 @@ export class RankedRepository {
   await c.query("UPDATE ranked_reservations SET state='RELEASED' WHERE offer_id=$1 AND state='RESERVED'",[offer.id]);
   for(const t of rows){const accepted=t.id===offer.a_ticket?offer.accepted_a:offer.accepted_b;
    if(penalize&&(fault?t.user_id===fault:!accepted))await this.noShow(c,offer.id,t.user_id,at);
-   const requeue=t.user_id!==fault&&(fault!==undefined||accepted)&&await this.ticketPresent(c,t,at);
+   const requeue=t.search_expires_at>at&&t.user_id!==fault&&(fault!==undefined||accepted)&&await this.ticketPresent(c,t,at);
    await c.query('UPDATE ranked_tickets SET state=$2 WHERE id=$1',[t.id,requeue?'SEARCHING':'CANCELLED']);await this.epoch(c,t.user_id,requeue);
   }
  }

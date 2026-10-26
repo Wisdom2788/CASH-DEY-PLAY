@@ -40,6 +40,28 @@ suite('durable ranked admission and Redis matchmaking',()=>{
  async function offer(a=123,b=456){const ta=await ranked.join(c(a),'join-'+randomUUID());const tb=await ranked.join(c(b),'join-'+randomUUID());const fence=(await ranked.acquireFence(randomUUID()))!;try{return {offer:(await ranked.createOffer(fence,ta.id,tb.id))!,ta,tb};}finally{await ranked.releaseFence(fence);}}
  async function start(a=123,b=456){const queued=await offer(a,b);expect(queued.offer).not.toBeNull();await ranked.respond(c(a),queued.offer.id,true);const result=await ranked.respond(c(b),queued.offer.id,true);expect(result.state).toBe('STARTED');return {...queued,matchId:result.matchId!};}
  async function finish(matchId:string){const actor=(await pool.query<{user_id:string}>('SELECT user_id FROM game_players WHERE match_id=$1 AND seat=0',[matchId])).rows[0]!.user_id;return games.actForConnection(c(Number(actor.slice(3))),matchId,{id:'forfeit-'+randomUUID(),expectedVersion:0,command:{type:'FORFEIT'}});}
+ it('honors the full offer deadline after search expires without extending a failed search',async()=>{
+  const o=await offer();await pool.query("UPDATE ranked_tickets SET joined_at=clock_timestamp()-interval '121 seconds',search_expires_at=clock_timestamp()-interval '1 second' WHERE id=ANY($1::uuid[])",[[o.ta.id,o.tb.id]]);
+  await ranked.heartbeat(c(123),o.ta.id);await ranked.respond(c(123),o.offer.id,true);expect((await ranked.respond(c(456),o.offer.id,true)).state).toBe('STARTED');
+  await finish((await ranked.resume(c(123))).match!.id);
+  const second=await offer();await ranked.respond(c(123),second.offer.id,true);await pool.query("UPDATE ranked_tickets SET joined_at=clock_timestamp()-interval '121 seconds',search_expires_at=clock_timestamp()-interval '1 second' WHERE id=ANY($1::uuid[])",[[second.ta.id,second.tb.id]]);
+  await pool.query("UPDATE ranked_offers SET created_at=clock_timestamp()-interval '20 seconds',expires_at=clock_timestamp()-interval '1 second' WHERE id=$1",[second.offer.id]);await ranked.recover();
+  expect((await ranked.resume(c(123))).ranked.ticket).toBeNull();expect((await ranked.resume(c(456))).ranked.ticket).toBeNull();
+ });
+ it('settles persisted timeout events with both seat projections as a real win/loss',async()=>{
+  const m=await start();const view=await games.view(m.matchId,'tg_123');await games.timeout(m.matchId,view.deadlineAt!);
+  expect(await new RankedSettlement(pool).settle(m.matchId)).toBe(true);
+  expect((await pool.query('SELECT user_id,outcome,reason FROM ranked_results ORDER BY user_id')).rows).toEqual([{user_id:'tg_123',outcome:'LOSS',reason:'TIMEOUT'},{user_id:'tg_456',outcome:'WIN',reason:'TIMEOUT'}]);
+ });
+ it('records unawarded draws as played without inventing a win or task award',async()=>{
+  const m=await start();let view=await games.view(m.matchId,'tg_123');let at=Date.now();
+  for(let i=0;i<100&&view.status==='ACTIVE';i++){
+   const user=view.turn===0?'tg_123':'tg_456';view=await games.act(m.matchId,user,{id:'draw-only-'+i,expectedVersion:view.version,command:{type:'DRAW'}},at+i);
+  }
+  expect(view).toMatchObject({status:'FINISHED',winner:null,reason:'EXHAUSTED'});await new RankedSettlement(pool).settle(m.matchId);
+  expect((await pool.query('SELECT outcome FROM ranked_results')).rows).toEqual([{outcome:'DRAW'},{outcome:'DRAW'}]);expect((await ranked.resume(c(123))).ranked.stats).toMatchObject({played:1,wins:0,losses:0,draws:1});
+  expect((await pool.query('SELECT count(*)::int n FROM task_claims')).rows[0].n).toBe(0);
+ });
  it('settles delayed recovery into the authoritative Lagos finish day, not today',async()=>{
   const day=(await pool.query("SELECT ((clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date-1)::text AS day")).rows[0].day as string;
   const at=new Date(day+'T23:59:00+01:00');const clock=jest.spyOn(ranked as any,'clock').mockResolvedValue({at,day,reset:new Date(at.getTime()+60000)});
