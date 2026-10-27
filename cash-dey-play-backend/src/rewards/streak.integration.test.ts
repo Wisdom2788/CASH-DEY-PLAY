@@ -10,6 +10,12 @@ import { loadEntitlements } from '../entitlements/entitlements';
 import { PracticeRepository } from '../practice/practice.repository';
 import { GameRepository } from '../game-engine/repository';
 import { chooseBotCommand } from '../game-engine/bot';
+import request from 'supertest';
+import { createApp } from '../app';
+import { PostgresUserRepository } from '../db/repositories/user.repository';
+import { PostgresWalletRepository } from '../db/repositories/wallet.repository';
+import { MemoryRateLimitCounterStore } from '../http/middleware/rate-limit.middleware';
+import { buildSignedTelegramInitData } from '../http/telegram/verify-telegram-init-data';
 
 const url=process.env.TEST_DATABASE_URL;
 if(process.env.REQUIRE_DB_TESTS==='true'&&!url)throw new Error('TEST_DATABASE_URL required');
@@ -52,6 +58,23 @@ suite('versioned streak cycles and transactional claims on PostgreSQL',()=>{
     expect((await pool.query('SELECT count(*)::int AS n FROM streak_login_dates')).rows[0].n).toBe(1);
     expect((await rewards.progress('tg_123')).milestones.every(m=>!m.claimable)).toBe(true);
     expect(await new LedgerRepository(pool).availableKobo('tg_123')).toBe('0');
+  });
+  it('runs the real authenticated claim HTTP route through SQL ledger and wallet readback',async()=>{
+    const id=await fixture(10);const bot='sql-streak-contract-bot';
+    const app=createApp({pool,streakRewardsEnabled:true,userRepository:new PostgresUserRepository(pool),
+      walletRepository:new PostgresWalletRepository(pool),authService:{} as any,tasksRepository:{} as any,
+      loginStreakService:{} as any,monthlyLeaderboardService:{} as any,telegramBotToken:bot,jwtSecret:'x'.repeat(40),
+      corsOrigin:'http://localhost',allowDevAuthBypass:false,rateLimitStore:new MemoryRateLimitCounterStore(),
+      userRequestsPerMinute:100,ipRequestsPerMinute:100});
+    const headers={'X-Telegram-Init-Data':buildSignedTelegramInitData({botToken:bot,user:{id:123,first_name:'Test'},authDate:Math.floor(Date.now()/1000)})};
+    const path=`/api/streak/cycles/${id}/milestones/10/claim`;
+    expect((await request(app).post(path).send({})).status).toBe(401);
+    const response=await request(app).post(path).set(headers).set('Idempotency-Key','real-sql-claim').send({});
+    expect(response.status).toBe(200);expect(response.body.data).toMatchObject({amountKobo:'5000',availableKobo:'5000'});
+    expect((await request(app).get('/api/wallet/balance').set(headers)).body.data.availableKobo).toBe('5000');
+    const retry=await request(app).post(path).set(headers).set('Idempotency-Key','real-sql-retry').send({});
+    expect(retry.body).toEqual(response.body);
+    expect((await pool.query('SELECT count(*)::int AS n FROM wallet_entries')).rows[0].n).toBe(1);
   });
   it('resets an early miss, preserves old cycle history and begins at Day1',async()=>{
     const old=await fixture(7,5);const result=await rewards.recordLogin('tg_123');

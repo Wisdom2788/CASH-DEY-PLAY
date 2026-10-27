@@ -6,49 +6,49 @@ Updated 27 October 2026, Africa/Lagos. Read this alongside IMPLEMENTATION-SUMMAR
 
 Repository: https://github.com/Wisdom2788/CASH-DEY-PLAY. Use the existing `feature-implementation` branch for planned work, `hot-fixes` for fixes, then reviewed `development`; production `main` promotion is separate. Never create branches containing `codex`. Do not invent approvals from old recommendations. Do not enable partially integrated features, buy resources or publish secrets as part of a code merge.
 
-Before editing: fetch remote refs, inspect `git status`, branch heads, open PR18 and its latest checks; check for AGENTS.md instructions. Preserve unrelated/untracked user files, including TEMPORARY-RELEASE-PLAN.md; it is not an approved release policy and must not be swept into a commit. Do not hard reset or force push. Connector publication must use an expected-head lease. Do not duplicate this git-backed repository into file storage.
+Before editing: fetch remote refs, inspect `git status`, branch heads, open PR 18 and its latest checks; check for AGENTS.md instructions. Preserve unrelated/untracked user files, including TEMPORARY-RELEASE-PLAN.md; it is not an approved release policy and must not be swept into a commit. Do not hard reset or force push. Connector publication must use an expected-head lease. Do not duplicate this git-backed repository into file storage.
 
-PR18: https://github.com/Wisdom2788/CASH-DEY-PLAY/pull/18. Last accepted development runtime before this work: PR17, commit26d3b05c4fa4ddf45582f24a616e120b1c989b6b, Verify40420751951 (351 backend/37 frontend tests). Development docs head before PR18: b6cddc40c4411239fe89970228496712b567c5a3. Main remained at stage01 baseline cb5ca23dddee6fa68a404bd045a93db61afc4236 when this guide was written; verify current refs, do not assume these hashes are forever current. The stage08 policy-only commit was cc4416be587b9a472b7a2d7c6b1d0c2c4123a765; subsequent persistence acceptance belongs in the summary/PR checks, not inferred from that commit.
+PR 18: https://github.com/Wisdom2788/CASH-DEY-PLAY/pull/18. Last accepted development runtime before this work: PR 17, commit 26d3b05c4fa4ddf45582f24a616e120b1c989b6b, Verify 40420751951 (351 backend/37 frontend tests). Development docs head before PR 18: b6cddc40c4411239fe89970228496712b567c5a3. Main remained at stage 01 baseline cb5ca23dddee6fa68a404bd045a93db61afc4236 when this guide was written; verify current refs, do not assume these hashes are forever current. The stage 08 policy-only commit was cc4416be587b9a472b7a2d7c6b1d0c2c4123a765; subsequent persistence acceptance belongs in the summary/PR checks, not inferred from that commit.
 
 ## Actual obstacles: connectors versus integrations
 
 An assistant connector operates accounts; the running app integrates using server-side APIs, credentials and callbacks. A missing connector does not prevent writing algorithms, migrations, adapters, contract tests or retry logic. It does prevent claiming that a remote action/test happened when it did not. Never replace a missing provider with client-success callbacks, timers, hardcoded paid flags, fake deliveries or public test reward endpoints.
 
-Read-only Render inspection on27October found one free web API tracking main and an available free Key Value instance with allkeys_lru and persistence off. No hosted background worker was listed. Account IDs, internal endpoints and connection strings intentionally omitted. No settings changed. This proves resource configuration only, not that new development runtime ran there. Recheck before deployment. Existing API start command does not execute migrations.
+Read-only Render inspection on 27 October found one free web API tracking main and an available free Key Value instance with allkeys_lru and persistence off. No hosted background worker was listed. Account IDs, internal endpoints and connection strings intentionally omitted. No settings changed. This proves resource configuration only, not that new development runtime ran there. Recheck before deployment. Existing API start command does not execute migrations.
 
 | Integration | Already implemented | Remaining code/decisions | External prerequisite/evidence |
 |---|---|---|---|
-| Redis and ranked workers | SQL-owned matchmaking, Redis coordination, replay/leases, authorized snapshots, combined worker entrypoint | Hosted configuration, monitoring and complete load/device/restart acceptance; noeviction review; no accepted2-second offer SLO | Actual worker running correct commit with same DB/namespace; Redis access/config, bounded outage and memory-pressure exercise |
+| Redis and ranked workers | SQL-owned matchmaking, Redis coordination, replay/leases, authorized snapshots, combined worker entrypoint | Hosted configuration, monitoring and complete load/device/restart acceptance; noeviction review; no accepted 2-second offer SLO | Actual worker running correct commit with same DB/namespace; Redis access/config, bounded outage and memory-pressure exercise |
 | Telegram Stars | Paid-order/entitlement read model; retired free premium writer | Invoice/order lifecycle, webhook ingestion, payment/refund consumer, support, refund allocation policy, frontend polling | Bot/test environment, webhook secret configuration, real test purchase/refund and actual client devices; no third-party digital-payment provider token required |
 | Rewarded ads | Admission policy, normal completion and quotas; no fabricated credit path | Ad session/evidence/credit lifecycle, recovery/cooldown/practice consumers, adapter | Publisher/placement access and documented authenticated per-event, per-user/session/purpose evidence; real completion/replay tests |
 | Airtime | Integer-kobo accounting and immutable audit/outbox core | Provider adapter, payout/reservation states, caps/float policy, reconciliation, pending UI | Selected provider, approved account/sandbox, credentials, actual catalogue/requery/idempotency contract, float and controlled delivery |
 | Sponsored tasks | Design only; core daily gameplay tasks already rotate | Editorial publication, budgets, verification/dedup, receipt consumer, UI | Approved action/provider policy and evidence; Telegram channel bot-admin access or signed sponsor backend callback; campaign funds |
-| Referral rewards | First-login attribution and qualifying-day reader | Scheduled/event consumer, once-only150 noncash points each, delayed-source expiry recovery, frontend | Real-device invitation and first-login tests; not a separate payout provider |
+| Referral rewards | First-login attribution and qualifying-day reader | Scheduled/event consumer, once-only 150 noncash points each, delayed-source expiry recovery, frontend | Real-device invitation and first-login tests; not a separate payout provider |
 | Release/operations | CI SQL/Redis/browser coverage for named completed slices | Restore rehearsal, production migration plan, real devices, alerts, runbooks, legal/support and prize finance decisions | Verified restore and operator ownership; physical Telegram tests; provider and funding evidence |
 
 This is more than a hosting-plan issue. Development and contract/SQL tests can continue now. Live payments, ad recoveries and top-ups cannot be accepted from mocks. No midnight completion guarantee: prioritize tested code and a trustworthy handoff, then account onboarding and evidence collection in parallel by the owner.
 
-## Stage08A current implementation and next steps
+## Stage 08A current implementation and next steps
 
-Read08-persistent-claims-design.md before changing code. Stage08A adds migration2026102702_streak_rewards, isolated versioned cycle/login/claim/request records, actor-scoped progress/login/claim HTTP routes, default-off ENABLE_STREAK_REWARDS, legacy-route retirement when enabled, and a reusable ledger transaction primitive. Check current CI before calling this accepted. Frontend, referrals and live recovery are separate unfinished slices.
+Read08-persistent-claims-design.md before changing code. Stage 08A adds migration 2026102702_streak_rewards, isolated versioned cycle/login/claim/request records, actor-scoped progress/login/claim HTTP routes, default-off ENABLE_STREAK_REWARDS, legacy-route retirement when enabled, and a reusable ledger transaction primitive. Check current CI before calling this accepted. Frontend, referrals and live recovery are separate unfinished slices.
 
-Approved rules:30 Lagos calendar dates; first airtime milestoneDay10 for both tiers; any miss before completedDay10 resets; after that, one single missed date can be restored by a verified ad only on the immediately following Lagos day. Two missed dates reset. Recovery does not extend the end. Unclaimed milestones expire at cycle end. Day30 must be claimed before Lagos midnight that day. Premium does not waive recovery-ad proof. Tier at claim, one reward slot per cycle/milestone. RegularDay30 requires25 normal practice completions in that personal window; premium waives that practice gate. Retained amounts: bothDay10₦50; regularDay20 no-video-ad day/premium₦100; regularDay30₦100/premium₦200. See versioned rulebook for precedence over stale PRD tables.
+Approved rules:30 Lagos calendar dates; first airtime milestoneDay10 for both tiers; any miss before completedDay10 resets; after that, one single missed date can be restored by a verified ad only on the immediately following Lagos day. Two missed dates reset. Recovery does not extend the end. Unclaimed milestones expire at cycle end. Day 30 must be claimed before Lagos midnight that day. Premium does not waive recovery-ad proof. Tier at claim, one reward slot per cycle/milestone. RegularDay30 requires 25 normal practice completions in that personal window; premium waives that practice gate. Retained amounts: bothDay10₦50; regularDay20 no-video-ad day/premium₦100; regularDay30₦100/premium₦200. See versioned rulebook for precedence over stale PRD tables.
 
 New monetary eligibility starts with new observed logins; snapshot legacy state, never treat old automatic grace as verified recovery. Preserve all credited history. Before production activation review continuity/reconciliation and explain cutover to users. Use ledger compensation if required; never rewrite money history.
 
-Next stage08 slices, one at a time:
+Next stage 08 slices, one at a time:
 
 - [ ] Provider-backed recovery: separate actual/recovered dates; server-issued intent bound to user/cycle/missed date; one verified event/credit can recover once; hold user/cycle/ad-credit locks, sample SQL time, ensure completedDay>=10, one miss, within deadline, cycle still active, consume proof and advance to current calendar day atomically with receipt/audit/outbox. If no proof, remain pending/unavailable. No public boolean-success bypass.
-- [ ] Referral evaluator: derive third complete task-day timestamp from qualified_task_days and25 normal practice times within original referral window, premium practice waiver only when backed by qualifying paid entitlement. Lock affected users in deterministic ID order, then referral; conditional PENDING/eligible -> QUALIFIED and insert unique awards150points each, audit/outbox and receipt in one transaction. Never convert points to wallet cash. Evaluate persisted timestamps, not job execution time; do not mark an expired-looking referral irreversibly ineligible before examining late persisted source events. Resolve premium-at-qualification/refund semantics explicitly where needed; historical paid rows must not be guessed from current premium boolean.
+- [ ] Referral evaluator: derive third complete task-day timestamp from qualified_task_days and25 normal practice times within original referral window, premium practice waiver only when backed by qualifying paid entitlement. Lock affected users in deterministic ID order, then referral; conditional PENDING/eligible -> QUALIFIED and insert unique awards150 points each, audit/outbox and receipt in one transaction. Never convert points to wallet cash. Evaluate persisted timestamps, not job execution time; do not mark an expired-looking referral irreversibly ineligible before examining late persisted source events. Resolve premium-at-qualification/refund semantics explicitly where needed; historical paid rows must not be guessed from current premium boolean.
 - [ ] Frontend: strict progress/receipt contracts; record actual login via new API; render server eligibility only; exact pending/recovery/unavailable/expiry/practice messages; no local eligibility engine or reward balance mutation; invalidate wallet/entitlement/tasks after committed claims. Surface old unlocked-cycle claims until original expiry. Test real HTTP→SQL→ledger result in browser. Keep feature off until this is done.
-- [ ] Full stage08 recovery/release acceptance and update numbered checklist; do not mark the entire stage complete for Stage08A backend alone.
+- [ ] Full stage 08 recovery/release acceptance and update numbered checklist; do not mark the entire stage complete for Stage 08A backend alone.
 
 ## Telegram Stars execution algorithm
 
 1. Choose immutable versioned30/90-day plan prices in integer Stars; old naira estimates are not authoritative conversion rates. Record support/terms acceptance and refund rules. Existing premium_orders has PENDING/PAID/EXPIRED/REFUNDED/PAID_LATE: extend/migrate it deliberately; do not write a consumer expecting a nonexistent CREATED enum.
 2. Authenticated order request plus Idempotency-Key creates actor/plan/price/currency/expiry/payload nonce record. Commit order before external invoice call. Call createInvoiceLink with XTR, one price item and empty provider_token. Persist invoice result/retry identity without creating another economic order on timeout.
 3. Dedicated bot webhook is excluded from player-JWT middleware only at its exact path; authenticate Telegram secret header first, bound body, validate schema, deduplicate update ID. Never exempt a whole API subtree.
-4. pre_checkout_query: validate actor/order nonce, XTR, exact price, order state and expiry; reply using answerPreCheckoutQuery within10seconds. Payment is not granted here. A slow durable queue alone cannot meet the pre-checkout deadline.
+4. pre_checkout_query: validate actor/order nonce, XTR, exact price, order state and expiry; reply using answerPreCheckoutQuery within 10 seconds. Payment is not granted here. A slow durable queue alone cannot meet the pre-checkout deadline.
 5. successful_payment: revalidate all identities/amounts; lock canonical user first, order/entitlements next; sample SQL time and conditionally transition the eligible unpaid order. UNIQUE telegram charge prevents cross-order reuse. Insert that order's paid interval, audit and outbox atomically. Renewal adds duration to max(now,current valid paid end). Current invoice UI callback is display-only.
 6. Mismatched, expired or unexpected successful payment enters explicit reconciliation/late-payment handling without silently granting twice or losing the customer's charge. Store charge ID securely for refund/reconciliation.
 7. Refund request and provider call use stable identity and explicit uncertain outcome. Reconcile refund update/API result once; adjust only affected purchase allocation, preserving unrelated paid time. Never implement refund as isPremium=false for all purchases. Resolve allocation policy before sales. /paysupport and terms must work.
@@ -58,7 +58,7 @@ Next stage08 slices, one at a time:
 |---|---|
 | ST01 | Missing/wrong webhook secret, malformed/oversize payload: no order or entitlement changes |
 | ST02 | Wrong actor/payload/currency/price/expired order: checkout rejected; no paid grant |
-| ST03 | Pre-checkout deadline: answer observed within10seconds, not assumed from handler execution |
+| ST03 | Pre-checkout deadline: answer observed within 10 seconds, not assumed from handler execution |
 | ST04 | Duplicate update/charge, different order using same charge, concurrent callbacks: one grant |
 | ST05 | Active/expired renewals and simultaneous30/90 purchases: exact non-overlapping purchased duration |
 | ST06 | Invoice request timeout before/after provider creation: stable order, recoverable status, no grant |
@@ -100,7 +100,7 @@ Authenticate callback before economic processing; deduplicate provider/event ID,
 | AD04 | Two concurrent consumers of one credit: only one practice/skip/recovery transition |
 | AD05 | SDK success without callback, navigation return, timer, no-fill, provider outage: pending/unavailable, never award |
 | AD06 | Streak beforeDay10, second recovery, two misses, post-midnight callback, cycle ended: deny recovery |
-| AD07 | Valid Day10+ single-miss recovery before next Lagos midnight: missed date restored once, original end unchanged |
+| AD07 | Valid Day 10+ single-miss recovery before next Lagos midnight: missed date restored once, original end unchanged |
 | AD08 | Crash/failure after proof/consumption/state/audit/outbox writes: safe retries and no partial credit use |
 
 ## Airtime provider execution algorithm
@@ -133,7 +133,7 @@ Read04-sponsored-task-campaigns-design.md. Server-controlled weekly drafts are n
 
 Test campaign immutability/date boundaries/budget reservations and refunds, expired attempts, replayed external identity across campaigns, provider outage and delayed verification, membership baseline/rejoin, callback authenticity/nonce binding, capped once-only reward, and rollback/recovery. Optional sponsor economics and core qualification separation remain proposals until approved.
 
-Stage11 still needs authoritative remaining stats/leaderboard paths, agreed net-revenue/prize rules, rounding/unfilled-band policy, freezes, review and audited awards. Stage12 needs full auth→game→tasks→streak→payment→airtime journeys, operational restore, abuse/load/device checks, support/privacy/terms and rollback planning. Never mark them complete because a single component or CI build passed.
+Stage 11 still needs authoritative remaining stats/leaderboard paths, agreed net-revenue/prize rules, rounding/unfilled-band policy, freezes, review and audited awards. Stage 12 needs full auth→game→tasks→streak→payment→airtime journeys, operational restore, abuse/load/device checks, support/privacy/terms and rollback planning. Never mark them complete because a single component or CI build passed.
 
 ## Validation and evidence protocol for the next agent
 
@@ -151,7 +151,7 @@ For each implementation record tested commit, migration count/version, exact CI 
 - Operations: perform a fresh protected database dump and restore into a disposable database; record restore success/count/integrity evidence. A DBeaver connection or a small dump file by itself does not prove recovery. Rotate any previously exposed database secret through the provider and update dependent secret stores.
 - Sponsors: identify first supported action, verified target/account, budget and reward unit; obtain platform access/policy approval. Avoid promising unsupported social verifications to paying sponsors.
 
-## Official references checked27October2026
+## Official references checked27 October 2026
 
 - Telegram Stars requirements/testing/checkout/support: https://core.telegram.org/bots/payments-stars
 - Telegram invoice/payment/refund/webhook objects: https://core.telegram.org/bots/api
