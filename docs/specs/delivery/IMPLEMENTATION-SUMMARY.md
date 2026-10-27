@@ -4,7 +4,8 @@
 
 - [x] Document proposed sponsor/editorial expansion, supported verification boundaries, provider policy findings, budget/anti-replay flow and acceptance plan in 04-sponsored-task-campaigns-design.md. This is design work, not a shipped integration.
 - [x] Identify stage08 business decisions and describe their trade-offs in 08-rewards-decision-draft.md.
-- [ ] Record owner selections for cycle/grace, unlocked-claim expiry and cross-tier first-milestone identity before implementing airtime-credit claims.
+- [x] Record owner correction: no grace before Day10; one verified-ad recovery from Day10; both tiers begin airtime milestone eligibility at Day10. This rejects flat automatic forgiveness and resolves the first threshold.
+- [ ] Resolve calendar recovery/deadline and unclaimed-milestone expiry; replace the existing flat-grace engine with a versioned verified-recovery flow before enabling airtime-credit claims.
 - [ ] Implement and verify stage08 milestones/ad-free grants and referral reward consumption.
 - [ ] Implement editorial campaign controls, real verification adapters, funded sponsor budgets and sponsor/device acceptance.
 

@@ -1,5 +1,17 @@
 # Stage08 reward decisions — draft for business selection
 
+## Business correction recorded — 27 October 2026
+
+The owner supplied the current business rule: before Day10, any missed day fully resets streak progress to Day1; from Day10, one missed day per window may be recovered only by watching a verified rewarded ad. Both regular and premium users start airtime milestone eligibility at Day10. Automatic flat forgiveness anywhere in the cycle is rejected. These instructions supersede the earlier recommendation in this draft and conflicting checked-in PRD/rulebook wording. No premium waiver of the recovery-ad requirement has been approved.
+
+Confirmed: early reset threshold, ad-required rather than automatic recovery, once-per-window recovery limit and shared Day10 first-milestone threshold. Preserve one claim identity per cycle/milestone regardless of tier; remove the proposed regular Day14 first-reward identity. Existing later reward values are not re-priced by this correction.
+
+Still unanswered: (1) does verified recovery restore the missed calendar date and preserve the original 30-calendar-day end, and must it occur on the immediately following Lagos day after an already completed Day10? (2) when does earned but unclaimed milestone eligibility expire? Neither the rejected 30-actual-login-day/31-date proposal nor the proposed 30-day post-unlock claim period is approved. The exact reward table should be restated in the implementation design using the published amounts, including the existing ₦50 first reward now at Day10 for both tiers, before enabling credits.
+
+Source finding: the existing backend login-streak-engine.ts also automatically forgives a miss at any count. Stage08 must replace that behavior with versioned cycle state and verified recovery; updating documentation alone does not enforce the new rule. Legacy streak counters/grace flags cannot be treated as proof of a verified recovery when importing credit eligibility. Earned historical payments/claims remain intact and ambiguous eligibility needs conservative reconciliation. Rewarded-ad verification remains an unfinished live integration: opening an ad, waiting, returning or pressing Recover cannot substitute for authenticated completion evidence. No airtime-credit implementation or live grace recovery is marked complete.
+
+## Superseded proposal history
+
 27 October 2026. Not an approval record and not implemented. Existing RULEBOOK.md explicitly leaves cycle/grace and unclaimed-milestone semantics open. 08-rewards.md requires resolving them before changing cycle progression or monetary claims.
 
 1. Recommend 30 actual login days with one forgiven missing date, so a completed uninterrupted-valid cycle can span 31 calendar dates. The missed date is not a fake login. A second miss resets forward progress. Alternative: fixed 30-calendar-day window, which can leave only 29 actual logins after a grace miss and requires a different milestone definition.
