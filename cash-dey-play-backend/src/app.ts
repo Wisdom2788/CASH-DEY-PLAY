@@ -1,3 +1,5 @@
+import { StreakRepository } from "./rewards/streak.repository";
+import { createStreakRouter } from "./http/routes/streak.routes";
 import { RankedRepository } from "./ranked/ranked.repository";
 import { RedisRankedQueue } from "./ranked/redis-queue";
 import { RedisGameNotifications } from "./realtime/game-notifications";
@@ -51,6 +53,7 @@ import { createLeaderboardRouter } from "./http/routes/leaderboard.routes";
 
 export interface AppDependencies {
   readonly pool: Pool;
+  readonly streakRewardsEnabled?: boolean;
   readonly authService: AuthService;
   readonly loginStreakService: LoginStreakService;
   readonly monthlyLeaderboardService: MonthlyLeaderboardService;
@@ -62,6 +65,7 @@ export interface AppDependencies {
   readonly corsOrigin: string;
   readonly allowDevAuthBypass: boolean;
   readonly rateLimitStore: RateLimitCounterStore;
+  readonly mutationRateLimitStore?: RateLimitCounterStore;
   readonly userRequestsPerMinute: number;
   readonly ipRequestsPerMinute: number;
   readonly trustProxyHops?: number;
@@ -123,6 +127,16 @@ export function createApp(dependencies: AppDependencies): Express {
   const premiumController = new PremiumController(dependencies.pool);
   const leaderboardController = new LeaderboardController(dependencies.pool);
 
+  app.use("/api/streak",(req,res,next)=>{
+    if(req.method==='GET'){next();return;}
+    return createRateLimitMiddleware({store:dependencies.mutationRateLimitStore??dependencies.rateLimitStore,
+      maxRequests:dependencies.userRequestsPerMinute,windowSeconds:60,scope:"user"})(req,res,next);
+  });
+  app.use("/api/streak",createStreakRouter(new StreakRepository(dependencies.pool),dependencies.streakRewardsEnabled===true));
+  app.use("/api/login-streak",(_req,res,next)=>{
+    if(dependencies.streakRewardsEnabled){res.status(410).json({error:"LegacyStreakRetired",message:"Use /api/streak"});return;}
+    next();
+  });
   app.use("/api/auth", createAuthRouter(authController));
   app.use("/api/users", createUserRouter(userController));
   app.use("/api/tasks", createTasksRouter(tasksController));
@@ -219,6 +233,7 @@ function createProductionDependencies() {
 
   const dependencies = {
     pool,
+    streakRewardsEnabled: env.streakRewardsEnabled,
     authService,
     loginStreakService,
     monthlyLeaderboardService,
@@ -230,6 +245,7 @@ function createProductionDependencies() {
     corsOrigin: env.corsOrigin,
     allowDevAuthBypass: env.allowDevAuthBypass,
     rateLimitStore: rateLimit.store,
+    mutationRateLimitStore: rateLimit.mutationStore,
     userRequestsPerMinute: env.userRequestsPerMinute,
     ipRequestsPerMinute: env.ipRequestsPerMinute,
     trustProxyHops: env.trustProxyHops,

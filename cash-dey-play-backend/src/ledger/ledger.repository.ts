@@ -44,6 +44,16 @@ export class LedgerRepository {
       await client.query('BEGIN');
       await client.query("SET LOCAL lock_timeout = '5s'");
       await client.query("SET LOCAL statement_timeout = '10s'");
+      const response = await this.postInTransaction(client,p,applySource);
+      await client.query('COMMIT'); return response;
+    } catch (error) { await client.query('ROLLBACK'); throw error; }
+    finally { client.release(); }
+  }
+  /** Owning operation provides BEGIN/COMMIT and a consistent user-before-account lock
+   * order. Failure must roll back the ENTIRE transaction; never catch and commit.
+   */
+  async postInTransaction(client: PoolClient, p: Posting, applySource?: (client: PoolClient) => Promise<void>): Promise<PostingResponse> {
+    validate(p);
       await client.query('INSERT INTO wallet_accounts(user_id) VALUES($1) ON CONFLICT DO NOTHING',[p.userId]);
       await client.query('SELECT user_id FROM wallet_accounts WHERE user_id=$1 FOR UPDATE',[p.userId]);
       const requestHash = hash(p);
@@ -52,7 +62,7 @@ export class LedgerRepository {
         [p.userId,p.operation,p.idempotencyKey]);
       if (prior.rows[0]) {
         if (prior.rows[0].request_hash !== requestHash) throw new LedgerError('CONFLICT');
-        await client.query('COMMIT'); return prior.rows[0].response;
+        return prior.rows[0].response;
       }
       // A second request key cannot mint the same economic source again. Return the original response.
       const source = await client.query<EntryRow>('SELECT * FROM wallet_entries WHERE account_id=$1 AND reference_type=$2 AND reference_id=$3',[p.userId,p.referenceType,p.referenceId]);
@@ -82,9 +92,7 @@ export class LedgerRepository {
       }
       await client.query('INSERT INTO financial_requests(user_id,operation,idempotency_key,request_hash,response) VALUES($1,$2,$3,$4,$5)',
         [p.userId,p.operation,p.idempotencyKey,requestHash,response]);
-      await client.query('COMMIT'); return response;
-    } catch (error) { await client.query('ROLLBACK'); throw error; }
-    finally { client.release(); }
+      return response;
   }
   private async balance(client: Pick<PoolClient,'query'>, userId:string):Promise<bigint> {
     const result = await client.query<{balance:string}>('SELECT COALESCE(sum(amount_kobo),0)::text AS balance FROM wallet_entries WHERE account_id=$1',[userId]);

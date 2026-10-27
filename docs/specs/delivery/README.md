@@ -84,3 +84,7 @@ Before production: all stages accepted, no unresolved Critical/High findings, da
 ## Foundations evidence and next designs
 
 [Verify run40135745497](https://github.com/Wisdom2788/CASH-DEY-PLAY/actions/runs/40135745497) passed122 backend tests including all15 PostgreSQL cases, strict frontend typecheck, ESLint,26 frontend tests and build. Both Vercel previews passed on d746cab. [The next critical-flow design](03-12-critical-flow-design.md) defines authority, queue reservation, SQL/Redis consistency, game command ordering, idempotent reward settlement, Stars payment and payout recovery before those features are implemented. These later capabilities are not delivered yet.
+
+## Agent continuity and integration readiness
+
+Continue from [INTEGRATIONS-AND-AGENT-HANDOFF.md](INTEGRATIONS-AND-AGENT-HANDOFF.md), then check current PR/CI and [IMPLEMENTATION-SUMMARY.md](IMPLEMENTATION-SUMMARY.md). Stage08A persistence/claim scope is in [08-persistent-claims-design.md](08-persistent-claims-design.md). This handoff does not approve untested release gates.

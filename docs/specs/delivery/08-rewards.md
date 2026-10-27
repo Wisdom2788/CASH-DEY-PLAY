@@ -1,6 +1,6 @@
 # Personal streak milestones and referral qualification
 
-Status: **Specified; not implemented**. Covers: C5/C6, H2/H4/H6/H10, M12/M13. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
+Status: **Policy component tested; persistence/claim slice under acceptance; full stage incomplete**. Covers: C5/C6, H2/H4/H6/H10, M12/M13. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
 
 ### Data and rules
 
@@ -30,3 +30,5 @@ Next sequence: persist cycles/login dates and conservative legacy reconciliation
 Recheck SQL time after claim locks. A request received before midnight but acquiring locks after expiry must fail; a previously committed idempotent receipt retried after expiry returns its original response without another credit. Day 30 has only its calendar date to claim, including satisfying its practice gate. No Day 31 grace and no extension for delayed provider checks. Exact tier amounts are restated in the decision document.
 
 Local policy verification:17 focused tests passed; backend typecheck result recorded in the cumulative summary. These are policy-unit checks, not SQL/provider/end-to-end acceptance.
+
+Persistence algorithm and rollout: [08-persistent-claims-design.md](08-persistent-claims-design.md). Integration algorithms, provider prerequisites and agent continuity: [INTEGRATIONS-AND-AGENT-HANDOFF.md](INTEGRATIONS-AND-AGENT-HANDOFF.md). Do not treat written test matrices as acceptance evidence.

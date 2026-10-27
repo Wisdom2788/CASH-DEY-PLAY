@@ -14,10 +14,11 @@ function signedHeaders(): Record<string, string> {
   return { "X-Telegram-Init-Data": initData };
 }
 
-function buildTestApp() {
+function buildTestApp(streakRewardsEnabled=false) {
   const poolQuery = jest.fn().mockResolvedValue({ rows: [{expires_at:null,ad_free:false}], rowCount: 1 });
   const recordMatchResult = jest.fn();
   const app = createApp({
+    streakRewardsEnabled,
     authService: {} as any,
     pool: { query: poolQuery } as any,
     userRepository: { findAuthState: async (id: string) => ({ telegramId: Number(id.slice(3)), tokenVersion: 0 }) } as any,
@@ -37,6 +38,12 @@ function buildTestApp() {
 }
 
 describe("endpoints that let the client grant itself rewards are retired", () => {
+  it('retires the legacy automatic-grace reader/writers when versioned streaks are enabled',async()=>{
+    const {app}=buildTestApp(true);
+    expect((await request(app).get('/api/login-streak').set(signedHeaders())).status).toBe(410);
+    expect((await request(app).post('/api/login-streak').set(signedHeaders()).send({})).status).toBe(410);
+    expect((await request(app).post('/api/login-streak/claim').set(signedHeaders()).send({})).status).toBe(410);
+  });
   it("POST /api/premium/subscribe no longer exists (premium must only come from a verified payment)", async () => {
     const { app, poolQuery } = buildTestApp();
 

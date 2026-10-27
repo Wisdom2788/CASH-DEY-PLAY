@@ -41,9 +41,19 @@ databaseTests("foundations migrations on PostgreSQL", () => {
     for(let i=0;i<2;i++) execFileSync(process.execPath,[join(root,"node_modules/prisma/build/index.js"),"migrate","deploy"],{
       cwd:root,env:{...process.env,DATABASE_URL:database.toString()},stdio:"pipe",timeout:60000,
     });
-    expect((await pool.query("SELECT count(*)::int AS count FROM _prisma_migrations WHERE finished_at IS NOT NULL")).rows[0].count).toBe(10);
+    expect((await pool.query("SELECT count(*)::int AS count FROM _prisma_migrations WHERE finished_at IS NOT NULL")).rows[0].count).toBe(11);
     expect((await pool.query("SELECT count(*)::int AS count FROM first_login_attributions")).rows[0].count).toBe(0);
   },130000);
+  it('snapshots legacy streak flags without importing monetary eligibility or deleting history',async()=>{
+    await fixture();await apply();
+    await pool.query("INSERT INTO login_streaks VALUES('tg_123','2026-10-01','2026-10-12',11,1,true,now())");
+    await pool.query(readFileSync(join(root,'prisma/migrations/2026102702_streak_rewards/migration.sql'),'utf8'));
+    expect((await pool.query('SELECT snapshot FROM streak_legacy_snapshots')).rows[0].snapshot).toMatchObject({has_claimed_bonus:true,grace_days_used:1});
+    expect((await pool.query('SELECT count(*)::int AS n FROM login_streaks')).rows[0].n).toBe(1);
+    expect((await pool.query('SELECT count(*)::int AS n FROM streak_cycles')).rows[0].n).toBe(0);
+    expect((await pool.query('SELECT count(*)::int AS n FROM streak_claims')).rows[0].n).toBe(0);
+    await expect(pool.query('DELETE FROM streak_legacy_snapshots')).rejects.toThrow('Immutable');
+  });
   it("refuses an ambiguous future task cutover without changing existing claims",async()=>{
     await fixture();await apply();
     await pool.query("INSERT INTO daily_task_state(user_id,lagos_date,task_key,status,claimed_at) VALUES('tg_123',(clock_timestamp() AT TIME ZONE 'Africa/Lagos')::date+1,'WIN_MATCH','CLAIMED',clock_timestamp())");

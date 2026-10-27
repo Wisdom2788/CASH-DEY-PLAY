@@ -1,3 +1,5 @@
+import { StreakError } from "../../rewards/streak.repository";
+import { LedgerError } from "../../ledger/ledger.repository";
 import { type NextFunction, type Request, type Response } from "express";
 import { ZodError } from "zod";
 import { TaskEligibilityError } from "../../entitlements/daily-tasks";
@@ -26,6 +28,11 @@ export function errorHandler(
     return;
   }
 
+  if(err instanceof StreakError){
+    const status=err.code==='NOT_FOUND'?404:err.code==='CONFLICT'?409:403;
+    res.status(status).json({requestId:req.requestId,error:err.code});return;
+  }
+  if(err instanceof LedgerError){res.status(409).json({requestId:req.requestId,error:err.code});return;}
   if (err instanceof TaskEligibilityError) {res.status(403).json({requestId:req.requestId,error:"TaskNotEligible",message:err.message});return;}
   if (err instanceof ServiceUnavailableError) { res.status(503).json({ requestId:req.requestId, error:err.name,message:err.message }); return; }
   if (err instanceof SyntaxError && "body" in err) { res.status(400).json({ requestId:req.requestId, error:"ValidationError",message:"Malformed JSON" }); return; }

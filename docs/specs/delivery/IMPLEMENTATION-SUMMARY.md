@@ -1,5 +1,14 @@
 # Cumulative implementation summary
 
+## Stage 08A persistence and integration handoff — 27 October 2026
+
+- [x] Record fixed-cycle/Day 10 recovery decisions and cycle-end unclaimed expiry; policy unit checks passed in the prior slice.
+- [x] Write persistent versioned cycles/actual-login records, legacy snapshots, actor-bound claim requests, monetary/ad-free claims and default-off HTTP contracts; see 08-persistent-claims-design.md.
+- [x] Write INTEGRATIONS-AND-AGENT-HANDOFF.md with provider algorithms, test matrices, blockers, architecture conventions and precise continuation steps.
+- [x] Local backend typecheck and unit/HTTP suite passed before publication (245 tests at the initial run; database suites skipped locally). This is not SQL acceptance.
+- [ ] Service-backed migration/SQL concurrency/rollback/ledger/practice acceptance and existing browser regressions for this persistence commit. Replace this line with the actual final CI result, not an assumed pass.
+- [ ] Verified-ad recovery, referral awards, frontend replacement, provider/device/hosting and production cutover remain unfinished. ENABLE_STREAK_REWARDS defaults false; no production migration or enablement.
+
 ## Stage08 and sponsored-task planning — 27 October 2026
 
 - [x] Document proposed sponsor/editorial expansion, supported verification boundaries, provider policy findings, budget/anti-replay flow and acceptance plan in 04-sponsored-task-campaigns-design.md. This is design work, not a shipped integration.

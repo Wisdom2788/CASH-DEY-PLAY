@@ -20,6 +20,7 @@ export interface AppEnv {
   readonly realtimeMovesEnabled: boolean;
   readonly realtimeDeliveryEnabled:boolean;
   readonly gameRelayChannel:string;
+  readonly streakRewardsEnabled:boolean;
   readonly rankedEnabled:boolean;readonly rankedQueueNamespace:string;
 }
 
@@ -84,6 +85,7 @@ export function loadAppEnv(processEnv: NodeJS.ProcessEnv = process.env): AppEnv 
   const rankedEnabled=processEnv.ENABLE_RANKED==="true";const rankedQueueNamespace=processEnv.RANKED_QUEUE_NAMESPACE??"";
   if(rankedEnabled&&(processEnv.ENABLE_REALTIME_READ!=="true"||processEnv.ENABLE_REALTIME_MOVES!=="true"||!redisUrl||!/^[A-Za-z0-9_-]{1,80}$/.test(rankedQueueNamespace)))throw new Error("Ranked requires read/move gateway, Redis and an environment-scoped RANKED_QUEUE_NAMESPACE");
   return {
+    streakRewardsEnabled: processEnv.ENABLE_STREAK_REWARDS === "true",
     nodeEnv,rankedEnabled,rankedQueueNamespace,realtimeDeliveryEnabled,gameRelayChannel,
     realtimeMovesEnabled: processEnv.ENABLE_REALTIME_MOVES === "true",
     realtimeReadEnabled: processEnv.ENABLE_REALTIME_READ === "true",
