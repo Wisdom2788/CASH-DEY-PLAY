@@ -104,14 +104,14 @@ export function createApp(dependencies: AppDependencies): Express {
       loadUser: (id) => dependencies.userRepository.findAuthState(id),
     }),
   );
-  app.use(
-    createRateLimitMiddleware({
-      store: dependencies.rateLimitStore,
-      maxRequests: dependencies.userRequestsPerMinute,
-      windowSeconds: 60,
-      scope: "user",
-    }),
-  );
+  const generalUserLimit=createRateLimitMiddleware({store:dependencies.rateLimitStore,
+    maxRequests:dependencies.userRequestsPerMinute,windowSeconds:60,scope:"user"});
+  const streakMutationLimit=createRateLimitMiddleware({store:dependencies.mutationRateLimitStore??dependencies.rateLimitStore,
+    maxRequests:dependencies.userRequestsPerMinute,windowSeconds:60,scope:"user"});
+  app.use((req,res,next)=>{
+    const protectedMutation=req.method!=="GET"&&/^\/api\/streak(?:\/|$)/.test(req.path);
+    return (protectedMutation?streakMutationLimit:generalUserLimit)(req,res,next);
+  });
 
   app.get("/api/config/rules", (_req,res) => { res.setHeader("Cache-Control","private, max-age=300"); res.json({ data: PRODUCT_RULES }); });
 
@@ -127,11 +127,6 @@ export function createApp(dependencies: AppDependencies): Express {
   const premiumController = new PremiumController(dependencies.pool);
   const leaderboardController = new LeaderboardController(dependencies.pool);
 
-  app.use("/api/streak",(req,res,next)=>{
-    if(req.method==='GET'){next();return;}
-    return createRateLimitMiddleware({store:dependencies.mutationRateLimitStore??dependencies.rateLimitStore,
-      maxRequests:dependencies.userRequestsPerMinute,windowSeconds:60,scope:"user"})(req,res,next);
-  });
   app.use("/api/streak",createStreakRouter(new StreakRepository(dependencies.pool),dependencies.streakRewardsEnabled===true));
   app.use("/api/login-streak",(_req,res,next)=>{
     if(dependencies.streakRewardsEnabled){res.status(410).json({error:"LegacyStreakRetired",message:"Use /api/streak"});return;}

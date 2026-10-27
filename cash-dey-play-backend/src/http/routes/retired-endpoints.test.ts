@@ -17,6 +17,7 @@ function signedHeaders(): Record<string, string> {
 function buildTestApp(streakRewardsEnabled=false) {
   const poolQuery = jest.fn().mockResolvedValue({ rows: [{expires_at:null,ad_free:false}], rowCount: 1 });
   const recordMatchResult = jest.fn();
+  const rateLimitStore=new MemoryRateLimitCounterStore();
   const app = createApp({
     streakRewardsEnabled,
     authService: {} as any,
@@ -30,14 +31,19 @@ function buildTestApp(streakRewardsEnabled=false) {
     jwtSecret: "x".repeat(40),
     corsOrigin: "http://localhost:5173",
     allowDevAuthBypass: false,
-    rateLimitStore: new MemoryRateLimitCounterStore(),
+    rateLimitStore,
     userRequestsPerMinute: 60,
     ipRequestsPerMinute: 120,
   });
-  return { app, poolQuery, recordMatchResult };
+  return { app, poolQuery, recordMatchResult,rateLimitStore };
 }
 
 describe("endpoints that let the client grant itself rewards are retired", () => {
+  it('counts a streak mutation once in the user rate-limit window',async()=>{
+    const {app,rateLimitStore}=buildTestApp();const increment=jest.spyOn(rateLimitStore,'increment');
+    expect((await request(app).post('/api/streak/login').set(signedHeaders()).send({})).status).toBe(503);
+    expect(increment).toHaveBeenCalledTimes(1);
+  });
   it('retires the legacy automatic-grace reader/writers when versioned streaks are enabled',async()=>{
     const {app}=buildTestApp(true);
     expect((await request(app).get('/api/login-streak').set(signedHeaders())).status).toBe(410);

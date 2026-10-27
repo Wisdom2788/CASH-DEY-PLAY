@@ -17,7 +17,7 @@ A spec is not an implementation. “Implemented locally” is not a passing host
 | 05 | [Whot engine and practice bot](05-game-engine.md) | 02 and agreed game rules | Core implemented and CI verified; owner rules approved; practice exposure remains pending |
 | 06 | [Verified ads and practice limits](06-ads-practice.md) | 04–05 and provider contract | Admission/completion core CI verified; provider and public-flow integrations pending |
 | 07 | [Realtime and ranked matchmaking](07-ranked.md) | 04–06 | Core implemented and CI verified in PR15; one-opponent/day and no-rematch revision CI verified in PR16; hosted/device/load gates remain open |
-| 08 | [Streak milestones and referral qualification](08-rewards.md) | 03–07 | Specified; not implemented |
+| 08 | [Streak milestones and referral qualification](08-rewards.md) | 03–07 | Policy tested; persistent backend claims under CI acceptance; recovery/referrals/frontend remain open |
 | 09 | [Stars premium payments](09-payments.md) | 03–04 and staging bot | Specified; not implemented |
 | 10 | [Airtime payout delivery](10-payouts.md) | 03,08 and provider account | Specified; not implemented |
 | 11 | [Leaderboards, prizes and operations](11-leaderboards.md) | 07–10 | Specified; finance inputs unresolved |
