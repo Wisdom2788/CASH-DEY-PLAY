@@ -4,12 +4,14 @@
 
 - [x] Document proposed sponsor/editorial expansion, supported verification boundaries, provider policy findings, budget/anti-replay flow and acceptance plan in 04-sponsored-task-campaigns-design.md. This is design work, not a shipped integration.
 - [x] Identify stage08 business decisions and describe their trade-offs in 08-rewards-decision-draft.md.
-- [x] Record owner correction: no grace before Day10; one verified-ad recovery from Day10; both tiers begin airtime milestone eligibility at Day10. This rejects flat automatic forgiveness and resolves the first threshold.
-- [ ] Resolve calendar recovery/deadline and unclaimed-milestone expiry; replace the existing flat-grace engine with a versioned verified-recovery flow before enabling airtime-credit claims.
+- [x] Record owner correction: no grace before Day 10; one verified-ad recovery from Day 10; both tiers begin airtime milestone eligibility at Day 10. This rejects flat automatic forgiveness and resolves the first threshold.
+- [x] Owner approved fixed 30-calendar-day recovery on the immediately following Lagos day and unclaimed expiry at cycle end.
+- [x] Add isolated versioned calendar-policy component: 17 focused tests and backend typecheck passed; tests cover Day 10 threshold, pending recovery, resets, once-per-cycle limit, fixed end, Lagos midnight and invalid/legacy states.
+- [ ] Persist/wire versioned cycles, replace legacy automatic grace, consume authenticated single-use ad evidence and conservatively reconcile historical eligibility before enabling credits.
 - [ ] Implement and verify stage08 milestones/ad-free grants and referral reward consumption.
 - [ ] Implement editorial campaign controls, real verification adapters, funded sponsor budgets and sponsor/device acceptance.
 
-Existing PR17 implementation/acceptance remains the last tested runtime; these planning documents introduce no runtime or production change.
+Existing PR17 implementation/acceptance remains the last tested runtime; the policy component is isolated and not wired to application routes. No production change.
 
 ## Rotating daily tasks — 27 October 2026
 
