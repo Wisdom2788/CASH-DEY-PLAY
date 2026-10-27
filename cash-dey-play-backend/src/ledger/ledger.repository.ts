@@ -44,6 +44,9 @@ export class LedgerRepository {
       await client.query('BEGIN');
       await client.query("SET LOCAL lock_timeout = '5s'");
       await client.query("SET LOCAL statement_timeout = '10s'");
+      // Match composing reward operations: audit/source foreign keys can lock
+      // the user too, so account-first posting would invert their lock order.
+      await client.query('SELECT id FROM users WHERE id=$1 FOR UPDATE',[p.userId]);
       const response = await this.postInTransaction(client,p,applySource);
       await client.query('COMMIT'); return response;
     } catch (error) { await client.query('ROLLBACK'); throw error; }

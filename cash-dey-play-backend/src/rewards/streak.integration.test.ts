@@ -104,6 +104,16 @@ suite('versioned streak cycles and transactional claims on PostgreSQL',()=>{
     expect(await new LedgerRepository(pool).availableKobo('tg_123')).toBe('5000');
     expect(Object.values(await reconcileLedger(pool)).every(n=>n===0)).toBe(true);
   });
+  it('composes concurrent standalone ledger posts and milestone claims with the same user-first lock order',async()=>{
+    const id=await fixture(10);const ledger=new LedgerRepository(pool);
+    await Promise.all([
+      rewards.claim('tg_123',id,10,'mixed-milestone'),
+      ledger.post({userId:'tg_123',operation:'TEST_OTHER_SOURCE',idempotencyKey:'mixed-ledger-post',amountKobo:100,
+        kind:'CREDIT',referenceType:'TEST_OTHER_SOURCE',referenceId:'other-source-1',ruleVersion:'test-v1',sourcePayloadHash:'a'.repeat(64)}),
+    ]);
+    expect(await ledger.availableKobo('tg_123')).toBe('5100');
+    expect(Object.values(await reconcileLedger(pool)).every(n=>n===0)).toBe(true);
+  });
   it('does not pay a second tier variant after upgrading',async()=>{
     const id=await fixture(20);const first=await rewards.claim('tg_123',id,20,'regular-claim');
     expect(first.kind).toBe('AD_FREE');await premium();
