@@ -6,7 +6,7 @@
 - [x] Write persistent versioned cycles/actual-login records, legacy snapshots, actor-bound claim requests, monetary/ad-free claims and default-off HTTP contracts; see 08-persistent-claims-design.md.
 - [x] Write INTEGRATIONS-AND-AGENT-HANDOFF.md with provider algorithms, test matrices, blockers, architecture conventions and precise continuation steps.
 - [x] Local backend typecheck and unit/HTTP suite passed before publication (245 tests at the initial run; database suites skipped locally). This is not SQL acceptance.
-- [ ] Service-backed migration/SQL concurrency/rollback/ledger/practice acceptance and existing browser regressions for this persistence commit. Replace this line with the actual final CI result, not an assumed pass.
+- [x] Service-backed acceptance on `9e987124ab70aa39fdfc99674dc8667b68018aac`: [Verify40561089985](https://github.com/Wisdom2788/CASH-DEY-PLAY/actions/runs/40561089985), 407 backend tests/43 suites and 37 frontend tests, no SQL/Redis skips, all 11 migrations deployed twice, zero ledger mismatches; typecheck/lint/build/audits and Chromium/WebKit plus real SQL/Redis ranked browser regression passed. The new streak flow has actual authenticated HTTP→SQL→ledger→wallet tests; no new streak frontend/device/provider acceptance is implied.
 - [ ] Verified-ad recovery, referral awards, frontend replacement, provider/device/hosting and production cutover remain unfinished. ENABLE_STREAK_REWARDS defaults false; no production migration or enablement.
 
 ## Stage08 and sponsored-task planning — 27 October 2026
@@ -16,11 +16,13 @@
 - [x] Record owner correction: no grace before Day 10; one verified-ad recovery from Day 10; both tiers begin airtime milestone eligibility at Day 10. This rejects flat automatic forgiveness and resolves the first threshold.
 - [x] Owner approved fixed 30-calendar-day recovery on the immediately following Lagos day and unclaimed expiry at cycle end.
 - [x] Add isolated versioned calendar-policy component: 17 focused tests and backend typecheck passed; tests cover Day 10 threshold, pending recovery, resets, once-per-cycle limit, fixed end, Lagos midnight and invalid/legacy states.
-- [ ] Persist/wire versioned cycles, replace legacy automatic grace, consume authenticated single-use ad evidence and conservatively reconcile historical eligibility before enabling credits.
-- [ ] Implement and verify stage08 milestones/ad-free grants and referral reward consumption.
+- [x] Stage08A persists versioned cycles/claims and snapshots old state; enabling its default-off flag retires legacy routes. Production continuity/reconciliation review remains a gate.
+- [ ] Consume authenticated single-use ad evidence for recovery; no automatic grace or premium waiver.
+- [x] Implement and CI-verify backend milestone/ad-free grants in Stage08A.
+- [ ] Referral reward consumption and frontend/provider acceptance remain open.
 - [ ] Implement editorial campaign controls, real verification adapters, funded sponsor budgets and sponsor/device acceptance.
 
-Existing PR17 implementation/acceptance remains the last tested runtime; the policy component is isolated and not wired to application routes. No production change.
+Historical planning entry: PR17 was the last tested runtime at that point. The Stage08A acceptance record above supersedes that planning status. Production remains unchanged.
 
 ## Rotating daily tasks — 27 October 2026
 
@@ -61,14 +63,15 @@ Updated 26 October 2026. Checked items certify their named tested scope. Provide
 - [x] **07 game worker:** durable bot turns and deadlines, post-lock clock/version checks, atomic replay/outbox and graceful shutdown.
 - [x] **07 sessions/moves:** expiring/revocable JWTs, durable newest-device generations, participant-only reads, atomic intentions/receipts and fail-closed shared mutation limits.
 - [x] **07 game delivery:** committed-source leased relay, redacted Redis hints, fresh authorized SQL snapshots, exact ACK/version recovery, bounded reads and slow-client isolation.
-- [x] **07 ranked admission/Redis queue:** SQL tickets/offers/reservations, exactly two accepted humans, three starts for both tiers, finish-based regular cooldown, Lagos start-day allocation, pair cap2, immutable started charges, epoch/fenced Redis coordination and crash/cache-loss recovery.
+- [x] **07 ranked admission/Redis queue:** SQL tickets/offers/reservations, exactly two accepted humans, three starts for both tiers, finish-based regular cooldown, Lagos start-day allocation, pair cap1 per opponent/Lagos day, immutable started charges, epoch/fenced Redis coordination and crash/cache-loss recovery.
 - [x] **07 automatic ranked snapshots:** private offer/result/rematch updates, per-connection exact ACK/retry, bounded reads, SQL catch-up and token recheck before disclosure. Server polling never refreshes player queue presence.
-- [x] **07 approved policies/rematches:** warning then2/5/15-minute no-show lockouts,24-hour quiet reset, three requests per rolling hour,15-second consent, repeated eligibility/online/pair/quota checks and no second ready check. Disconnects retain the approved turn clock; no automatic VOID/refund.
+- [x] **07 current policies:** warning then2/5/15-minute no-show lockouts,24-hour quiet reset, repeated eligibility/online/quota checks and one start per opponent/Lagos day. Ranked rematches are disabled by the 26 October revision; earlier rematch acceptance entries are historical. Disconnects retain the approved turn clock; no automatic VOID/refund.
 - [x] **07 result/task/stat core:** immutable per-match/player WIN/LOSS/DRAW receipts verified against terminal events; forfeit/timeout handling; no win for unawarded draws; once-only finish-day ranked-win/all-complete task points; atomic rollback/recovery; receipt-derived monthly ranked progress. This does not complete monthly prize ranking or payment settlement.
 - [x] **07 gated frontend/automated acceptance:** queue/ready/game/wild suit/forfeit/result/rematch, strict own-hand/action-reply contracts, committed game-update ACKs, transport/explicit reconnect, old-reply connection fencing, foreground recovery and Telegram method/version guards, server-clock display and task-cache invalidation; Chromium/WebKit mobile-emulation flows and a100-socket regression load test.
 - [x] **07 worker preparation:** one combined supervisor, bounded independent loops, per-role SQL health, graceful shutdown, schema-validated manual Render worker manifest and deployment runbook. Preparation is not a hosted deployment.
 - [ ] **07 full acceptance:** physical Telegram devices/accessibility, hosted deployment/restart/monitoring, target-scale load/SLO evidence, verified-ad cooldown skip, wait estimates/recent-opponent availability reasons, antifraud/operator review tooling and audited technical compensation tooling.
-- [ ] **08 rewards:** streak milestone/ad-free grants and referral qualification/150-point awards.
+- [x] **08A backend rewards:** persistent versioned cycles, default-off authenticated claims, integer-kobo/ad-free grants, legacy snapshots, source/idempotency/audit/outbox atomicity and service-backed acceptance.
+- [ ] **08 remaining:** authenticated recovery-ad consumer, referral qualification/150-point awards, frontend replacement, continuity review and full provider/device/release acceptance.
 - [ ] **09 Stars:** verified orders, payments/refunds, entitlement lifecycle, support/terms and test-bot evidence.
 - [ ] **10 airtime:** provider dispatch/requery, ambiguous-result reconciliation, once-only refunds, caps and float operations.
 - [ ] **11 leaderboard/prizes:** authoritative full leaderboards/snapshots, finance/rounding policy, reviewed awards and operator controls. The legacy leaderboard/profile statistics paths are not certified by the new ranked progress panel.

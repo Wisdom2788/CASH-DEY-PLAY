@@ -1,6 +1,6 @@
 # Personal streak milestones and referral qualification
 
-Status: **Policy component tested; persistence/claim slice under acceptance; full stage incomplete**. Covers: C5/C6, H2/H4/H6/H10, M12/M13. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
+Status: **Stage08A persistent backend cycles/claims CI verified; full stage incomplete**. Covers: C5/C6, H2/H4/H6/H10, M12/M13. Dependencies and sequence: [delivery index](README.md). Product decisions: [rulebook](RULEBOOK.md).
 
 ### Data and rules
 
@@ -32,3 +32,9 @@ Recheck SQL time after claim locks. A request received before midnight but acqui
 Local policy verification: 17 focused tests passed; backend typecheck result recorded in the cumulative summary. These are policy-unit checks, not SQL/provider/end-to-end acceptance.
 
 Persistence algorithm and rollout: [08-persistent-claims-design.md](08-persistent-claims-design.md). Integration algorithms, provider prerequisites and agent continuity: [INTEGRATIONS-AND-AGENT-HANDOFF.md](INTEGRATIONS-AND-AGENT-HANDOFF.md). Do not treat written test matrices as acceptance evidence.
+
+## Stage08A acceptance — 27 October 2026
+
+Tested runtime `9e987124ab70aa39fdfc99674dc8667b68018aac`, [Verify40561089985](https://github.com/Wisdom2788/CASH-DEY-PLAY/actions/runs/40561089985): 407 backend tests/43 suites and 37 frontend tests, all 11 migrations deployed twice, no integration skips, zero ledger reconciliation mismatches, required audits/typechecks/lint/build and existing ranked Chromium/WebKit + actual SQL/Redis browser journeys passed. New streak tests include actual signed/authenticated HTTP claim→SQL ledger→wallet readback, both tier tables, real 25 normal-practice finishes with24/forfeit rejection, once-only concurrent claims, user-first mixed ledger/claim locking, expiry/replay, ad-free expiry/tier isolation, legacy snapshots, immutable state, injected rollback and strict actor/payload/rate-limit boundaries including Express path casing.
+
+ENABLE_STREAK_REWARDS remains false by default. No new streak browser UI, authenticated ad proof, referral consumer, physical Telegram/device test, hosted worker or production activation was accepted here. Existing ranked 100-client/50-offer measurement had p95=2748ms/max2755ms and zero duplicate assignments; this does not certify the 2-second target or hosted capacity.

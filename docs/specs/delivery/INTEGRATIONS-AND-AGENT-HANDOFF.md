@@ -30,7 +30,7 @@ This is more than a hosting-plan issue. Development and contract/SQL tests can c
 
 ## Stage 08A current implementation and next steps
 
-Read08-persistent-claims-design.md before changing code. Stage 08A adds migration 2026102702_streak_rewards, isolated versioned cycle/login/claim/request records, actor-scoped progress/login/claim HTTP routes, default-off ENABLE_STREAK_REWARDS, legacy-route retirement when enabled, and a reusable ledger transaction primitive. Check current CI before calling this accepted. Frontend, referrals and live recovery are separate unfinished slices.
+Read08-persistent-claims-design.md before changing code. Stage 08A adds migration 2026102702_streak_rewards, isolated versioned cycle/login/claim/request records, actor-scoped progress/login/claim HTTP routes, default-off ENABLE_STREAK_REWARDS, legacy-route retirement when enabled, and a reusable ledger transaction primitive. Accepted backend runtime `9e987124ab70aa39fdfc99674dc8667b68018aac`: [Verify40561089985](https://github.com/Wisdom2788/CASH-DEY-PLAY/actions/runs/40561089985), 407 backend/37 frontend tests, 11 migrations twice, zero ledger mismatches, existing SQL/Redis/browser regressions green. Check current refs/CI for subsequent changes; this does not accept frontend/provider/release gates. Frontend, referrals and live recovery are separate unfinished slices.
 
 Approved rules:30 Lagos calendar dates; first airtime milestoneDay10 for both tiers; any miss before completedDay10 resets; after that, one single missed date can be restored by a verified ad only on the immediately following Lagos day. Two missed dates reset. Recovery does not extend the end. Unclaimed milestones expire at cycle end. Day 30 must be claimed before Lagos midnight that day. Premium does not waive recovery-ad proof. Tier at claim, one reward slot per cycle/milestone. RegularDay30 requires 25 normal practice completions in that personal window; premium waives that practice gate. Retained amounts: bothDay10₦50; regularDay20 no-video-ad day/premium₦100; regularDay30₦100/premium₦200. See versioned rulebook for precedence over stale PRD tables.
 
@@ -157,3 +157,5 @@ For each implementation record tested commit, migration count/version, exact CI 
 - Telegram invoice/payment/refund/webhook objects: https://core.telegram.org/bots/api
 - Render Key Value persistence/eviction/restart behavior: https://render.com/docs/key-value
 - Existing sponsor design records official YouTube/Telegram action-specific sources. Recheck current official docs when implementing adapters; never infer undocumented provider fields from this handoff.
+
+The repository root AGENTS.md points agents to this handoff. Start from development after the reviewed PR18 scope is merged; verify the actual PR/base/head state before assuming that merge happened.

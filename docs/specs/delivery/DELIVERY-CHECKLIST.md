@@ -36,7 +36,8 @@ Reviewed25 October2026 against stage05 runtime c37671022378bd4c78413a2d78e3979bc
 - [x] 07 delivery CI acceptance: PostgreSQL18/Redis run40222049782 passed298 backend tests across35 suites on runtimed96c57a74bf2e98511420de5e20e6faa559258cd, including two gateways, subscriber-loss/SQL catch-up/reconnect, stale leases, domain/privacy, ACK recovery and slow-client fairness. Hosted/frontend/full-ranked acceptance remains open.
 - [x] 07 ranked admission and Redis queue core implemented: durable reservations/starts, daily3/cooldown/pair2, fenced rotating matching and SQL-first offers; eighth migration and flags required.
 - [x] 07 ranked CI acceptance: PostgreSQL18/Redis run40232140327 passed323 backend tests across38 suites on runtime6fb09d4cbdc1f261e33efafadc6c41d67d188e40, including quota/pair/cooldown/midnight, ten workers, stale-owner/crash gaps and actual two-client queue/offer/start/play. All eight migrations deployed twice. Full-stage/hosted/frontend/load/result acceptance remains open.
-- [ ] 08: Real streak milestone credits/ad-free rewards and referral qualification/points.
+- [x] 08A backend: versioned persistent cycles, atomic milestone ledger/ad-free claims, source receipts and SQL/HTTP acceptance; default-off activation.
+- [ ] 08 remaining: authenticated ad recovery, referral qualification/points, frontend, continuity and provider/device/release acceptance.
 - [ ] 09: Telegram Stars order/payment/refund lifecycle verified with staging bot.
 - [ ] 10: Airtime delivery, ambiguous-result reconciliation, refunds, caps and float operations.
 - [ ] 11: Eligible leaderboard snapshots, reviewed prize settlement and operational controls.
@@ -119,3 +120,7 @@ Migration 2026102701_rotating_tasks records the next Lagos midnight as immutable
 ### Next in build order
 
 Stage08: streak milestones/ad-free grants and referral qualification/reward consumption. Telegram Stars payments/refunds, verified ads, airtime delivery/reconciliation, full prize/leaderboard operations and end-to-end release gates remain separate unfinished stages. This task updates qualification progress readers; it does not award referral cash/points or pay prizes.
+
+## Stage08A backend acceptance — 27 October 2026
+
+Runtime `9e987124ab70aa39fdfc99674dc8667b68018aac`, [Verify40561089985](https://github.com/Wisdom2788/CASH-DEY-PLAY/actions/runs/40561089985): 407 backend tests/43 suites,37 frontend tests, 11 migrations deployed twice, no SQL/Redis skips and zero ledger mismatches. Claims use real authenticated HTTP→SQL→ledger→wallet tests, regular 24/25 normal-practice validation, concurrency/idempotency/tier/reset/expiry and fault injection. Existing Chromium/WebKit and live SQL/Redis ranked regression passed. Both Vercel preview checks and CodeRabbit passed. The new streak frontend, real ad recovery, referrals, providers and production cutover remain unchecked. Detailed current scope:08-persistent-claims-design.md; continuation:INTEGRATIONS-AND-AGENT-HANDOFF.md.

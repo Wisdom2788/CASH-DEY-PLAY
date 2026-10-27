@@ -33,3 +33,9 @@ Migration snapshots legacy counters/claim flags without deleting or re-crediting
 ## Acceptance required for this slice
 
 Disposable PostgreSQL: all migrations twice; snapshot preservation; concurrent first login/same-day recording; early reset; Day 10 recovery pending without progress; elapsed window; both tier tables; current tier expiry; Day 30 24/25 practice gate; same/different-key races; payload conflict; cross-user cycle denial; exact Lagos expiry and replay; ledger balance/reconciliation; ad-free expiry/tier isolation; injected failures at claim/audit/ledger/request/outbox writes; immutable history. HTTP tests cover authentication, strict payloads, actor binding and disabled/retired routes. Record actual results separately; this list is not a pass certificate.
+
+## Accepted backend scope
+
+Runtime `9e987124ab70aa39fdfc99674dc8667b68018aac` passed [Verify40561089985](https://github.com/Wisdom2788/CASH-DEY-PLAY/actions/runs/40561089985): 407 backend/37 frontend tests, 11 migrations twice, zero ledger mismatch counts, required dependency audits/typechecks/lint/build and existing ranked SQL/Redis/browser regressions. Streak SQL/HTTP acceptance covers the scenarios above, including real normal-practice sources and concurrent standalone ledger composition. API expiry timestamps are precise UTC ISO strings. Mutations select the shared limiter once, including case variants matching Express routing, and cannot fall back to a read-only local limiter.
+
+This is backend-slice acceptance only. Frontend streak journey, verified-ad recovery, referral awards, production continuity/restore/rollout and provider/device checks remain gates. No live feature was enabled.
