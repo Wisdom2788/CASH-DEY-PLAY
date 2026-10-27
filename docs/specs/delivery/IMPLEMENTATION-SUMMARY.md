@@ -1,5 +1,15 @@
 # Cumulative implementation summary
 
+## Stage08 and sponsored-task planning — 27 October 2026
+
+- [x] Document proposed sponsor/editorial expansion, supported verification boundaries, provider policy findings, budget/anti-replay flow and acceptance plan in 04-sponsored-task-campaigns-design.md. This is design work, not a shipped integration.
+- [x] Identify stage08 business decisions and describe their trade-offs in 08-rewards-decision-draft.md.
+- [ ] Record owner selections for cycle/grace, unlocked-claim expiry and cross-tier first-milestone identity before implementing airtime-credit claims.
+- [ ] Implement and verify stage08 milestones/ad-free grants and referral reward consumption.
+- [ ] Implement editorial campaign controls, real verification adapters, funded sponsor budgets and sponsor/device acceptance.
+
+Existing PR17 implementation/acceptance remains the last tested runtime; these planning documents introduce no runtime or production change.
+
 ## Rotating daily tasks — 27 October 2026
 
 - [x] Design shared daily rotation, trusted settled-event progress, 200-point budget and midnight cutover; see 04-rotating-tasks-design.md.
