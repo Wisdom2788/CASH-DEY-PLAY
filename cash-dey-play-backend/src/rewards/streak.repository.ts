@@ -20,7 +20,7 @@ export class StreakError extends Error {
   constructor(readonly code:'NOT_FOUND'|'CONFLICT'|'EXPIRED'|'NOT_UNLOCKED'|'PRACTICE_TARGET') { super(code); }
 }
 const columns=`id,user_id,rule_version,start_date::text,last_completed_date::text,
-  ends_at::text,recovery_used,closed_reason`;
+  to_char(ends_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS ends_at,recovery_used,closed_reason`;
 const asPolicy=(c:CycleRow):StreakCycle=>({ruleVersion:c.rule_version,startDate:c.start_date,
   lastCompletedDate:c.last_completed_date,recoveryUsed:c.recovery_used});
 
@@ -127,7 +127,7 @@ export class StreakRepository {
         if(day===20&&!entitlement.isPremium) {
           const grant=await c.query<{expires_at:string}>(`INSERT INTO ad_free_days(user_id,valid_on,starts_at) VALUES($1,$2,$3)
             ON CONFLICT(user_id,valid_on) DO UPDATE SET starts_at=least(ad_free_days.starts_at,EXCLUDED.starts_at)
-            RETURNING expires_at::text`,[userId,at.today,at.now]);
+            RETURNING to_char(expires_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS expires_at`,[userId,at.today,at.now]);
           response={cycleId,milestone:day,tier,kind:'AD_FREE',amountKobo:'0',expiresAt:grant.rows[0]!.expires_at};
           await c.query('INSERT INTO reward_audit_events(user_id,event_type,amount_kobo,reason,triggering_rule) VALUES($1,$2,NULL,$3,$4)',
             [userId,'STREAK_AD_FREE_CLAIMED',`${cycleId}:${day}`,STREAK_RULE_VERSION]);

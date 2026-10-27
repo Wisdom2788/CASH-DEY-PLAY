@@ -55,6 +55,7 @@ suite('versioned streak cycles and transactional claims on PostgreSQL',()=>{
   it('records concurrent first/same-day logins exactly once without granting anything',async()=>{
     const results=await Promise.all(Array.from({length:10},()=>rewards.recordLogin('tg_123')));
     expect(new Set(results.map(r=>r.cycle.id)).size).toBe(1);
+    expect(results[0]!.cycle.ends_at).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{6}Z$/);
     expect((await pool.query('SELECT count(*)::int AS n FROM streak_login_dates')).rows[0].n).toBe(1);
     expect((await rewards.progress('tg_123')).milestones.every(m=>!m.claimable)).toBe(true);
     expect(await new LedgerRepository(pool).availableKobo('tg_123')).toBe('0');
@@ -112,6 +113,7 @@ suite('versioned streak cycles and transactional claims on PostgreSQL',()=>{
   it('grants regular Day20 only until next Lagos midnight without premium privileges',async()=>{
     const id=await fixture(20);const receipt=await rewards.claim('tg_123',id,20,'ad-free-request');
     expect(receipt).toMatchObject({kind:'AD_FREE',amountKobo:'0',tier:'REGULAR'});
+    expect(receipt.expiresAt).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{6}Z$/);
     const at=(await pool.query('SELECT clock_timestamp() AS t')).rows[0].t;
     expect(await loadEntitlements(pool,'tg_123',at)).toMatchObject({adFree:true,isPremium:false});
     expect((await loadEntitlements(pool,'tg_123',new Date(receipt.expiresAt!))).adFree).toBe(false);
