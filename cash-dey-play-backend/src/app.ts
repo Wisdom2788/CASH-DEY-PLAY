@@ -109,7 +109,7 @@ export function createApp(dependencies: AppDependencies): Express {
   const streakMutationLimit=createRateLimitMiddleware({store:dependencies.mutationRateLimitStore??dependencies.rateLimitStore,
     maxRequests:dependencies.userRequestsPerMinute,windowSeconds:60,scope:"user"});
   app.use((req,res,next)=>{
-    const protectedMutation=req.method!=="GET"&&/^\/api\/streak(?:\/|$)/.test(req.path);
+    const protectedMutation=req.method!=="GET"&&/^\/api\/streak(?:\/|$)/i.test(req.path);
     return (protectedMutation?streakMutationLimit:generalUserLimit)(req,res,next);
   });
 

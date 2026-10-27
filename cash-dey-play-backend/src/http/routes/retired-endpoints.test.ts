@@ -1,6 +1,7 @@
 import request from "supertest";
 import { createApp } from "../../app";
-import { MemoryRateLimitCounterStore } from "../middleware/rate-limit.middleware";
+import { MemoryRateLimitCounterStore, type RateLimitCounterStore } from "../middleware/rate-limit.middleware";
+import { ServiceUnavailableError } from '../errors/http-errors';
 import { buildSignedTelegramInitData } from "../telegram/verify-telegram-init-data";
 
 const BOT_TOKEN = "retired-endpoints-test-bot-token";
@@ -14,7 +15,7 @@ function signedHeaders(): Record<string, string> {
   return { "X-Telegram-Init-Data": initData };
 }
 
-function buildTestApp(streakRewardsEnabled=false) {
+function buildTestApp(streakRewardsEnabled=false,mutationStore?:RateLimitCounterStore) {
   const poolQuery = jest.fn().mockResolvedValue({ rows: [{expires_at:null,ad_free:false}], rowCount: 1 });
   const recordMatchResult = jest.fn();
   const rateLimitStore=new MemoryRateLimitCounterStore();
@@ -32,6 +33,7 @@ function buildTestApp(streakRewardsEnabled=false) {
     corsOrigin: "http://localhost:5173",
     allowDevAuthBypass: false,
     rateLimitStore,
+    ...(mutationStore?{mutationRateLimitStore:mutationStore}:{}),
     userRequestsPerMinute: 60,
     ipRequestsPerMinute: 120,
   });
@@ -39,6 +41,13 @@ function buildTestApp(streakRewardsEnabled=false) {
 }
 
 describe("endpoints that let the client grant itself rewards are retired", () => {
+  it.each(['/api/streak/login','/API/STREAK/login'])('fails closed on shared-store loss for %s without using the read fallback',async path=>{
+    const increment=jest.fn().mockRejectedValue(new ServiceUnavailableError('Shared store unavailable'));
+    const {app,rateLimitStore,poolQuery}=buildTestApp(true,{increment});
+    const general=jest.spyOn(rateLimitStore,'increment');
+    expect((await request(app).post(path).set(signedHeaders()).send({})).status).toBe(503);
+    expect(increment).toHaveBeenCalledTimes(1);expect(general).not.toHaveBeenCalled();expect(poolQuery).not.toHaveBeenCalled();
+  });
   it('counts a streak mutation once in the user rate-limit window',async()=>{
     const {app,rateLimitStore}=buildTestApp();const increment=jest.spyOn(rateLimitStore,'increment');
     expect((await request(app).post('/api/streak/login').set(signedHeaders()).send({})).status).toBe(503);
